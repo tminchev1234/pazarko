@@ -675,7 +675,7 @@ a { color: inherit; text-decoration: none; }
     <div>
       <div class="thermo-label">Потребителска кошница (30 стоки)</div>
       <div class="thermo-value" id="thermoTotal">—</div>
-      <div class="thermo-sub">текущо лв.</div>
+      <div class="thermo-sub">текущо €</div>
     </div>
     <div>
       <div class="thermo-label">Спрямо миналия месец</div>
@@ -861,6 +861,14 @@ const STORE_COLORS = {
   metro: '#003087', tmarket: '#e67e22',
 };
 
+// ── Валута: всички цени в БД са в лева (BGN), показваме EUR ──────────────
+// Официален фиксиран курс при влизане в еврозоната: 1 EUR = 1.9558 BGN
+const BGN_TO_EUR = 1 / 1.9558;
+function eur(bgn) {
+  if (!bgn && bgn !== 0) return '';
+  return (parseFloat(bgn) * BGN_TO_EUR).toFixed(2) + ' €';
+}
+
 // ── Search ──────────────────────────────────────────────────────
 function quickSearch(q) {
   document.getElementById('searchInput').value = q;
@@ -934,12 +942,12 @@ function buildProductCard(p) {
   const priceRows = prices.map((pr, i) => `
     <div class="pc-price-row ${i === 0 ? 'cheapest' : ''}">
       <span class="pc-store-name">${storeLabel(pr.store)}</span>
-      <span class="pc-price-val ${i === 0 ? 'cheapest' : ''}">${pr.price.toFixed(2)} лв.</span>
+      <span class="pc-price-val ${i === 0 ? 'cheapest' : ''}">${eur(pr.price)}</span>
     </div>
   `).join('');
 
   const savingsHtml = p.savings > 0
-    ? `<div class="pc-savings">Спести до <strong>${p.savings.toFixed(2)} лв.</strong> при ${storeLabel(p.best_store)}</div>`
+    ? `<div class="pc-savings">Спести до <strong>${eur(p.savings)}</strong> при ${storeLabel(p.best_store)}</div>`
     : '';
 
   return `
@@ -1126,7 +1134,7 @@ function buildKauflandCard(o) {
     ? `<span class="kauf-discount-badge">-${o.discount_pct}%</span>`
     : (o.discount ? `<span class="kauf-discount-badge">${o.discount}</span>` : '');
   const oldPriceHtml = hasDeal
-    ? `<span class="kauf-old-price">${parseFloat(o.old_price).toFixed(2)} лв.</span>`
+    ? `<span class="kauf-old-price">${eur(o.old_price)}</span>`
     : '';
   const imgHtml = o.image_url
     ? `<img class="kauf-img" src="${o.image_url}" alt="" onerror="this.style.display='none'">`
@@ -1149,7 +1157,7 @@ function buildKauflandCard(o) {
       ${o.description ? `<div class="kauf-desc">${o.description}</div>` : ''}
       ${o.unit ? `<div class="kauf-unit">${o.unit}</div>` : ''}
       <div class="kauf-price-row">
-        <span class="kauf-price">${parseFloat(o.price).toFixed(2)} лв.</span>
+        <span class="kauf-price">${eur(o.price)}</span>
         ${oldPriceHtml}
         ${discBadge}
       </div>
@@ -1206,7 +1214,7 @@ async function loadThermometer() {
     const d   = await res.json();
 
     document.getElementById('thermoTotal').textContent =
-      d.current_total ? `${d.current_total.toFixed(2)} лв.` : '—';
+      d.current_total ? eur(d.current_total) : '—';
 
     const momEl = document.getElementById('thermoMoM');
     momEl.textContent = d.mom_pct !== 0 ? `${d.mom_pct > 0 ? '+' : ''}${d.mom_pct}%` : '—';
@@ -1246,7 +1254,7 @@ async function openProduct(id) {
                   border:1px solid ${i === 0 ? 'rgba(21,128,61,.2)' : 'transparent'}">
         <span style="color:var(--text2);font-size:14px">${storeLabel(pr.store)}</span>
         <div style="text-align:right">
-          <div style="font-weight:700;font-size:16px;color:${i === 0 ? 'var(--green)' : 'var(--text)'}">${pr.price.toFixed(2)} лв.</div>
+          <div style="font-weight:700;font-size:16px;color:${i === 0 ? 'var(--green)' : 'var(--text)'}">${eur(pr.price)}</div>
           ${pr.unit ? `<div style="font-size:11px;color:var(--text3)">${pr.unit}</div>` : ''}
           ${pr.url  ? `<a href="${pr.url}" target="_blank" style="font-size:11px;color:var(--blue)" rel="noopener">→ Виж в магазина</a>` : ''}
         </div>
@@ -1261,7 +1269,7 @@ async function openProduct(id) {
       ${p.savings > 0 ? `
         <div style="margin-top:16px;padding:14px;background:var(--green-dim);
                     border:1px solid rgba(21,128,61,.2);border-radius:var(--radius-sm);font-size:14px">
-          💡 Спести до <strong style="color:var(--green)">${p.savings.toFixed(2)} лв.</strong>
+          💡 Спести до <strong style="color:var(--green)">${eur(p.savings)}</strong>
           като купиш в <strong>${storeLabel(p.best_store)}</strong>
         </div>
       ` : ''}
