@@ -9,8 +9,9 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # Supabase
-    supabase_url: str = os.getenv("SUPABASE_URL", "")
-    supabase_key: str = os.getenv("SUPABASE_KEY", "")
+    supabase_url:         str = os.getenv("SUPABASE_URL", "")
+    supabase_key:         str = os.getenv("SUPABASE_KEY", "")
+    supabase_service_key: str = os.getenv("SUPABASE_SERVICE_KEY", "")
 
     # Anthropic
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")

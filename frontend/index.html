@@ -8,35 +8,46 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-/* ── Reset & Base ──────────────────────────────────────────── */
+/* ── Reset & Base ───────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:        #0a0a0f;
-  --bg2:       #111118;
-  --bg3:       #1a1a24;
-  --border:    rgba(255,255,255,.08);
-  --border2:   rgba(255,255,255,.14);
-  --text:      #f0f0f5;
-  --text2:     #9898aa;
-  --text3:     #5a5a70;
+  /* Backgrounds */
+  --bg:        #f5f5f7;
+  --bg2:       #ffffff;
+  --bg3:       #f0f0f3;
+  --bg4:       #e8e8ec;
 
-  --green:     #22c55e;
-  --green-dim: rgba(34,197,94,.12);
-  --red:       #ef4444;
-  --red-dim:   rgba(239,68,68,.12);
-  --amber:     #f59e0b;
-  --blue:      #3b82f6;
-  --purple:    #a855f7;
+  /* Borders */
+  --border:    rgba(0,0,0,.07);
+  --border2:   rgba(0,0,0,.12);
 
-  /* brand gradient */
-  --g1: #22c55e;
-  --g2: #3b82f6;
+  /* Text */
+  --text:      #1d1d1f;
+  --text2:     #6e6e73;
+  --text3:     #aeaeb2;
+
+  /* Brand colours */
+  --green:     #15803d;
+  --green-mid: #16a34a;
+  --green-dim: rgba(21,128,61,.1);
+  --red:       #dc2626;
+  --red-dim:   rgba(220,38,38,.1);
+  --amber:     #d97706;
+  --blue:      #2563eb;
+  --purple:    #7c3aed;
+
+  /* Gradient */
+  --g1:   #16a34a;
+  --g2:   #2563eb;
   --grad: linear-gradient(135deg, var(--g1), var(--g2));
 
+  /* Shape */
   --radius:    14px;
   --radius-sm: 8px;
-  --shadow:    0 4px 24px rgba(0,0,0,.5);
+  --shadow-sm: 0 1px 4px rgba(0,0,0,.06);
+  --shadow:    0 4px 20px rgba(0,0,0,.08);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,.12);
 }
 
 html { scroll-behavior: smooth; }
@@ -52,7 +63,7 @@ body {
 
 a { color: inherit; text-decoration: none; }
 
-/* ── Typography ───────────────────────────────────────────── */
+/* ── Typography ────────────────────────────────────────────── */
 .grad-text {
   background: var(--grad);
   -webkit-background-clip: text;
@@ -60,16 +71,18 @@ a { color: inherit; text-decoration: none; }
   background-clip: text;
 }
 
-/* ── Layout ───────────────────────────────────────────────── */
+/* ── Layout ────────────────────────────────────────────────── */
 .container { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
 
-/* ── NAV ──────────────────────────────────────────────────── */
+/* ── NAV ───────────────────────────────────────────────────── */
 .nav {
   position: sticky; top: 0; z-index: 100;
-  background: rgba(10,10,15,.88);
+  background: rgba(255,255,255,.92);
   backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-bottom: 1px solid var(--border);
   padding: 0 20px;
+  box-shadow: var(--shadow-sm);
 }
 .nav-inner {
   max-width: 1120px; margin: 0 auto;
@@ -78,107 +91,120 @@ a { color: inherit; text-decoration: none; }
 }
 .nav-logo {
   font-size: 22px; font-weight: 800; letter-spacing: -.5px;
-  cursor: pointer;
+  cursor: pointer; color: var(--text);
 }
-.nav-logo span { color: var(--green); }
+.nav-logo span { color: var(--green-mid); }
 .nav-links { display: flex; gap: 6px; margin-left: auto; }
 .nav-link {
   padding: 7px 14px; border-radius: var(--radius-sm);
   font-size: 14px; color: var(--text2); cursor: pointer;
   transition: all .15s;
 }
-.nav-link:hover { color: var(--text); background: var(--bg3); }
-.nav-link.active { color: var(--text); background: var(--bg3); }
+.nav-link:hover  { color: var(--text); background: var(--bg3); }
+.nav-link.active { color: var(--green); background: var(--green-dim); font-weight: 500; }
 .nav-cta {
   padding: 8px 18px; border-radius: var(--radius-sm);
-  background: var(--green); color: #000;
+  background: var(--green-mid); color: #fff;
   font-size: 14px; font-weight: 600; cursor: pointer;
   transition: all .15s; border: none;
 }
-.nav-cta:hover { opacity: .88; transform: translateY(-1px); }
+.nav-cta:hover { background: var(--green); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(22,163,74,.3); }
 
-/* ── HERO ─────────────────────────────────────────────────── */
+/* ── HERO ──────────────────────────────────────────────────── */
 .hero {
   padding: 80px 20px 60px;
   text-align: center;
 }
 .hero-badge {
   display: inline-flex; align-items: center; gap: 8px;
-  padding: 6px 14px; border-radius: 100px;
-  border: 1px solid rgba(34,197,94,.3);
-  background: rgba(34,197,94,.08);
-  font-size: 13px; color: var(--green);
+  padding: 6px 16px; border-radius: 100px;
+  border: 1px solid rgba(21,128,61,.25);
+  background: rgba(21,128,61,.07);
+  font-size: 13px; color: var(--green); font-weight: 500;
   margin-bottom: 28px;
 }
-.hero-badge::before { content: '●'; font-size: 8px; }
+.hero-badge::before { content: '●'; font-size: 7px; }
 .hero h1 {
   font-size: clamp(36px, 6vw, 64px);
   font-weight: 800; letter-spacing: -2px;
   line-height: 1.1; margin-bottom: 20px;
+  color: var(--text);
 }
 .hero-sub {
-  font-size: clamp(16px, 2vw, 20px);
-  color: var(--text2); max-width: 560px; margin: 0 auto 40px;
+  font-size: clamp(16px, 2vw, 19px);
+  color: var(--text2); max-width: 540px; margin: 0 auto 40px;
 }
 
-/* ── SEARCH BAR ───────────────────────────────────────────── */
+/* ── SEARCH BAR ────────────────────────────────────────────── */
 .search-wrap {
   max-width: 620px; margin: 0 auto 16px;
   position: relative;
 }
 .search-input {
   width: 100%; padding: 18px 60px 18px 56px;
-  background: var(--bg3); border: 1.5px solid var(--border2);
-  border-radius: 100px; color: var(--text);
+  background: var(--bg2);
+  border: 1.5px solid var(--border2);
+  border-radius: 100px;
+  color: var(--text);
   font-size: 16px; font-family: inherit;
-  outline: none; transition: border-color .2s;
+  outline: none; transition: all .2s;
+  box-shadow: var(--shadow);
 }
 .search-input::placeholder { color: var(--text3); }
-.search-input:focus { border-color: var(--green); }
+.search-input:focus {
+  border-color: var(--green-mid);
+  box-shadow: 0 0 0 4px rgba(22,163,74,.12), var(--shadow);
+}
 .search-icon {
   position: absolute; left: 22px; top: 50%; transform: translateY(-50%);
   color: var(--text3); font-size: 18px; pointer-events: none;
 }
 .search-btn {
-  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-  padding: 10px 22px; border-radius: 100px;
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  padding: 11px 22px; border-radius: 100px;
   background: var(--grad); border: none; color: #fff;
   font-size: 14px; font-weight: 600; cursor: pointer;
   transition: opacity .15s;
 }
-.search-btn:hover { opacity: .85; }
+.search-btn:hover { opacity: .88; }
 .search-hints {
   display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;
-  font-size: 13px;
+  font-size: 13px; margin-top: 4px;
 }
 .search-hint {
-  padding: 5px 12px; border-radius: 100px;
-  background: var(--bg3); border: 1px solid var(--border);
+  padding: 6px 14px; border-radius: 100px;
+  background: var(--bg2); border: 1px solid var(--border2);
   color: var(--text2); cursor: pointer; transition: all .15s;
+  box-shadow: var(--shadow-sm);
 }
-.search-hint:hover { border-color: var(--green); color: var(--green); }
+.search-hint:hover {
+  border-color: var(--green-mid); color: var(--green);
+  background: var(--green-dim);
+}
 
-/* ── STORE LOGOS BAR ──────────────────────────────────────── */
+/* ── STORE CHIPS ───────────────────────────────────────────── */
 .stores-bar {
-  display: flex; gap: 12px; justify-content: center;
+  display: flex; gap: 10px; justify-content: center;
   align-items: center; margin: 48px 0 0;
   flex-wrap: wrap;
 }
 .store-chip {
   display: flex; align-items: center; gap: 8px;
   padding: 8px 16px; border-radius: var(--radius-sm);
-  background: var(--bg3); border: 1px solid var(--border);
+  background: var(--bg2); border: 1.5px solid var(--border);
   font-size: 13px; font-weight: 500; color: var(--text2);
-  cursor: pointer; transition: all .2s;
+  cursor: pointer; transition: all .18s;
+  box-shadow: var(--shadow-sm);
 }
-.store-chip:hover { border-color: var(--border2); color: var(--text); }
-.store-chip.active { border-color: var(--green); color: var(--green); background: var(--green-dim); }
-.store-dot { width: 8px; height: 8px; border-radius: 50%; }
+.store-chip:hover { border-color: var(--border2); color: var(--text); box-shadow: var(--shadow); }
+.store-chip.active {
+  border-color: var(--green-mid); color: var(--green);
+  background: var(--green-dim); font-weight: 600;
+}
+.store-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
-/* ── INFLATION THERMOMETER ────────────────────────────────── */
-.thermo-section {
-  padding: 0 20px 60px;
-}
+/* ── INFLATION THERMOMETER ─────────────────────────────────── */
+.thermo-section { padding: 0 20px 60px; }
 .thermo-card {
   max-width: 1120px; margin: 0 auto;
   background: var(--bg2);
@@ -187,15 +213,14 @@ a { color: inherit; text-decoration: none; }
   padding: 32px 40px;
   display: grid; grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 24px; align-items: center;
+  box-shadow: var(--shadow);
 }
 .thermo-label {
   font-size: 12px; text-transform: uppercase; letter-spacing: .8px;
-  color: var(--text3); margin-bottom: 6px;
+  color: var(--text3); margin-bottom: 6px; font-weight: 500;
 }
-.thermo-value {
-  font-size: 36px; font-weight: 800; letter-spacing: -1px;
-}
-.thermo-sub { font-size: 13px; color: var(--text2); margin-top: 4px; }
+.thermo-value { font-size: 36px; font-weight: 800; letter-spacing: -1px; }
+.thermo-sub   { font-size: 13px; color: var(--text2); margin-top: 4px; }
 .thermo-hot    { color: var(--red); }
 .thermo-warm   { color: var(--amber); }
 .thermo-neutral{ color: var(--text2); }
@@ -204,36 +229,34 @@ a { color: inherit; text-decoration: none; }
 
 .thermo-bar-wrap {
   grid-column: 1 / -1;
-  height: 8px; background: var(--bg3); border-radius: 100px;
+  height: 6px; background: var(--bg3); border-radius: 100px;
   overflow: hidden; margin-top: 8px;
 }
 .thermo-bar-fill {
   height: 100%; border-radius: 100px;
   background: var(--grad);
-  transition: width 1s ease;
+  transition: width 1.2s cubic-bezier(.4,0,.2,1);
 }
 
-/* ── MAIN CONTENT ─────────────────────────────────────────── */
-.main-content {
-  padding: 0 20px 80px;
-}
-.main-inner { max-width: 1120px; margin: 0 auto; }
+/* ── MAIN CONTENT ──────────────────────────────────────────── */
+.main-content { padding: 0 20px 80px; }
+.main-inner   { max-width: 1120px; margin: 0 auto; }
 
-/* ── TABS ─────────────────────────────────────────────────── */
+/* ── TABS ──────────────────────────────────────────────────── */
 .tabs {
   display: flex; gap: 4px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1.5px solid var(--border);
   margin-bottom: 32px;
 }
 .tab {
   padding: 12px 20px; font-size: 14px; font-weight: 500;
   color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent;
-  margin-bottom: -1px; transition: all .15s;
+  margin-bottom: -1.5px; transition: all .15s;
 }
 .tab:hover { color: var(--text); }
-.tab.active { color: var(--green); border-bottom-color: var(--green); }
+.tab.active { color: var(--green); border-bottom-color: var(--green-mid); font-weight: 600; }
 
-/* ── RESULTS GRID ─────────────────────────────────────────── */
+/* ── RESULTS GRID ──────────────────────────────────────────── */
 .results-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -241,51 +264,51 @@ a { color: inherit; text-decoration: none; }
 }
 .product-card {
   background: var(--bg2);
-  border: 1px solid var(--border);
+  border: 1.5px solid var(--border);
   border-radius: var(--radius);
   padding: 20px;
   cursor: pointer;
   transition: all .2s;
   position: relative; overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 .product-card:hover {
   border-color: var(--border2);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow);
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+}
+.product-card.best-deal {
+  border-color: rgba(21,128,61,.3);
+  background: linear-gradient(145deg, #fff 0%, rgba(21,128,61,.04) 100%);
 }
 .product-card.best-deal::before {
   content: 'Най-изгодно';
   position: absolute; top: 12px; right: 12px;
   background: var(--green-dim); color: var(--green);
-  border: 1px solid rgba(34,197,94,.3);
+  border: 1px solid rgba(21,128,61,.25);
   font-size: 11px; font-weight: 600; padding: 3px 8px;
   border-radius: 100px;
 }
 .pc-img {
   width: 64px; height: 64px; object-fit: contain;
   margin-bottom: 12px; border-radius: 8px;
-  background: var(--bg3);
+  background: var(--bg3); padding: 4px;
 }
 .pc-category {
   font-size: 11px; text-transform: uppercase; letter-spacing: .6px;
-  color: var(--text3); margin-bottom: 6px;
+  color: var(--text3); margin-bottom: 6px; font-weight: 500;
 }
-.pc-name {
-  font-size: 15px; font-weight: 600; margin-bottom: 4px;
-  line-height: 1.3;
-}
+.pc-name  { font-size: 15px; font-weight: 600; margin-bottom: 4px; line-height: 1.3; }
 .pc-brand { font-size: 13px; color: var(--text2); margin-bottom: 12px; }
-.pc-prices {
-  display: flex; flex-direction: column; gap: 6px;
-}
+.pc-prices { display: flex; flex-direction: column; gap: 6px; }
 .pc-price-row {
   display: flex; justify-content: space-between; align-items: center;
   padding: 6px 10px; border-radius: var(--radius-sm);
   background: var(--bg3);
 }
-.pc-price-row.cheapest { background: var(--green-dim); }
+.pc-price-row.cheapest { background: var(--green-dim); border: 1px solid rgba(21,128,61,.15); }
 .pc-store-name { font-size: 13px; color: var(--text2); }
-.pc-price-val  { font-size: 15px; font-weight: 700; }
+.pc-price-val  { font-size: 15px; font-weight: 700; color: var(--text); }
 .pc-price-val.cheapest { color: var(--green); }
 .pc-savings {
   margin-top: 10px; padding-top: 10px;
@@ -294,46 +317,122 @@ a { color: inherit; text-decoration: none; }
 }
 .pc-savings strong { color: var(--green); }
 
-/* ── EMPTY / LOADING ──────────────────────────────────────── */
+/* ── DEAL BADGE ────────────────────────────────────────────── */
+.deal-badge {
+  display: inline-block;
+  background: var(--red-dim); color: var(--red);
+  border: 1px solid rgba(220,38,38,.2);
+  font-size: 11px; font-weight: 700;
+  padding: 2px 7px; border-radius: 100px;
+  margin-left: 6px;
+}
+
+/* ── KAUFLAND OFFER CARD ───────────────────────────────────── */
+.kauf-card {
+  background: var(--bg2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  cursor: pointer;
+  transition: all .2s;
+  display: flex; flex-direction: column; gap: 10px;
+  box-shadow: var(--shadow-sm);
+  position: relative; overflow: hidden;
+}
+.kauf-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: var(--border2); }
+.kauf-card.on-sale { border-color: rgba(220,38,38,.25); }
+.kauf-card.on-sale::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--red), var(--amber));
+}
+.kauf-img {
+  width: 72px; height: 72px; object-fit: contain;
+  border-radius: 8px; background: var(--bg3); padding: 4px;
+  align-self: center;
+}
+.kauf-name  { font-size: 14px; font-weight: 600; line-height: 1.3; }
+.kauf-desc  { font-size: 12px; color: var(--text2); }
+.kauf-unit  { font-size: 12px; color: var(--text3); }
+.kauf-price-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.kauf-price {
+  font-size: 22px; font-weight: 800;
+  color: var(--green); letter-spacing: -.5px;
+}
+.kauf-old-price {
+  font-size: 14px; color: var(--text3);
+  text-decoration: line-through;
+}
+.kauf-discount-badge {
+  background: var(--red-dim); color: var(--red);
+  border: 1px solid rgba(220,38,38,.2);
+  font-size: 11px; font-weight: 700;
+  padding: 2px 7px; border-radius: 100px;
+}
+.kauf-category {
+  font-size: 11px; color: var(--text3); text-transform: uppercase;
+  letter-spacing: .5px; font-weight: 500;
+}
+.kauf-link {
+  font-size: 12px; color: var(--blue);
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-top: 2px;
+}
+.kauf-link:hover { text-decoration: underline; }
+
+/* ── CATEGORY FILTER BAR ───────────────────────────────────── */
+.cat-filter-bar {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px;
+}
+.cat-chip {
+  padding: 6px 14px; border-radius: 100px;
+  background: var(--bg2); border: 1.5px solid var(--border);
+  font-size: 13px; font-weight: 500; color: var(--text2);
+  cursor: pointer; transition: all .15s;
+  box-shadow: var(--shadow-sm);
+}
+.cat-chip:hover { border-color: var(--border2); color: var(--text); }
+.cat-chip.active { border-color: var(--green-mid); color: var(--green); background: var(--green-dim); }
+
+/* ── EMPTY / LOADING ───────────────────────────────────────── */
 .placeholder {
   text-align: center; padding: 80px 20px; color: var(--text3);
 }
 .placeholder-icon { font-size: 48px; margin-bottom: 16px; }
 .placeholder h3 { font-size: 18px; color: var(--text2); margin-bottom: 8px; }
+.placeholder p  { font-size: 14px; }
 
-.loading-dots {
-  display: inline-flex; gap: 4px;
-}
+.loading-dots { display: inline-flex; gap: 4px; }
 .loading-dots span {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--green);
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green-mid);
   animation: dot-bounce .6s infinite alternate;
 }
 .loading-dots span:nth-child(2) { animation-delay: .2s; }
 .loading-dots span:nth-child(3) { animation-delay: .4s; }
 
-@keyframes dot-bounce {
-  to { transform: translateY(-6px); opacity: .4; }
-}
+@keyframes dot-bounce { to { transform: translateY(-7px); opacity: .3; } }
 
-/* ── AI CHAT ─────────────────────────────────────────────────── */
+/* ── AI CHAT FAB ───────────────────────────────────────────── */
 .chat-fab {
   position: fixed; bottom: 28px; right: 28px; z-index: 200;
   width: 56px; height: 56px; border-radius: 50%;
   background: var(--grad); border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  font-size: 22px; box-shadow: 0 8px 32px rgba(34,197,94,.4);
+  font-size: 22px;
+  box-shadow: 0 8px 28px rgba(22,163,74,.35);
   transition: all .2s;
 }
-.chat-fab:hover { transform: scale(1.08); }
+.chat-fab:hover { transform: scale(1.08); box-shadow: 0 12px 36px rgba(22,163,74,.45); }
 
+/* ── CHAT PANEL ────────────────────────────────────────────── */
 .chat-panel {
   position: fixed; bottom: 100px; right: 28px; z-index: 200;
   width: 380px; max-height: 560px;
-  background: var(--bg2); border: 1px solid var(--border2);
-  border-radius: var(--radius); overflow: hidden;
-  display: flex; flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0,0,0,.7);
+  background: var(--bg2);
+  border: 1.5px solid var(--border2);
+  border-radius: var(--radius);
+  overflow: hidden; display: flex; flex-direction: column;
+  box-shadow: var(--shadow-lg);
   transform: scale(0.9) translateY(20px);
   opacity: 0; pointer-events: none;
   transform-origin: bottom right;
@@ -347,6 +446,7 @@ a { color: inherit; text-decoration: none; }
   padding: 16px 20px;
   display: flex; align-items: center; gap: 12px;
   border-bottom: 1px solid var(--border);
+  background: var(--bg2);
 }
 .chat-avatar {
   width: 36px; height: 36px; border-radius: 50%;
@@ -354,15 +454,19 @@ a { color: inherit; text-decoration: none; }
   display: flex; align-items: center; justify-content: center;
   font-size: 16px;
 }
-.chat-hdr-name { font-weight: 600; font-size: 15px; }
-.chat-hdr-sub  { font-size: 12px; color: var(--green); }
+.chat-hdr-name { font-weight: 600; font-size: 15px; color: var(--text); }
+.chat-hdr-sub  { font-size: 12px; color: var(--green); font-weight: 500; }
 .chat-close {
   margin-left: auto; background: none; border: none;
   color: var(--text2); font-size: 18px; cursor: pointer;
+  padding: 4px; border-radius: 6px;
+  transition: background .15s;
 }
+.chat-close:hover { background: var(--bg3); }
 .chat-messages {
   flex: 1; overflow-y: auto; padding: 16px;
   display: flex; flex-direction: column; gap: 12px;
+  background: var(--bg);
 }
 .chat-msg {
   max-width: 82%; padding: 10px 14px;
@@ -370,90 +474,135 @@ a { color: inherit; text-decoration: none; }
 }
 .chat-msg.user {
   align-self: flex-end;
-  background: var(--green); color: #000; font-weight: 500;
+  background: var(--green-mid); color: #fff; font-weight: 500;
   border-radius: 12px 12px 4px 12px;
 }
 .chat-msg.assistant {
   align-self: flex-start;
-  background: var(--bg3); border: 1px solid var(--border);
+  background: var(--bg2); border: 1.5px solid var(--border);
   border-radius: 12px 12px 12px 4px;
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
 }
 .chat-input-row {
   padding: 12px 16px;
   border-top: 1px solid var(--border);
   display: flex; gap: 8px;
+  background: var(--bg2);
 }
 .chat-input {
   flex: 1; padding: 10px 14px; border-radius: 100px;
-  background: var(--bg3); border: 1px solid var(--border);
+  background: var(--bg3); border: 1.5px solid var(--border);
   color: var(--text); font-size: 14px; font-family: inherit;
-  outline: none; transition: border-color .15s;
+  outline: none; transition: all .15s;
 }
-.chat-input:focus { border-color: var(--green); }
+.chat-input:focus { border-color: var(--green-mid); background: var(--bg2); }
+.chat-input::placeholder { color: var(--text3); }
 .chat-send {
   width: 40px; height: 40px; border-radius: 50%;
-  background: var(--green); border: none;
-  color: #000; font-size: 16px; cursor: pointer;
+  background: var(--green-mid); border: none;
+  color: #fff; font-size: 16px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  transition: opacity .15s;
+  transition: all .15s;
 }
-.chat-send:hover { opacity: .85; }
+.chat-send:hover { background: var(--green); box-shadow: 0 4px 12px rgba(22,163,74,.3); }
 
-/* ── DETAIL MODAL ─────────────────────────────────────────── */
+/* ── DETAIL MODAL ──────────────────────────────────────────── */
 .modal-overlay {
   position: fixed; inset: 0; z-index: 300;
-  background: rgba(0,0,0,.75); backdrop-filter: blur(8px);
+  background: rgba(0,0,0,.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex; align-items: center; justify-content: center;
   padding: 20px;
   opacity: 0; pointer-events: none; transition: opacity .2s;
 }
 .modal-overlay.open { opacity: 1; pointer-events: all; }
 .modal {
-  background: var(--bg2); border: 1px solid var(--border2);
-  border-radius: var(--radius); padding: 32px;
+  background: var(--bg2);
+  border: 1.5px solid var(--border2);
+  border-radius: var(--radius);
+  padding: 32px;
   width: 100%; max-width: 520px; max-height: 85vh; overflow-y: auto;
-  transform: scale(.95); transition: transform .2s;
+  transform: scale(.95) translateY(10px);
+  transition: transform .22s cubic-bezier(.4,0,.2,1);
+  box-shadow: var(--shadow-lg);
 }
-.modal-overlay.open .modal { transform: scale(1); }
+.modal-overlay.open .modal { transform: scale(1) translateY(0); }
 .modal-hdr {
   display: flex; justify-content: space-between; align-items: flex-start;
   margin-bottom: 24px;
 }
-.modal-title { font-size: 20px; font-weight: 700; }
+.modal-title { font-size: 20px; font-weight: 700; color: var(--text); }
 .modal-close {
-  background: none; border: none; color: var(--text2);
-  font-size: 22px; cursor: pointer; padding: 4px;
+  background: var(--bg3); border: none; color: var(--text2);
+  font-size: 18px; cursor: pointer; padding: 6px 10px;
+  border-radius: var(--radius-sm); transition: background .15s;
 }
+.modal-close:hover { background: var(--bg4); color: var(--text); }
 
-/* ── PRICE CHART (sparkline) ──────────────────────────────── */
+/* ── SPARKLINE ─────────────────────────────────────────────── */
 .sparkline-wrap {
   background: var(--bg3); border-radius: var(--radius-sm);
   padding: 16px; margin: 16px 0;
 }
-.sparkline-title { font-size: 13px; color: var(--text2); margin-bottom: 12px; }
+.sparkline-title { font-size: 13px; color: var(--text2); margin-bottom: 12px; font-weight: 500; }
+
+/* ── SECTION HEADER ────────────────────────────────────────── */
+.section-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 20px;
+}
+.section-title {
+  font-size: 18px; font-weight: 700; color: var(--text);
+}
+.section-sub { font-size: 13px; color: var(--text2); margin-top: 2px; }
+.section-action {
+  font-size: 13px; color: var(--green); font-weight: 500;
+  cursor: pointer; padding: 6px 12px; border-radius: var(--radius-sm);
+  border: 1px solid rgba(21,128,61,.25); background: var(--green-dim);
+  transition: all .15s;
+}
+.section-action:hover { background: rgba(21,128,61,.15); }
+
+/* ── STATS BAR ─────────────────────────────────────────────── */
+.stats-bar {
+  display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px;
+}
+.stat-pill {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px; background: var(--bg2);
+  border: 1px solid var(--border); border-radius: 100px;
+  font-size: 13px; color: var(--text2);
+  box-shadow: var(--shadow-sm);
+}
+.stat-pill strong { color: var(--text); font-weight: 600; }
 
 /* ── FOOTER ────────────────────────────────────────────────── */
 .footer {
   border-top: 1px solid var(--border);
-  padding: 32px 20px;
+  padding: 40px 20px;
   text-align: center;
   color: var(--text3); font-size: 13px;
+  background: var(--bg2);
 }
-.footer-logo { font-size: 18px; font-weight: 800; margin-bottom: 8px; }
-.footer-logo span { color: var(--green); }
+.footer-logo { font-size: 20px; font-weight: 800; margin-bottom: 8px; color: var(--text2); }
+.footer-logo span { color: var(--green-mid); }
+.footer-links { display: flex; gap: 20px; justify-content: center; margin: 12px 0; }
+.footer-link  { color: var(--text3); font-size: 13px; cursor: pointer; }
+.footer-link:hover { color: var(--text2); }
 
 /* ── Responsive ────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .thermo-card {
-    grid-template-columns: 1fr 1fr;
-    padding: 24px;
-  }
-  .chat-panel { width: calc(100vw - 32px); right: 16px; }
-  .hero { padding: 60px 20px 40px; }
+  .thermo-card  { grid-template-columns: 1fr 1fr; padding: 24px; }
+  .chat-panel   { width: calc(100vw - 32px); right: 16px; }
+  .hero         { padding: 60px 20px 40px; }
+  .modal        { padding: 24px; }
 }
 @media (max-width: 480px) {
-  .thermo-card { grid-template-columns: 1fr; }
-  .nav-links { display: none; }
+  .thermo-card  { grid-template-columns: 1fr; }
+  .nav-links    { display: none; }
+  .hero h1      { letter-spacing: -1px; }
 }
 </style>
 </head>
@@ -464,10 +613,9 @@ a { color: inherit; text-decoration: none; }
   <div class="nav-inner">
     <div class="nav-logo" onclick="scrollToTop()">Пазар<span>ко</span></div>
     <div class="nav-links">
-      <div class="nav-link active" onclick="showTab('search')">Търси</div>
-      <div class="nav-link" onclick="showTab('deals')">Оферти</div>
-      <div class="nav-link" onclick="showTab('inflation')">Инфлация</div>
-      <div class="nav-link" onclick="showTab('basket')">Кошница</div>
+      <div class="nav-link active" id="navSearch"    onclick="showTab('search')">🔍 Търси</div>
+      <div class="nav-link"        id="navDeals"     onclick="showTab('deals')">🏷️ Оферти</div>
+      <div class="nav-link"        id="navInflation" onclick="showTab('inflation')">📊 Инфлация</div>
     </div>
     <button class="nav-cta" onclick="openChat()">🤖 AI Асистент</button>
   </div>
@@ -504,16 +652,16 @@ a { color: inherit; text-decoration: none; }
   <!-- Store filter chips -->
   <div class="stores-bar" id="storeFilter">
     <div class="store-chip active" data-store="all" onclick="filterStore('all')">
-      <span class="store-dot" style="background:#888"></span> Всички
+      <span class="store-dot" style="background:#aaa"></span> Всички
     </div>
     <div class="store-chip" data-store="kaufland" onclick="filterStore('kaufland')">
       <span class="store-dot" style="background:#E30613"></span> Kaufland
     </div>
     <div class="store-chip" data-store="billa" onclick="filterStore('billa')">
-      <span class="store-dot" style="background:#FFD600"></span> Billa
+      <span class="store-dot" style="background:#f0a500"></span> Billa
     </div>
     <div class="store-chip" data-store="fantastico" onclick="filterStore('fantastico')">
-      <span class="store-dot" style="background:#0066CC"></span> Фантастико
+      <span class="store-dot" style="background:#0057b7"></span> Фантастико
     </div>
     <div class="store-chip" data-store="ebag" onclick="filterStore('ebag')">
       <span class="store-dot" style="background:#FF6B00"></span> eBag
@@ -556,9 +704,9 @@ a { color: inherit; text-decoration: none; }
 
     <!-- Tabs -->
     <div class="tabs">
-      <div class="tab active" id="tab-search"   onclick="switchMainTab('search')">🔍 Резултати</div>
-      <div class="tab"        id="tab-deals"    onclick="switchMainTab('deals')">🔥 Оферти</div>
-      <div class="tab"        id="tab-inflation" onclick="switchMainTab('inflation')">📊 Инфлация по категории</div>
+      <div class="tab active" id="tab-search"    onclick="switchMainTab('search')">🔍 Резултати</div>
+      <div class="tab"        id="tab-deals"     onclick="switchMainTab('deals')">🏷️ Оферти</div>
+      <div class="tab"        id="tab-inflation" onclick="switchMainTab('inflation')">📊 Инфлация</div>
     </div>
 
     <!-- Search results panel -->
@@ -571,12 +719,56 @@ a { color: inherit; text-decoration: none; }
       <div class="results-grid" id="resultsGrid" style="display:none"></div>
     </div>
 
-    <!-- Deals panel -->
+    <!-- Kaufland Deals panel -->
     <div id="panel-deals" style="display:none">
-      <div class="results-grid" id="dealsGrid">
+      <!-- Stats bar -->
+      <div class="stats-bar" id="kaufStats"></div>
+
+      <!-- Store filter -->
+      <div class="cat-filter-bar" id="kaufStoreFilter">
+        <div class="cat-chip active" onclick="filterKaufStore('')">Всички магазини</div>
+        <div class="cat-chip" onclick="filterKaufStore('kaufland')" style="border-left:3px solid #E30613">🔴 Kaufland</div>
+        <div class="cat-chip" onclick="filterKaufStore('billa')" style="border-left:3px solid #f0a500">🟡 Billa</div>
+        <div class="cat-chip" onclick="filterKaufStore('fantastico')" style="border-left:3px solid #0057b7">🔵 Фантастико</div>
+        <div class="cat-chip" onclick="filterKaufStore('lidl')" style="border-left:3px solid #0050AA">🔵 Lidl</div>
+        <div class="cat-chip" onclick="filterKaufStore('metro')" style="border-left:3px solid #003087">🔷 Metro</div>
+        <div class="cat-chip" onclick="filterKaufStore('tmarket')" style="border-left:3px solid #e67e22">🟠 T-Market</div>
+      </div>
+
+      <!-- Category filter -->
+      <div class="cat-filter-bar" id="kaufCatFilter"></div>
+
+      <div class="section-hdr">
+        <div>
+          <div class="section-title" id="kaufOffersTitle">Актуални оферти</div>
+          <div class="section-sub" id="kaufOffersSubtitle">Зареждане...</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <select id="kaufSort" onchange="reloadKaufland()" style="
+            padding:7px 12px; border-radius:var(--radius-sm);
+            border:1.5px solid var(--border2); background:var(--bg2);
+            color:var(--text); font-size:13px; font-family:inherit; cursor:pointer;
+          ">
+            <option value="price">Цена ↑</option>
+            <option value="discount">Отстъпка ↓</option>
+            <option value="name">Азбучно</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="results-grid" id="kaufGrid">
         <div class="placeholder">
           <div class="loading-dots"><span></span><span></span><span></span></div>
         </div>
+      </div>
+
+      <div id="kaufLoadMore" style="text-align:center;margin-top:28px;display:none">
+        <button onclick="loadMoreKaufland()" style="
+          padding:12px 32px; border-radius:100px;
+          border:1.5px solid var(--border2); background:var(--bg2);
+          color:var(--text); font-size:14px; font-weight:500; cursor:pointer;
+          box-shadow:var(--shadow-sm); transition:all .15s;
+        ">Зареди още оферти</button>
       </div>
     </div>
 
@@ -631,21 +823,45 @@ a { color: inherit; text-decoration: none; }
 
 <footer class="footer">
   <div class="footer-logo">Пазар<span>ко</span></div>
+  <div class="footer-links">
+    <span class="footer-link" onclick="showTab('search')">Търсене</span>
+    <span class="footer-link" onclick="showTab('deals')">Kaufland оферти</span>
+    <span class="footer-link" onclick="showTab('inflation')">Инфлация</span>
+    <span class="footer-link" onclick="openChat()">AI Асистент</span>
+  </div>
   <p>Сравняваме цени в Kaufland, Billa, Фантастико и eBag всяка седмица.</p>
-  <p style="margin-top:8px">Цените са индикативни. Проверявай в магазина преди покупка.</p>
+  <p style="margin-top:6px">Цените са индикативни. Проверявай в магазина преди покупка.</p>
 </footer>
 
 <!-- ── JAVASCRIPT ──────────────────────────────────────────── -->
 <script>
 const API = '';   // same origin; change to 'https://api.pazarko.bg' in production
 
-// ── State ──────────────────────────────────────────────────
+// ── State ──────────────────────────────────────────────────────
 let _activeStore  = 'all';
 let _lastResults  = [];
 let _chatHistory  = [];
 let _currentProductId = null;
 
-// ── Search ─────────────────────────────────────────────────
+// Kaufland/Offers state
+let _kaufOffset   = 0;
+let _kaufCategory = '';
+let _kaufStore    = '';
+let _kaufLoaded   = false;
+const KAUF_LIMIT  = 24;
+
+const STORE_LABELS = {
+  kaufland: 'Kaufland', billa: 'Billa',
+  fantastico: 'Фантастико', lidl: 'Lidl',
+  metro: 'Metro', tmarket: 'T-Market',
+};
+const STORE_COLORS = {
+  kaufland: '#E30613', billa: '#f0a500',
+  fantastico: '#0057b7', lidl: '#0050AA',
+  metro: '#003087', tmarket: '#e67e22',
+};
+
+// ── Search ──────────────────────────────────────────────────────
 function quickSearch(q) {
   document.getElementById('searchInput').value = q;
   doSearch();
@@ -660,7 +876,7 @@ async function doSearch() {
 
   try {
     const url = `${API}/api/search?q=${encodeURIComponent(q)}&limit=30`;
-    const res = await fetch(url);
+    const res  = await fetch(url);
     const data = await res.json();
     _lastResults = data.results || [];
     renderResults(_lastResults);
@@ -671,13 +887,13 @@ async function doSearch() {
 }
 
 function showSearchLoading() {
-  document.getElementById('searchPlaceholder').style.display = 'none';
-  document.getElementById('resultsGrid').style.display = 'none';
-  document.getElementById('searchPlaceholder').innerHTML = `
+  const ph = document.getElementById('searchPlaceholder');
+  ph.innerHTML = `
     <div class="placeholder-icon"><div class="loading-dots"><span></span><span></span><span></span></div></div>
     <h3>Търсим...</h3>
   `;
-  document.getElementById('searchPlaceholder').style.display = 'block';
+  ph.style.display = 'block';
+  document.getElementById('resultsGrid').style.display = 'none';
 }
 
 function showSearchError() {
@@ -695,7 +911,7 @@ function renderResults(results) {
 
   const filtered = _activeStore === 'all'
     ? results
-    : results.filter(r => r.prices.some(p => p.store === _activeStore));
+    : results.filter(r => r.prices?.some(p => p.store === _activeStore));
 
   if (!filtered.length) {
     ph.innerHTML = `
@@ -703,18 +919,18 @@ function renderResults(results) {
       <h3>Нищо не е намерено</h3>
       <p>Опитай с друга дума</p>
     `;
-    ph.style.display = 'block';
+    ph.style.display  = 'block';
     grid.style.display = 'none';
     return;
   }
 
-  grid.innerHTML = filtered.map(p => buildProductCard(p)).join('');
-  ph.style.display  = 'none';
+  grid.innerHTML     = filtered.map(p => buildProductCard(p)).join('');
+  ph.style.display   = 'none';
   grid.style.display = 'grid';
 }
 
 function buildProductCard(p) {
-  const prices = p.prices.slice(0, 4);
+  const prices    = (p.prices || []).slice(0, 4);
   const priceRows = prices.map((pr, i) => `
     <div class="pc-price-row ${i === 0 ? 'cheapest' : ''}">
       <span class="pc-store-name">${storeLabel(pr.store)}</span>
@@ -738,87 +954,243 @@ function buildProductCard(p) {
   `;
 }
 
-// ── Store filter ───────────────────────────────────────────
+// ── Store filter ────────────────────────────────────────────────
 function filterStore(store) {
   _activeStore = store;
-  document.querySelectorAll('.store-chip').forEach(c => c.classList.toggle('active', c.dataset.store === store));
+  document.querySelectorAll('.store-chip').forEach(c =>
+    c.classList.toggle('active', c.dataset.store === store)
+  );
   if (_lastResults.length) renderResults(_lastResults);
 }
 
-// ── Tabs ───────────────────────────────────────────────────
+// ── Main tabs ───────────────────────────────────────────────────
 function switchMainTab(name) {
   ['search','deals','inflation'].forEach(t => {
     document.getElementById(`tab-${t}`).classList.toggle('active', t === name);
     document.getElementById(`panel-${t}`).style.display = t === name ? '' : 'none';
   });
-  if (name === 'deals')     loadDeals();
-  if (name === 'inflation') loadInflationDetail();
+  // Update nav links
+  ['Search','Deals','Inflation'].forEach(n => {
+    const el = document.getElementById('nav' + n);
+    if (el) el.classList.toggle('active', n.toLowerCase() === name);
+  });
+
+  if (name === 'deals'     && !_kaufLoaded) loadKaufland();
+  if (name === 'inflation')                loadInflationDetail();
 }
 
-// ── Deals ──────────────────────────────────────────────────
-let _dealsLoaded = false;
-async function loadDeals() {
-  if (_dealsLoaded) return;
-  try {
-    const res = await fetch(`${API}/api/deals?limit=24`);
-    const data = await res.json();
-    const deals = data.deals || [];
-    const grid = document.getElementById('dealsGrid');
+// ── Kaufland offers ─────────────────────────────────────────────
+async function loadKaufland(reset = true) {
+  if (reset) {
+    _kaufOffset = 0;
+    _kaufLoaded = false;
+    document.getElementById('kaufGrid').innerHTML = `
+      <div class="placeholder">
+        <div class="loading-dots"><span></span><span></span><span></span></div>
+      </div>`;
+    document.getElementById('kaufLoadMore').style.display = 'none';
+  }
 
-    if (!deals.length) {
-      grid.innerHTML = `<div class="placeholder"><div class="placeholder-icon">🏷️</div><h3>Няма оферти в момента</h3></div>`;
-      return;
+  const sort = document.getElementById('kaufSort')?.value || 'price';
+  const params = new URLSearchParams({
+    limit:  KAUF_LIMIT,
+    offset: _kaufOffset,
+    sort,
+    ..._kaufCategory ? { category: _kaufCategory } : {},
+    ..._kaufStore    ? { store: _kaufStore }        : {},
+  });
+
+  try {
+    // Load stats once
+    if (_kaufOffset === 0) loadKaufStats();
+
+    const res  = await fetch(`${API}/api/kaufland/offers?${params}`);
+    const data = await res.json();
+    const offers = data.offers || [];
+
+    const grid = document.getElementById('kaufGrid');
+
+    if (_kaufOffset === 0) {
+      if (!offers.length) {
+        grid.innerHTML = `
+          <div class="placeholder" style="grid-column:1/-1">
+            <div class="placeholder-icon">🏷️</div>
+            <h3>Няма намерени оферти</h3>
+            <p>Пусни скрейпъра: <code>py -m scrapers.kaufland_selenium</code></p>
+          </div>`;
+        document.getElementById('kaufOffersSubtitle').textContent = 'Няма данни';
+        _kaufLoaded = true;
+        return;
+      }
+      grid.innerHTML = '';
     }
 
-    grid.innerHTML = deals.map(d => `
-      <div class="product-card best-deal" onclick="openProduct('${d.product_id}')">
-        ${d.image_url ? `<img class="pc-img" src="${d.image_url}" alt="">` : ''}
-        <div class="pc-category">${catLabel(d.category)}</div>
-        <div class="pc-name">${d.canonical_name}</div>
-        <div class="pc-brand">${d.brand || ''} ${d.volume || ''}</div>
-        <div class="pc-prices">
-          <div class="pc-price-row cheapest">
-            <span class="pc-store-name">${storeLabel(d.store)}</span>
-            <span class="pc-price-val cheapest">${d.current_price?.toFixed(2)} лв.</span>
-          </div>
-        </div>
-        <div class="pc-savings">▼ <strong>${d.drop_pct}%</strong> спрямо 7-дневна средна</div>
-      </div>
-    `).join('');
+    offers.forEach(o => {
+      const card = buildKauflandCard(o);
+      grid.insertAdjacentHTML('beforeend', card);
+    });
 
-    _dealsLoaded = true;
+    _kaufOffset += offers.length;
+    _kaufLoaded  = true;
+
+    const storeName = _kaufStore ? STORE_LABELS[_kaufStore] || _kaufStore : 'всички магазини';
+    const subtitle  = _kaufCategory
+      ? `${_kaufOffset} оферти в "${_kaufCategory}"`
+      : `${_kaufOffset}+ оферти от ${storeName}`;
+    document.getElementById('kaufOffersSubtitle').textContent = subtitle;
+
+    const titleEl = document.getElementById('kaufOffersTitle');
+    if (titleEl) titleEl.textContent = _kaufStore
+      ? `Актуални оферти от ${STORE_LABELS[_kaufStore] || _kaufStore}`
+      : 'Актуални оферти от всички магазини';
+
+    // Show "load more" if full page was returned
+    document.getElementById('kaufLoadMore').style.display =
+      offers.length >= KAUF_LIMIT ? 'block' : 'none';
+
   } catch (err) {
-    console.error(err);
+    console.error('[kaufland]', err);
+    document.getElementById('kaufGrid').innerHTML = `
+      <div class="placeholder" style="grid-column:1/-1">
+        <div class="placeholder-icon">⚠️</div>
+        <h3>Грешка при зареждане</h3>
+        <p>Провери дали API-то работи</p>
+      </div>`;
   }
 }
 
-// ── Inflation detail ────────────────────────────────────────
+function loadMoreKaufland() {
+  loadKaufland(false);
+}
+
+function reloadKaufland() {
+  loadKaufland(true);
+}
+
+async function loadKaufStats() {
+  try {
+    const res  = await fetch(`${API}/api/kaufland/offers/stats`);
+    const data = await res.json();
+    const bar  = document.getElementById('kaufStats');
+    if (!bar) return;
+
+    const lastScraped = data.last_scraped
+      ? new Date(data.last_scraped).toLocaleDateString('bg-BG', { day:'numeric', month:'long', hour:'2-digit', minute:'2-digit' })
+      : 'Няма данни';
+
+    bar.innerHTML = `
+      <div class="stat-pill"><strong>${data.total_offers || 0}</strong> оферти</div>
+      <div class="stat-pill">Последно обновено: <strong>${lastScraped}</strong></div>
+      <div class="stat-pill">🔴 Kaufland &nbsp;🟡 Billa &nbsp;🔵 Фантастико &nbsp;🔵 Lidl</div>
+    `;
+  } catch (e) { /* ignore */ }
+}
+
+async function loadKaufCategories() {
+  try {
+    const res  = await fetch(`${API}/api/kaufland/offers/categories`);
+    const data = await res.json();
+    const cats = data.categories || [];
+    const bar  = document.getElementById('kaufCatFilter');
+    if (!bar || !cats.length) return;
+
+    bar.innerHTML = `
+      <div class="cat-chip active" onclick="filterKaufCategory('')">Всички</div>
+      ${cats.map(c => `<div class="cat-chip" onclick="filterKaufCategory('${c}')">${c}</div>`).join('')}
+    `;
+  } catch (e) { /* ignore */ }
+}
+
+function filterKaufCategory(cat) {
+  _kaufCategory = cat;
+  document.querySelectorAll('#kaufCatFilter .cat-chip').forEach(c =>
+    c.classList.toggle('active', c.textContent.trim() === (cat || 'Всички'))
+  );
+  loadKaufland(true);
+}
+
+function filterKaufStore(store) {
+  _kaufStore = store;
+  document.querySelectorAll('#kaufStoreFilter .cat-chip').forEach(c => {
+    const fn = c.getAttribute('onclick') || '';
+    const isAll = store === '' && fn.includes("('')");
+    const isStore = store !== '' && fn.includes(`'${store}'`);
+    c.classList.toggle('active', isAll || isStore);
+  });
+  loadKaufland(true);
+}
+
+function buildKauflandCard(o) {
+  const hasDeal    = o.old_price && o.price < o.old_price;
+  const discBadge  = hasDeal && o.discount_pct
+    ? `<span class="kauf-discount-badge">-${o.discount_pct}%</span>`
+    : (o.discount ? `<span class="kauf-discount-badge">${o.discount}</span>` : '');
+  const oldPriceHtml = hasDeal
+    ? `<span class="kauf-old-price">${parseFloat(o.old_price).toFixed(2)} лв.</span>`
+    : '';
+  const imgHtml = o.image_url
+    ? `<img class="kauf-img" src="${o.image_url}" alt="" onerror="this.style.display='none'">`
+    : '';
+  const storeName  = STORE_LABELS[o.store] || o.store || 'Kaufland';
+  const storeColor = STORE_COLORS[o.store]  || '#aaa';
+  const linkHtml   = o.url
+    ? `<a class="kauf-link" href="${o.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">→ Виж в ${storeName}</a>`
+    : '';
+  const storeBadge = `<span style="display:inline-block;font-size:11px;font-weight:600;
+    padding:2px 8px;border-radius:100px;background:${storeColor}18;
+    color:${storeColor};border:1px solid ${storeColor}33;margin-bottom:4px">${storeName}</span>`;
+
+  return `
+    <div class="kauf-card ${hasDeal ? 'on-sale' : ''}" onclick="">
+      ${imgHtml}
+      ${storeBadge}
+      <div class="kauf-category">${o.category_raw || 'Kaufland'}</div>
+      <div class="kauf-name">${o.raw_name || ''}</div>
+      ${o.description ? `<div class="kauf-desc">${o.description}</div>` : ''}
+      ${o.unit ? `<div class="kauf-unit">${o.unit}</div>` : ''}
+      <div class="kauf-price-row">
+        <span class="kauf-price">${parseFloat(o.price).toFixed(2)} лв.</span>
+        ${oldPriceHtml}
+        ${discBadge}
+      </div>
+      ${linkHtml}
+    </div>
+  `;
+}
+
+// ── Inflation detail ────────────────────────────────────────────
 let _inflLoaded = false;
 async function loadInflationDetail() {
   if (_inflLoaded) return;
   try {
-    const res = await fetch(`${API}/api/inflation/by-category`);
+    const res  = await fetch(`${API}/api/inflation/by-category`);
     const data = await res.json();
     const cats = data.categories || [];
 
     const el = document.getElementById('inflationContent');
     if (!cats.length) {
-      el.innerHTML = `<div class="placeholder-icon">📊</div><h3>Събираме данни...</h3><p>Ще е готово след първото сканиране</p>`;
+      el.innerHTML = `
+        <div class="placeholder-icon">📊</div>
+        <h3>Събираме данни...</h3>
+        <p>Ще е готово след първото сканиране на цените</p>
+      `;
       return;
     }
 
     el.style.cssText = '';
     el.innerHTML = `
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px">
-        ${cats.map(c => `
-          <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:20px">
-            <div style="font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:8px">${c.category_label || c.category}</div>
-            <div style="font-size:28px;font-weight:800;color:${c.yoy_pct > 4 ? 'var(--red)' : c.yoy_pct > 0 ? 'var(--amber)' : 'var(--green)'}">
-              ${c.yoy_pct > 0 ? '+' : ''}${c.yoy_pct}%
-            </div>
-            <div style="font-size:13px;color:var(--text2);margin-top:4px">ГоГ промяна</div>
-          </div>
-        `).join('')}
+        ${cats.map(c => {
+          const pct  = c.yoy_pct || 0;
+          const col  = pct > 4 ? 'var(--red)' : pct > 0 ? 'var(--amber)' : 'var(--green)';
+          const bg   = pct > 4 ? 'var(--red-dim)' : pct > 0 ? 'rgba(217,119,6,.08)' : 'var(--green-dim)';
+          return `
+          <div style="background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow-sm)">
+            <div style="font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:8px;font-weight:500">${c.category_label || c.category}</div>
+            <div style="font-size:30px;font-weight:800;color:${col}">${pct > 0 ? '+' : ''}${pct}%</div>
+            <div style="font-size:13px;color:var(--text2);margin-top:4px">год./год. промяна</div>
+          </div>`
+        }).join('')}
       </div>
     `;
     _inflLoaded = true;
@@ -827,27 +1199,27 @@ async function loadInflationDetail() {
   }
 }
 
-// ── Inflation thermometer ──────────────────────────────────
+// ── Inflation thermometer ────────────────────────────────────────
 async function loadThermometer() {
   try {
     const res = await fetch(`${API}/api/inflation/thermometer`);
-    const d = await res.json();
+    const d   = await res.json();
 
-    document.getElementById('thermoTotal').textContent = d.current_total ? `${d.current_total.toFixed(2)} лв.` : '—';
+    document.getElementById('thermoTotal').textContent =
+      d.current_total ? `${d.current_total.toFixed(2)} лв.` : '—';
 
     const momEl = document.getElementById('thermoMoM');
     momEl.textContent = d.mom_pct !== 0 ? `${d.mom_pct > 0 ? '+' : ''}${d.mom_pct}%` : '—';
-    momEl.className = `thermo-value thermo-${d.mom_pct > 2 ? 'hot' : d.mom_pct > 0 ? 'warm' : 'cool'}`;
+    momEl.className   = `thermo-value thermo-${d.mom_pct > 2 ? 'hot' : d.mom_pct > 0 ? 'warm' : 'cool'}`;
 
     const yoyEl = document.getElementById('thermoYoY');
     yoyEl.textContent = d.yoy_pct !== 0 ? `${d.yoy_pct > 0 ? '+' : ''}${d.yoy_pct}%` : '—';
-    yoyEl.className = `thermo-value thermo-${d.trend}`;
+    yoyEl.className   = `thermo-value thermo-${d.trend}`;
 
     const EMOJI = { hot:'🔴', warm:'🟠', neutral:'⚪', cool:'🟢', cold:'🔵' };
-    document.getElementById('thermoTrend').textContent = EMOJI[d.trend] || '⚪';
+    document.getElementById('thermoTrend').textContent      = EMOJI[d.trend] || '⚪';
     document.getElementById('thermoTrendLabel').textContent = d.trend_label || '—';
 
-    // thermometer bar: map yoy_pct [-5..+15] → 0..100%
     const pct = Math.min(100, Math.max(0, ((d.yoy_pct + 5) / 20) * 100));
     document.getElementById('thermoBar').style.width = `${pct}%`;
 
@@ -856,7 +1228,7 @@ async function loadThermometer() {
   }
 }
 
-// ── Product modal ──────────────────────────────────────────
+// ── Product modal ────────────────────────────────────────────────
 async function openProduct(id) {
   _currentProductId = id;
   document.getElementById('modalOverlay').classList.add('open');
@@ -867,15 +1239,16 @@ async function openProduct(id) {
 
     document.getElementById('modalTitle').textContent = p.canonical_name;
 
-    const priceRows = p.prices.map((pr, i) => `
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;
-                  border-radius:8px;margin-bottom:6px;
-                  background:${i===0?'var(--green-dim)':'var(--bg3)'}">
-        <span style="color:var(--text2)">${storeLabel(pr.store)}</span>
+    const priceRows = (p.prices || []).map((pr, i) => `
+      <div style="display:flex;justify-content:space-between;align-items:center;
+                  padding:10px 14px;border-radius:var(--radius-sm);margin-bottom:6px;
+                  background:${i === 0 ? 'var(--green-dim)' : 'var(--bg3)'};
+                  border:1px solid ${i === 0 ? 'rgba(21,128,61,.2)' : 'transparent'}">
+        <span style="color:var(--text2);font-size:14px">${storeLabel(pr.store)}</span>
         <div style="text-align:right">
-          <div style="font-weight:700;color:${i===0?'var(--green)':'var(--text)'}">${pr.price.toFixed(2)} лв.</div>
+          <div style="font-weight:700;font-size:16px;color:${i === 0 ? 'var(--green)' : 'var(--text)'}">${pr.price.toFixed(2)} лв.</div>
           ${pr.unit ? `<div style="font-size:11px;color:var(--text3)">${pr.unit}</div>` : ''}
-          ${pr.url  ? `<a href="${pr.url}" target="_blank" style="font-size:11px;color:var(--blue)">→ Виж в магазина</a>` : ''}
+          ${pr.url  ? `<a href="${pr.url}" target="_blank" style="font-size:11px;color:var(--blue)" rel="noopener">→ Виж в магазина</a>` : ''}
         </div>
       </div>
     `).join('');
@@ -886,19 +1259,22 @@ async function openProduct(id) {
       </div>
       ${priceRows}
       ${p.savings > 0 ? `
-        <div style="margin-top:16px;padding:12px;background:var(--green-dim);border:1px solid rgba(34,197,94,.3);border-radius:8px;font-size:14px">
-          💡 Спести до <strong style="color:var(--green)">${p.savings.toFixed(2)} лв.</strong> като купиш в ${storeLabel(p.best_store)}
+        <div style="margin-top:16px;padding:14px;background:var(--green-dim);
+                    border:1px solid rgba(21,128,61,.2);border-radius:var(--radius-sm);font-size:14px">
+          💡 Спести до <strong style="color:var(--green)">${p.savings.toFixed(2)} лв.</strong>
+          като купиш в <strong>${storeLabel(p.best_store)}</strong>
         </div>
       ` : ''}
       <div style="margin-top:16px">
-        <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">
+        <div style="font-size:12px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;font-weight:500">
           Последна актуализация
         </div>
-        <div style="font-size:13px;color:var(--text2)">${p.prices[0]?.scraped_at?.slice(0,10) || '—'}</div>
+        <div style="font-size:13px;color:var(--text2)">${p.prices?.[0]?.scraped_at?.slice(0,10) || '—'}</div>
       </div>
     `;
   } catch (err) {
-    document.getElementById('modalBody').innerHTML = '<p style="color:var(--text2)">Грешка при зареждане</p>';
+    document.getElementById('modalBody').innerHTML =
+      '<p style="color:var(--text2)">Грешка при зареждане</p>';
   }
 }
 
@@ -909,7 +1285,7 @@ function closeModalBtn() {
   document.getElementById('modalOverlay').classList.remove('open');
 }
 
-// ── AI Chat ────────────────────────────────────────────────
+// ── AI Chat ──────────────────────────────────────────────────────
 function toggleChat() {
   document.getElementById('chatPanel').classList.toggle('open');
 }
@@ -927,21 +1303,19 @@ async function sendChatMsg() {
   appendChatMsg('user', text);
   _chatHistory.push({ role: 'user', content: text });
 
-  // Typing indicator
-  const typingId = appendChatMsg('assistant', '<div class="loading-dots"><span></span><span></span><span></span></div>');
+  const typingId = appendChatMsg('assistant',
+    '<div class="loading-dots"><span></span><span></span><span></span></div>');
 
   try {
     const res = await fetch(`${API}/api/chat/non-streaming`, {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: _chatHistory }),
+      body:    JSON.stringify({ messages: _chatHistory }),
     });
-    const data = await res.json();
+    const data  = await res.json();
     const reply = data.response || 'Съжалявам, не успях да отговоря.';
-
     _chatHistory.push({ role: 'assistant', content: reply });
     updateChatMsg(typingId, reply);
-
   } catch (err) {
     updateChatMsg(typingId, 'Грешка при свързване с AI.');
   }
@@ -949,48 +1323,45 @@ async function sendChatMsg() {
 
 let _msgCounter = 0;
 function appendChatMsg(role, html) {
-  const id = `msg-${++_msgCounter}`;
+  const id   = `msg-${++_msgCounter}`;
   const msgs = document.getElementById('chatMessages');
-  msgs.insertAdjacentHTML('beforeend', `<div class="chat-msg ${role}" id="${id}">${html}</div>`);
+  msgs.insertAdjacentHTML('beforeend',
+    `<div class="chat-msg ${role}" id="${id}">${html}</div>`);
   msgs.scrollTop = msgs.scrollHeight;
   return id;
 }
-
 function updateChatMsg(id, html) {
   const el = document.getElementById(id);
   if (el) el.innerHTML = html;
   document.getElementById('chatMessages').scrollTop = 9999;
 }
 
-// ── Helpers ────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────
 function storeLabel(id) {
-  return { kaufland: 'Kaufland', billa: 'Billa', fantastico: 'Фантастико', ebag: 'eBag' }[id] || id;
+  return { kaufland: 'Kaufland', billa: 'Billa', fantastico: 'Фантастико',
+           ebag: 'eBag', lidl: 'Lidl', metro: 'Metro' }[id] || id;
 }
-
 function catLabel(cat) {
   const m = {
-    dairy: 'Млечни', meat: 'Месо', fish: 'Риба', bread: 'Хляб',
-    produce: 'Плодове/Зеленчуци', beverages: 'Напитки',
-    coffee_tea: 'Кафе/Чай', sweets: 'Сладкиши', canned: 'Консерви',
-    pasta_rice: 'Паста/Ориз', oils_sauces: 'Масла/Сосове',
-    frozen: 'Замразени', baby: 'Детски', hygiene: 'Хигиена',
-    household: 'Домакинство', other: 'Общи',
+    dairy:'Млечни', meat:'Месо', fish:'Риба', bread:'Хляб',
+    produce:'Плодове/Зел.', beverages:'Напитки', coffee_tea:'Кафе/Чай',
+    sweets:'Сладкиши', canned:'Консерви', pasta_rice:'Паста/Ориз',
+    oils_sauces:'Масла/Сосове', frozen:'Замразени', baby:'Детски',
+    hygiene:'Хигиена', household:'Домакинство', other:'Общи',
   };
   return m[cat] || cat;
 }
-
-function scrollToTop() {
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
+function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
 function showTab(name) {
   if (name === 'search') scrollToTop();
-  else switchMainTab(name);
+  switchMainTab(name);
 }
 
-// ── Init ───────────────────────────────────────────────────
+// ── Init ─────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loadThermometer();
+  // Preload Kaufland categories for filter bar
+  loadKaufCategories();
 });
 </script>
 </body>

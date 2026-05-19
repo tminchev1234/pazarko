@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
-from api.routes import prices, search, chat, inflation, users
+from api.routes import prices, search, chat, inflation, users, kaufland
 
 app = FastAPI(
     title="Pazarko API",
@@ -30,6 +30,7 @@ app.include_router(search.router,    prefix="/api")
 app.include_router(chat.router,      prefix="/api")
 app.include_router(inflation.router, prefix="/api")
 app.include_router(users.router,     prefix="/api")
+app.include_router(kaufland.router,  prefix="/api")
 
 # Serve frontend
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
