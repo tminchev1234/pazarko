@@ -20,7 +20,7 @@ async def get_kaufland_offers(
     q:        str     = Query("",   description="Search term"),
     category: str     = Query("",   description="Filter by category"),
     store:    str     = Query("",   description="Filter by store (kaufland/billa/fantastico/lidl)"),
-    limit:    int     = Query(50,   ge=1, le=200),
+    limit:    int     = Query(50,   ge=1, le=5000),
     offset:   int     = Query(0,    ge=0),
     sort:     str     = Query("price", pattern="^(price|name|discount)$"),
 ):
@@ -44,6 +44,9 @@ async def get_kaufland_offers(
 
         if sort == "name":
             query = query.order("raw_name", desc=False)
+        elif sort == "discount":
+            # Discounted products first (old_price not null), then by old_price desc (nulls last)
+            query = query.order("old_price", desc=True, nullsfirst=False)
         else:
             query = query.order("price", desc=False)
 

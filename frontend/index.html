@@ -565,6 +565,78 @@ a { color: inherit; text-decoration: none; }
 }
 .section-action:hover { background: rgba(21,128,61,.15); }
 
+/* ── OFFER CARD v2 (horizontal) ───────────────────────────────── */
+.offer-card {
+  background: var(--bg2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  cursor: pointer;
+  transition: all .2s;
+  position: relative; overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.offer-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); border-color: var(--border2); }
+.offer-card.on-sale { border-left: 3px solid var(--red); }
+
+.oc-img-wrap {
+  width: 76px; height: 76px;
+  background: var(--bg3); border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden; flex-shrink: 0;
+}
+.oc-img { width: 100%; height: 100%; object-fit: contain; padding: 4px; }
+.oc-img-ph { font-size: 26px; opacity: .35; }
+
+.oc-discount {
+  position: absolute; top: 10px; right: 10px;
+  background: var(--red); color: #fff;
+  font-size: 12px; font-weight: 800;
+  padding: 3px 8px; border-radius: 6px; letter-spacing: -.3px;
+}
+.oc-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; flex-wrap: wrap; }
+.oc-store-tag {
+  font-size: 11px; font-weight: 600;
+  padding: 2px 7px; border-radius: 100px;
+}
+.oc-food-tag { font-size: 11px; color: var(--text3); font-weight: 500; }
+.oc-name {
+  font-size: 14px; font-weight: 600; line-height: 1.3;
+  margin-bottom: 3px; color: var(--text);
+  display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden;
+}
+.oc-sub { font-size: 12px; color: var(--text2); margin-bottom: 8px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oc-price-row { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+.oc-price { font-size: 19px; font-weight: 800; color: var(--red); letter-spacing: -.4px; }
+.oc-price.no-deal { color: var(--green); }
+.oc-old { font-size: 12px; color: var(--text3); text-decoration: line-through; }
+
+/* ── CATEGORY SECTIONS (Netflix-style) ────────────────────────── */
+.cat-section { margin-bottom: 40px; }
+.cat-section-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px; padding-bottom: 10px;
+  border-bottom: 1.5px solid var(--border);
+}
+.cat-section-title {
+  font-size: 16px; font-weight: 700; color: var(--text);
+  display: flex; align-items: center; gap: 8px;
+}
+.cat-section-sub { font-size: 12px; color: var(--text3); font-weight: 400; }
+.cat-section-more {
+  font-size: 13px; color: var(--green); font-weight: 600;
+  cursor: pointer; padding: 5px 12px; border-radius: var(--radius-sm);
+  border: 1px solid rgba(21,128,61,.2); background: var(--green-dim);
+  transition: all .15s; white-space: nowrap; flex-shrink: 0;
+}
+.cat-section-more:hover { background: rgba(21,128,61,.15); }
+
 /* ── STATS BAR ─────────────────────────────────────────────── */
 .stats-bar {
   display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px;
@@ -623,9 +695,9 @@ a { color: inherit; text-decoration: none; }
 
 <!-- ── HERO ──────────────────────────────────────────────────── -->
 <section class="hero">
-  <div class="hero-badge">Сравняваме цени в 4 магазина всяка седмица</div>
+  <div class="hero-badge">Сравняваме цени в 5 магазина всяка седмица</div>
   <h1>Спести пари при<br><span class="grad-text">всяко пазаруване</span></h1>
-  <p class="hero-sub">Сравни цените на хранителни стоки в Kaufland, Billa, Фантастико и eBag — в реално време.</p>
+  <p class="hero-sub">Сравни цените на хранителни стоки в Kaufland, Billa, Lidl, Фантастико и T-Market — намери най-изгодната оферта.</p>
 
   <div class="search-wrap">
     <span class="search-icon">🔍</span>
@@ -756,9 +828,11 @@ a { color: inherit; text-decoration: none; }
         </div>
       </div>
 
-      <div class="results-grid" id="kaufGrid">
-        <div class="placeholder">
-          <div class="loading-dots"><span></span><span></span><span></span></div>
+      <div id="kaufGrid">
+        <div class="results-grid">
+          <div class="placeholder" style="grid-column:1/-1">
+            <div class="loading-dots"><span></span><span></span><span></span></div>
+          </div>
         </div>
       </div>
 
@@ -825,11 +899,11 @@ a { color: inherit; text-decoration: none; }
   <div class="footer-logo">Пазар<span>ко</span></div>
   <div class="footer-links">
     <span class="footer-link" onclick="showTab('search')">Търсене</span>
-    <span class="footer-link" onclick="showTab('deals')">Kaufland оферти</span>
+    <span class="footer-link" onclick="showTab('deals')">Оферти по категории</span>
     <span class="footer-link" onclick="showTab('inflation')">Инфлация</span>
     <span class="footer-link" onclick="openChat()">AI Асистент</span>
   </div>
-  <p>Сравняваме цени в Kaufland, Billa, Фантастико и eBag всяка седмица.</p>
+  <p>Сравняваме цени в Kaufland, Billa, Lidl, Фантастико и T-Market всяка седмица.</p>
   <p style="margin-top:6px">Цените са индикативни. Проверявай в магазина преди покупка.</p>
 </footer>
 
@@ -843,12 +917,11 @@ let _lastResults  = [];
 let _chatHistory  = [];
 let _currentProductId = null;
 
-// Kaufland/Offers state
-let _kaufOffset   = 0;
-let _kaufCategory = '';
-let _kaufStore    = '';
-let _kaufLoaded   = false;
-const KAUF_LIMIT  = 24;
+// Offers tab state
+let _allOffers   = [];        // all loaded offers (cached)
+let _kaufLoaded  = false;
+let _kaufStore   = '';        // selected store filter
+let _kaufFoodCat = '';        // selected food category id
 
 const STORE_LABELS = {
   kaufland: 'Kaufland', billa: 'Billa',
@@ -861,12 +934,80 @@ const STORE_COLORS = {
   metro: '#003087', tmarket: '#e67e22',
 };
 
-// ── Валута: всички цени в БД са в лева (BGN), показваме EUR ──────────────
-// Официален фиксиран курс при влизане в еврозоната: 1 EUR = 1.9558 BGN
+// ── Food categories with keyword maps ──────────────────────────
+const FOOD_CATS = [
+  { id: 'frozen',    label: 'Замразени',       emoji: '🧊',
+    keys: ['замраз', 'замрожен', 'фризир'] },
+  { id: 'fish',      label: 'Риба',            emoji: '🐟',
+    keys: ['риба', 'риб ', 'рибн', 'сьомг', 'скумрия', 'херинг', 'паламуд', 'сафрид',
+            'туна', 'скариц', 'октопод', 'калмар', 'треска', 'шаран', 'пъстърв', 'морски дар'] },
+  { id: 'meat',      label: 'Месо',            emoji: '🥩',
+    keys: ['пилешк', 'пиле ', 'свинск', 'телешк', 'агнешк', 'говеждо', 'пуешк',
+            'кайма', 'бутче', 'пилешко', 'гърди', 'карбонад', 'котлет', 'шишче',
+            'месо ', 'ребра', 'шницел', 'вратна', 'плешка'] },
+  { id: 'deli',      label: 'Колбаси',         emoji: '🌭',
+    keys: ['наденица', 'кебап', 'луканка', 'салам ', 'суджук', 'шунка', 'пастет',
+            'карначе', 'колбас', 'бекон', 'кренвирш', 'кабанос', 'мортадела', 'виенска'] },
+  { id: 'dairy',     label: 'Млечни и яйца',   emoji: '🥛',
+    keys: ['мляко', 'млечн', 'кисело', 'сирене', 'сирен', 'кашкавал', 'яйца', 'яйце',
+            'извара', 'крем сирен', 'йогурт', 'масло', 'заквасена', 'прясно', 'краве'] },
+  { id: 'produce',   label: 'Плодове и зел.',  emoji: '🥦',
+    keys: ['плодов', 'зеленчук', 'домат', 'краставиц', 'морков', 'картоф', 'ябълк',
+            'банан', 'портокал', 'лимон', 'грозд', 'черешк', 'ягода', 'праскова',
+            'круша', 'тиквичк', 'лук ', 'чесън', 'спанак', 'маруля', 'зеле ', 'пипер',
+            'цвекло', 'целина', 'магданоз', 'авокадо', 'киви'] },
+  { id: 'bread',     label: 'Хляб и печива',   emoji: '🍞',
+    keys: ['хляб', 'хлеб', 'баниц', 'кифл', 'погач', 'козунак', 'питка', 'питки',
+            'руло ', 'геврек', 'мекиц', 'плетен', 'тарт', 'кроасан', 'франзела', 'пица'] },
+  { id: 'sweets',    label: 'Захарни и снакс', emoji: '🍫',
+    keys: ['шоколад', 'бонбон', 'вафл', 'бисквит', 'торта', 'сладолед', 'конфитюр',
+            'мармалад', 'снакс', 'чипс', 'пуканки', 'халва', 'локум', 'нугат', 'крекер'] },
+  { id: 'staples',   label: 'Основни храни',   emoji: '🥫',
+    keys: ['ориз', 'брашно', 'паста ', 'спагети', 'макарони', 'консерв', 'боб ',
+            'леща', 'нахут', 'грах ', 'зърнен', 'грис', 'овесен', 'мюсли', 'олио',
+            'оцет', 'захар', 'брашн', 'сол '] },
+  { id: 'beverages', label: 'Напитки',         emoji: '🧃',
+    keys: ['вода ', 'сок ', 'бира ', 'вино ', 'кафе', 'чай ', 'нектар', 'енергийн',
+            'газиран', 'минерал', 'айрян', 'кефир', 'напитк', 'уиски', 'ракия', 'лимонад'] },
+  { id: 'household', label: 'Домакинство',     emoji: '🧹',
+    keys: ['перилен', 'омекотит', 'почистващ', 'тоалетна хартия', 'кухненска хартия',
+            'домакинск', 'течност за', 'дезинфекц', 'торбичка', 'найлон',
+            'алуминиево', 'пергамент', 'белина', 'парцал'] },
+  { id: 'cosmetics', label: 'Козметика',       emoji: '🧴',
+    keys: ['шампоан', 'душ гел', 'душ пяна', 'дезодоран', 'паста за зъб',
+            'антиперспиран', 'козметик', 'четка за зъб', 'самобръснач', 'хигиенни'] },
+];
+
+// ── Валута: всички цени в БД са в лева (BGN), показваме EUR ────
 const BGN_TO_EUR = 1 / 1.9558;
 function eur(bgn) {
   if (!bgn && bgn !== 0) return '';
   return (parseFloat(bgn) * BGN_TO_EUR).toFixed(2) + ' €';
+}
+
+// ── Food category detection (keyword matching) ──────────────────
+function detectFoodCategory(o) {
+  const text = (
+    (o.raw_name || '') + ' ' + (o.description || '') + ' ' + (o.category_raw || '')
+  ).toLowerCase();
+  for (const cat of FOOD_CATS) {
+    if (cat.keys.some(k => text.includes(k))) return cat.id;
+  }
+  return 'other';
+}
+
+// ── Discount percentage helper ──────────────────────────────────
+function discountPct(o) {
+  const price    = parseFloat(o.price);
+  const oldPrice = parseFloat(o.old_price);
+  if (oldPrice > 0 && price > 0 && oldPrice > price) {
+    return Math.round((1 - price / oldPrice) * 100);
+  }
+  if (o.discount) {
+    const m = String(o.discount).match(/(\d+)/);
+    return m ? parseInt(m[1]) : 0;
+  }
+  return 0;
 }
 
 // ── Search ──────────────────────────────────────────────────────
@@ -987,183 +1128,270 @@ function switchMainTab(name) {
   if (name === 'inflation')                loadInflationDetail();
 }
 
-// ── Kaufland offers ─────────────────────────────────────────────
-async function loadKaufland(reset = true) {
-  if (reset) {
-    _kaufOffset = 0;
-    _kaufLoaded = false;
-    document.getElementById('kaufGrid').innerHTML = `
-      <div class="placeholder">
+// ── Load ALL offers (cached) ─────────────────────────────────────
+async function loadKaufland() {
+  _kaufLoaded = false;
+  const grid = document.getElementById('kaufGrid');
+  grid.innerHTML = `
+    <div class="results-grid">
+      <div class="placeholder" style="grid-column:1/-1">
         <div class="loading-dots"><span></span><span></span><span></span></div>
-      </div>`;
-    document.getElementById('kaufLoadMore').style.display = 'none';
-  }
-
-  const sort = document.getElementById('kaufSort')?.value || 'price';
-  const params = new URLSearchParams({
-    limit:  KAUF_LIMIT,
-    offset: _kaufOffset,
-    sort,
-    ..._kaufCategory ? { category: _kaufCategory } : {},
-    ..._kaufStore    ? { store: _kaufStore }        : {},
-  });
+        <p style="margin-top:16px;color:var(--text3);font-size:13px">Зареждаме оферти от всички магазини...</p>
+      </div>
+    </div>`;
+  document.getElementById('kaufLoadMore').style.display = 'none';
+  document.getElementById('kaufOffersSubtitle').textContent = 'Зареждане...';
 
   try {
-    // Load stats once
-    if (_kaufOffset === 0) loadKaufStats();
-
-    const res  = await fetch(`${API}/api/kaufland/offers?${params}`);
+    const res  = await fetch(`${API}/api/kaufland/offers?limit=2000&sort=price`);
     const data = await res.json();
-    const offers = data.offers || [];
+    _allOffers = data.offers || [];
 
-    const grid = document.getElementById('kaufGrid');
-
-    if (_kaufOffset === 0) {
-      if (!offers.length) {
-        grid.innerHTML = `
-          <div class="placeholder" style="grid-column:1/-1">
-            <div class="placeholder-icon">🏷️</div>
-            <h3>Няма намерени оферти</h3>
-            <p>Пусни скрейпъра: <code>py -m scrapers.kaufland_selenium</code></p>
-          </div>`;
-        document.getElementById('kaufOffersSubtitle').textContent = 'Няма данни';
-        _kaufLoaded = true;
-        return;
-      }
-      grid.innerHTML = '';
-    }
-
-    offers.forEach(o => {
-      const card = buildKauflandCard(o);
-      grid.insertAdjacentHTML('beforeend', card);
+    // Pre-compute food category & discount %
+    _allOffers.forEach(o => {
+      o._foodCat = detectFoodCategory(o);
+      o._discPct = discountPct(o);
     });
 
-    _kaufOffset += offers.length;
-    _kaufLoaded  = true;
-
-    const storeName = _kaufStore ? STORE_LABELS[_kaufStore] || _kaufStore : 'всички магазини';
-    const subtitle  = _kaufCategory
-      ? `${_kaufOffset} оферти в "${_kaufCategory}"`
-      : `${_kaufOffset}+ оферти от ${storeName}`;
-    document.getElementById('kaufOffersSubtitle').textContent = subtitle;
-
-    const titleEl = document.getElementById('kaufOffersTitle');
-    if (titleEl) titleEl.textContent = _kaufStore
-      ? `Актуални оферти от ${STORE_LABELS[_kaufStore] || _kaufStore}`
-      : 'Актуални оферти от всички магазини';
-
-    // Show "load more" if full page was returned
-    document.getElementById('kaufLoadMore').style.display =
-      offers.length >= KAUF_LIMIT ? 'block' : 'none';
+    _kaufLoaded = true;
+    updateKaufStats();
+    applyFiltersAndRender();
 
   } catch (err) {
-    console.error('[kaufland]', err);
-    document.getElementById('kaufGrid').innerHTML = `
-      <div class="placeholder" style="grid-column:1/-1">
-        <div class="placeholder-icon">⚠️</div>
-        <h3>Грешка при зареждане</h3>
-        <p>Провери дали API-то работи</p>
+    console.error('[offers]', err);
+    grid.innerHTML = `
+      <div class="results-grid">
+        <div class="placeholder" style="grid-column:1/-1">
+          <div class="placeholder-icon">⚠️</div>
+          <h3>Грешка при зареждане</h3>
+          <p>Провери дали API-то работи</p>
+        </div>
       </div>`;
   }
-}
-
-function loadMoreKaufland() {
-  loadKaufland(false);
 }
 
 function reloadKaufland() {
-  loadKaufland(true);
+  if (_kaufLoaded) applyFiltersAndRender();
 }
 
-async function loadKaufStats() {
-  try {
-    const res  = await fetch(`${API}/api/kaufland/offers/stats`);
-    const data = await res.json();
-    const bar  = document.getElementById('kaufStats');
-    if (!bar) return;
+function loadMoreKaufland() { /* all loaded at once */ }
 
-    const lastScraped = data.last_scraped
-      ? new Date(data.last_scraped).toLocaleDateString('bg-BG', { day:'numeric', month:'long', hour:'2-digit', minute:'2-digit' })
-      : 'Няма данни';
+// ── Apply store + food category filters & render ─────────────────
+function applyFiltersAndRender() {
+  if (!_kaufLoaded) return;
 
-    bar.innerHTML = `
-      <div class="stat-pill"><strong>${data.total_offers || 0}</strong> оферти</div>
-      <div class="stat-pill">Последно обновено: <strong>${lastScraped}</strong></div>
-      <div class="stat-pill">🔴 Kaufland &nbsp;🟡 Billa &nbsp;🔵 Фантастико &nbsp;🔵 Lidl</div>
-    `;
-  } catch (e) { /* ignore */ }
+  // 1. Store filter
+  let offers = _kaufStore
+    ? _allOffers.filter(o => o.store === _kaufStore)
+    : _allOffers;
+
+  // 2. Sort
+  const sort = document.getElementById('kaufSort')?.value || 'discount';
+  offers = [...offers].sort((a, b) => {
+    if (sort === 'price') return (a.price || 0) - (b.price || 0);
+    if (sort === 'name')  return (a.raw_name || '').localeCompare(b.raw_name || '', 'bg');
+    return (b._discPct || 0) - (a._discPct || 0);
+  });
+
+  const grid = document.getElementById('kaufGrid');
+
+  if (!_kaufFoodCat) {
+    renderCategorySections(offers, grid);
+  } else {
+    const filtered = offers.filter(o => o._foodCat === _kaufFoodCat);
+    renderFilteredGrid(filtered, grid);
+  }
+
+  // Update subtitle
+  const catInfo   = FOOD_CATS.find(c => c.id === _kaufFoodCat);
+  const storeName = _kaufStore ? (STORE_LABELS[_kaufStore] || _kaufStore) : null;
+  let subtitle;
+  if (catInfo && storeName)
+    subtitle = `${offers.filter(o => o._foodCat === _kaufFoodCat).length} оферти · ${storeName}`;
+  else if (catInfo)
+    subtitle = `${offers.filter(o => o._foodCat === _kaufFoodCat).length} оферти`;
+  else if (storeName)
+    subtitle = `${offers.length} оферти от ${storeName}`;
+  else
+    subtitle = `${_allOffers.length} оферти от всички магазини`;
+  document.getElementById('kaufOffersSubtitle').textContent = subtitle;
+  document.getElementById('kaufLoadMore').style.display = 'none';
 }
 
-async function loadKaufCategories() {
-  try {
-    const res  = await fetch(`${API}/api/kaufland/offers/categories`);
-    const data = await res.json();
-    const cats = data.categories || [];
-    const bar  = document.getElementById('kaufCatFilter');
-    if (!bar || !cats.length) return;
+// ── Render: Netflix-style category sections ──────────────────────
+function renderCategorySections(offers, grid) {
+  let html = '';
 
-    bar.innerHTML = `
-      <div class="cat-chip active" onclick="filterKaufCategory('')">Всички</div>
-      ${cats.map(c => `<div class="cat-chip" onclick="filterKaufCategory('${c}')">${c}</div>`).join('')}
-    `;
-  } catch (e) { /* ignore */ }
+  for (const cat of FOOD_CATS) {
+    const catOffers = offers.filter(o => o._foodCat === cat.id);
+    if (!catOffers.length) continue;
+
+    const topOffers = catOffers.slice(0, 6); // already sorted by discount
+
+    html += `
+      <div class="cat-section">
+        <div class="cat-section-hdr">
+          <div class="cat-section-title">
+            ${cat.emoji} ${cat.label}
+            <span class="cat-section-sub">${catOffers.length} оферти</span>
+          </div>
+          ${catOffers.length > 6 ? `
+            <div class="cat-section-more" onclick="filterKaufFoodCat('${cat.id}')">
+              Виж всички ${catOffers.length} →
+            </div>` : ''}
+        </div>
+        <div class="results-grid">${topOffers.map(o => buildOfferCard(o)).join('')}</div>
+      </div>`;
+  }
+
+  if (!html) {
+    html = `
+      <div class="results-grid">
+        <div class="placeholder" style="grid-column:1/-1">
+          <div class="placeholder-icon">🏷️</div>
+          <h3>Няма намерени оферти</h3>
+          <p>Стартирай скрейпърите за да заредиш данни</p>
+        </div>
+      </div>`;
+  }
+
+  grid.innerHTML = html;
 }
 
-function filterKaufCategory(cat) {
-  _kaufCategory = cat;
-  document.querySelectorAll('#kaufCatFilter .cat-chip').forEach(c =>
-    c.classList.toggle('active', c.textContent.trim() === (cat || 'Всички'))
-  );
-  loadKaufland(true);
+// ── Render: filtered grid for specific food category ─────────────
+function renderFilteredGrid(filtered, grid) {
+  if (!filtered.length) {
+    grid.innerHTML = `
+      <div class="results-grid">
+        <div class="placeholder" style="grid-column:1/-1">
+          <div class="placeholder-icon">🔍</div>
+          <h3>Няма оферти в тази категория</h3>
+          <p>Опитай с друга категория или магазин</p>
+        </div>
+      </div>`;
+    return;
+  }
+  grid.innerHTML = `<div class="results-grid">${filtered.map(o => buildOfferCard(o)).join('')}</div>`;
+}
+
+// ── Build offer card (new design) ────────────────────────────────
+function buildOfferCard(o) {
+  const pct     = o._discPct || 0;
+  const hasDeal = pct > 0;
+  const color   = STORE_COLORS[o.store] || '#aaa';
+  const sName   = STORE_LABELS[o.store] || o.store || 'Магазин';
+  const foodCat = FOOD_CATS.find(c => c.id === o._foodCat);
+  const catText = foodCat ? `${foodCat.emoji} ${foodCat.label}` : '';
+
+  const discBadge = hasDeal ? `<div class="oc-discount">-${pct}%</div>` : '';
+
+  const imgHtml = o.image_url
+    ? `<img class="oc-img" src="${o.image_url}" alt=""
+           onerror="this.parentNode.innerHTML='<div class=\\'oc-img-ph\\'>🛒</div>'">`
+    : `<div class="oc-img-ph">🛒</div>`;
+
+  const subParts = [o.description, o.unit].filter(Boolean);
+  const subHtml  = subParts.length
+    ? `<div class="oc-sub">${subParts.join(' · ')}</div>` : '';
+
+  const priceHtml = hasDeal
+    ? `<span class="oc-price">${eur(o.price)}</span><span class="oc-old">${eur(o.old_price)}</span>`
+    : `<span class="oc-price no-deal">${eur(o.price)}</span>`;
+
+  const url = o.url ? o.url.replace(/'/g, "\\'") : '';
+  const clickAttr = url ? `onclick="window.open('${url}','_blank')"` : '';
+
+  return `
+    <div class="offer-card ${hasDeal ? 'on-sale' : ''}" ${clickAttr}>
+      <div class="oc-img-wrap">${imgHtml}</div>
+      ${discBadge}
+      <div>
+        <div class="oc-meta">
+          <span class="oc-store-tag"
+            style="background:${color}18;color:${color};border:1px solid ${color}33">
+            ${sName}
+          </span>
+          ${catText ? `<span class="oc-food-tag">${catText}</span>` : ''}
+        </div>
+        <div class="oc-name">${o.raw_name || ''}</div>
+        ${subHtml}
+        <div class="oc-price-row">${priceHtml}</div>
+      </div>
+    </div>`;
+}
+
+// ── Stats bar (live counts from loaded data) ─────────────────────
+function updateKaufStats() {
+  const bar = document.getElementById('kaufStats');
+  if (!bar || !_allOffers.length) return;
+
+  const total    = _allOffers.length;
+  const withDeal = _allOffers.filter(o => o._discPct > 0).length;
+  const byCounts = {};
+  _allOffers.forEach(o => { byCounts[o.store] = (byCounts[o.store] || 0) + 1; });
+
+  const storePills = Object.entries(byCounts)
+    .sort((a, b) => b[1] - a[1])
+    .map(([store, count]) =>
+      `<div class="stat-pill" style="cursor:pointer" onclick="filterKaufStore('${store}')">
+        <span style="width:8px;height:8px;border-radius:50%;background:${STORE_COLORS[store]||'#aaa'};
+          display:inline-block;flex-shrink:0"></span>
+        <strong>${STORE_LABELS[store] || store}</strong>
+        <span style="color:var(--text3)">${count}</span>
+      </div>`
+    ).join('');
+
+  bar.innerHTML = `
+    <div class="stat-pill"><strong>${total}</strong> оферти</div>
+    <div class="stat-pill" style="color:var(--red)"><strong>${withDeal}</strong> с намаление</div>
+    ${storePills}`;
+}
+
+// ── Food category chips ───────────────────────────────────────────
+function initFoodCatFilter() {
+  const bar = document.getElementById('kaufCatFilter');
+  if (!bar) return;
+  bar.innerHTML = `
+    <div class="cat-chip active" onclick="filterKaufFoodCat('')">🏷️ Всички</div>
+    ${FOOD_CATS.map(c =>
+      `<div class="cat-chip" onclick="filterKaufFoodCat('${c.id}')">${c.emoji} ${c.label}</div>`
+    ).join('')}`;
+}
+
+function filterKaufFoodCat(cat) {
+  _kaufFoodCat = cat;
+  document.querySelectorAll('#kaufCatFilter .cat-chip').forEach(c => {
+    const isAll = !cat && c.textContent.includes('Всички');
+    const isCat = cat && c.getAttribute('onclick')?.includes(`'${cat}'`);
+    c.classList.toggle('active', isAll || !!isCat);
+  });
+
+  const catInfo = FOOD_CATS.find(c => c.id === cat);
+  const titleEl = document.getElementById('kaufOffersTitle');
+  if (titleEl) titleEl.textContent = catInfo
+    ? `${catInfo.emoji} ${catInfo.label}`
+    : 'Актуални оферти';
+
+  applyFiltersAndRender();
 }
 
 function filterKaufStore(store) {
   _kaufStore = store;
   document.querySelectorAll('#kaufStoreFilter .cat-chip').forEach(c => {
-    const fn = c.getAttribute('onclick') || '';
+    const fn    = c.getAttribute('onclick') || '';
     const isAll = store === '' && fn.includes("('')");
-    const isStore = store !== '' && fn.includes(`'${store}'`);
-    c.classList.toggle('active', isAll || isStore);
+    const isSt  = store !== '' && fn.includes(`'${store}'`);
+    c.classList.toggle('active', isAll || isSt);
   });
-  loadKaufland(true);
-}
 
-function buildKauflandCard(o) {
-  const hasDeal    = o.old_price && o.price < o.old_price;
-  const discBadge  = hasDeal && o.discount_pct
-    ? `<span class="kauf-discount-badge">-${o.discount_pct}%</span>`
-    : (o.discount ? `<span class="kauf-discount-badge">${o.discount}</span>` : '');
-  const oldPriceHtml = hasDeal
-    ? `<span class="kauf-old-price">${eur(o.old_price)}</span>`
-    : '';
-  const imgHtml = o.image_url
-    ? `<img class="kauf-img" src="${o.image_url}" alt="" onerror="this.style.display='none'">`
-    : '';
-  const storeName  = STORE_LABELS[o.store] || o.store || 'Kaufland';
-  const storeColor = STORE_COLORS[o.store]  || '#aaa';
-  const linkHtml   = o.url
-    ? `<a class="kauf-link" href="${o.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">→ Виж в ${storeName}</a>`
-    : '';
-  const storeBadge = `<span style="display:inline-block;font-size:11px;font-weight:600;
-    padding:2px 8px;border-radius:100px;background:${storeColor}18;
-    color:${storeColor};border:1px solid ${storeColor}33;margin-bottom:4px">${storeName}</span>`;
+  const catInfo = FOOD_CATS.find(c => c.id === _kaufFoodCat);
+  const titleEl = document.getElementById('kaufOffersTitle');
+  if (titleEl) titleEl.textContent = catInfo
+    ? `${catInfo.emoji} ${catInfo.label}`
+    : store ? `Оферти от ${STORE_LABELS[store] || store}` : 'Актуални оферти';
 
-  return `
-    <div class="kauf-card ${hasDeal ? 'on-sale' : ''}" onclick="">
-      ${imgHtml}
-      ${storeBadge}
-      <div class="kauf-category">${o.category_raw || 'Kaufland'}</div>
-      <div class="kauf-name">${o.raw_name || ''}</div>
-      ${o.description ? `<div class="kauf-desc">${o.description}</div>` : ''}
-      ${o.unit ? `<div class="kauf-unit">${o.unit}</div>` : ''}
-      <div class="kauf-price-row">
-        <span class="kauf-price">${eur(o.price)}</span>
-        ${oldPriceHtml}
-        ${discBadge}
-      </div>
-      ${linkHtml}
-    </div>
-  `;
+  if (_kaufLoaded) applyFiltersAndRender();
+  else loadKaufland();
 }
 
 // ── Inflation detail ────────────────────────────────────────────
@@ -1346,8 +1574,7 @@ function updateChatMsg(id, html) {
 
 // ── Helpers ──────────────────────────────────────────────────────
 function storeLabel(id) {
-  return { kaufland: 'Kaufland', billa: 'Billa', fantastico: 'Фантастико',
-           ebag: 'eBag', lidl: 'Lidl', metro: 'Metro' }[id] || id;
+  return STORE_LABELS[id] || id;
 }
 function catLabel(cat) {
   const m = {
@@ -1368,8 +1595,7 @@ function showTab(name) {
 // ── Init ─────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loadThermometer();
-  // Preload Kaufland categories for filter bar
-  loadKaufCategories();
+  initFoodCatFilter();   // populate food category chips
 });
 </script>
 </body>
