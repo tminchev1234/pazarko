@@ -76,55 +76,82 @@ def _build_result(product: dict, prices: list[dict]) -> ProductResult:
 
 # ── endpoints ────────────────────────────────────────────────────────────────
 
-@router.get("/search", response_model=SearchResponse)
+@router.get("/search")
 async def search_products(
-    q: str = Query(..., min_length=2, description="Search term, e.g. 'мляко', 'кофе'"),
+    q: str = Query(..., min_length=2, description="Search term, e.g. 'мляко', 'кафе'"),
     category: Optional[str] = Query(None),
     limit: int = Query(20, ge=1, le=50),
 ):
     """
-    Full-text search across canonical product names.
-    Returns matching products with best price from each store.
+    Search across all scraped offers in kaufland_offers table.
+    Groups by product name and shows cheapest price per store.
     """
     try:
         sb = get_supabase()
 
-        # search products table using ilike on canonical_name + brand
-        query = (
-            sb.table("products")
+        # Search in scraped offers — all 5 stores live here
+        resp = (
+            sb.table("kaufland_offers")
             .select("*")
-            .ilike("canonical_name", f"%{q}%")
+            .ilike("raw_name", f"%{q}%")
+            .limit(min(limit * 10, 500))
+            .execute()
         )
-        if category:
-            query = query.eq("category", category)
+        offers = resp.data or []
 
-        resp = query.limit(limit).execute()
-        products = resp.data or []
+        if not offers:
+            return {"query": q, "results": [], "total": 0}
 
-        if not products:
-            # try brand fallback
-            resp2 = (
-                sb.table("products")
-                .select("*")
-                .ilike("brand", f"%{q}%")
-                .limit(limit)
-                .execute()
-            )
-            products = resp2.data or []
+        # Group by raw_name, keep cheapest offer per store per product name
+        from collections import defaultdict
+        by_name: dict[str, dict[str, dict]] = defaultdict(dict)
+        for o in offers:
+            name  = (o.get("raw_name") or "").strip()
+            store = o.get("store") or "unknown"
+            price = float(o.get("price") or 999)
+            if not name:
+                continue
+            existing = by_name[name].get(store)
+            if existing is None or float(existing.get("price") or 999) > price:
+                by_name[name][store] = o
 
-        results: list[ProductResult] = []
-        for prod in products:
-            prices_resp = (
-                sb.table("latest_prices")   # view — latest price per product/store
-                .select("*")
-                .eq("product_id", prod["id"])
-                .execute()
-            )
-            prices = prices_resp.data or []
-            if prices:
-                results.append(_build_result(prod, prices))
+        results = []
+        for name, by_store in list(by_name.items())[:limit]:
+            all_prices = sorted(by_store.values(), key=lambda x: float(x.get("price") or 999))
+            best  = all_prices[0]
+            worst = all_prices[-1]
 
-        return SearchResponse(query=q, results=results, total=len(results))
+            price_entries = [
+                {
+                    "store":      o["store"],
+                    "price":      float(o.get("price") or 0),
+                    "unit":       o.get("unit") or "",
+                    "url":        o.get("url") or "",
+                    "scraped_at": o.get("scraped_at") or "",
+                }
+                for o in all_prices
+            ]
+
+            savings = round(
+                float(worst.get("price") or 0) - float(best.get("price") or 0), 2
+            ) if len(price_entries) > 1 else 0
+
+            results.append({
+                "id":             best.get("id") or name,
+                "canonical_name": name,
+                "brand":          best.get("brand") or "",
+                "volume":         best.get("unit") or "",
+                "category":       best.get("category_raw") or "Оферти",
+                "image_url":      best.get("image_url") or "",
+                "prices":         price_entries,
+                "best_price":     float(best.get("price") or 0),
+                "best_store":     best.get("store") or "",
+                "savings":        savings,
+            })
+
+        # Multi-store matches first (savings > 0), then alphabetical
+        results.sort(key=lambda x: (-x["savings"], x["canonical_name"]))
+        return {"query": q, "results": results, "total": len(results)}
 
     except Exception as exc:
         logger.error("[search] error: %s", exc, exc_info=True)

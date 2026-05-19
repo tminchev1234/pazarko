@@ -617,25 +617,46 @@ a { color: inherit; text-decoration: none; }
 .oc-price.no-deal { color: var(--green); }
 .oc-old { font-size: 12px; color: var(--text3); text-decoration: line-through; }
 
-/* ── CATEGORY SECTIONS (Netflix-style) ────────────────────────── */
-.cat-section { margin-bottom: 40px; }
-.cat-section-hdr {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 14px; padding-bottom: 10px;
-  border-bottom: 1.5px solid var(--border);
+/* ── CATEGORY OVERVIEW TILES ───────────────────────────────────── */
+.cat-ov-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px; margin-bottom: 8px;
 }
-.cat-section-title {
-  font-size: 16px; font-weight: 700; color: var(--text);
-  display: flex; align-items: center; gap: 8px;
+.cat-ov-card {
+  background: var(--bg2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 14px 16px;
+  cursor: pointer; text-align: center;
+  transition: all .22s; box-shadow: var(--shadow-sm);
+  position: relative;
 }
-.cat-section-sub { font-size: 12px; color: var(--text3); font-weight: 400; }
-.cat-section-more {
-  font-size: 13px; color: var(--green); font-weight: 600;
-  cursor: pointer; padding: 5px 12px; border-radius: var(--radius-sm);
+.cat-ov-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--green-mid);
+}
+.cat-ov-emoji { font-size: 34px; margin-bottom: 8px; }
+.cat-ov-name  { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 3px; }
+.cat-ov-count { font-size: 11px; color: var(--text3); margin-bottom: 10px; }
+.cat-ov-price { font-size: 15px; font-weight: 800; color: var(--green); margin-bottom: 5px; }
+.cat-ov-disc  {
+  display: inline-block;
+  background: var(--red); color: #fff;
+  font-size: 11px; font-weight: 700;
+  padding: 2px 8px; border-radius: 100px;
+}
+
+/* ── BACK BUTTON ────────────────────────────────────────────────── */
+.back-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  cursor: pointer; color: var(--green); font-size: 14px; font-weight: 500;
+  padding: 7px 14px; border-radius: var(--radius-sm);
   border: 1px solid rgba(21,128,61,.2); background: var(--green-dim);
-  transition: all .15s; white-space: nowrap; flex-shrink: 0;
+  transition: all .15s; margin-bottom: 20px;
 }
-.cat-section-more:hover { background: rgba(21,128,61,.15); }
+.back-btn:hover { background: rgba(21,128,61,.15); }
 
 /* ── STATS BAR ─────────────────────────────────────────────── */
 .stats-bar {
@@ -1193,17 +1214,17 @@ function applyFiltersAndRender() {
     return (b._discPct || 0) - (a._discPct || 0);
   });
 
-  const grid = document.getElementById('kaufGrid');
+  const grid    = document.getElementById('kaufGrid');
+  const catInfo = FOOD_CATS.find(c => c.id === _kaufFoodCat);
 
   if (!_kaufFoodCat) {
-    renderCategorySections(offers, grid);
+    renderOverview(offers, grid);
   } else {
     const filtered = offers.filter(o => o._foodCat === _kaufFoodCat);
-    renderFilteredGrid(filtered, grid);
+    renderCategoryDetail(filtered, catInfo, grid);
   }
 
   // Update subtitle
-  const catInfo   = FOOD_CATS.find(c => c.id === _kaufFoodCat);
   const storeName = _kaufStore ? (STORE_LABELS[_kaufStore] || _kaufStore) : null;
   let subtitle;
   if (catInfo && storeName)
@@ -1218,34 +1239,43 @@ function applyFiltersAndRender() {
   document.getElementById('kaufLoadMore').style.display = 'none';
 }
 
-// ── Render: Netflix-style category sections ──────────────────────
-function renderCategorySections(offers, grid) {
-  let html = '';
+// ── Render: category overview tiles (clean default view) ────────
+function renderOverview(offers, grid) {
+  // Top deals strip: top 4 with biggest discount
+  const topDeals = offers.filter(o => o._discPct >= 20).slice(0, 4);
 
+  const topDealsHtml = topDeals.length ? `
+    <div style="margin-bottom:32px">
+      <div class="section-hdr" style="margin-bottom:14px">
+        <div>
+          <div class="section-title">🔥 Топ намаления</div>
+          <div class="section-sub">Най-голямо намаление тази седмица</div>
+        </div>
+      </div>
+      <div class="results-grid">${topDeals.map(o => buildOfferCard(o)).join('')}</div>
+    </div>` : '';
+
+  // Category overview tiles
+  let tilesHtml = '';
   for (const cat of FOOD_CATS) {
     const catOffers = offers.filter(o => o._foodCat === cat.id);
     if (!catOffers.length) continue;
 
-    const topOffers = catOffers.slice(0, 6); // already sorted by discount
+    const minPrice = Math.min(...catOffers.map(o => parseFloat(o.price) || 999));
+    const maxDisc  = Math.max(...catOffers.map(o => o._discPct || 0));
 
-    html += `
-      <div class="cat-section">
-        <div class="cat-section-hdr">
-          <div class="cat-section-title">
-            ${cat.emoji} ${cat.label}
-            <span class="cat-section-sub">${catOffers.length} оферти</span>
-          </div>
-          ${catOffers.length > 6 ? `
-            <div class="cat-section-more" onclick="filterKaufFoodCat('${cat.id}')">
-              Виж всички ${catOffers.length} →
-            </div>` : ''}
-        </div>
-        <div class="results-grid">${topOffers.map(o => buildOfferCard(o)).join('')}</div>
+    tilesHtml += `
+      <div class="cat-ov-card" onclick="filterKaufFoodCat('${cat.id}')">
+        <div class="cat-ov-emoji">${cat.emoji}</div>
+        <div class="cat-ov-name">${cat.label}</div>
+        <div class="cat-ov-count">${catOffers.length} продукта</div>
+        <div class="cat-ov-price">от ${eur(minPrice)}</div>
+        ${maxDisc > 0 ? `<div class="cat-ov-disc">до -${maxDisc}%</div>` : ''}
       </div>`;
   }
 
-  if (!html) {
-    html = `
+  if (!tilesHtml) {
+    grid.innerHTML = `
       <div class="results-grid">
         <div class="placeholder" style="grid-column:1/-1">
           <div class="placeholder-icon">🏷️</div>
@@ -1253,15 +1283,32 @@ function renderCategorySections(offers, grid) {
           <p>Стартирай скрейпърите за да заредиш данни</p>
         </div>
       </div>`;
+    return;
   }
 
-  grid.innerHTML = html;
+  grid.innerHTML = `
+    ${topDealsHtml}
+    <div class="section-hdr" style="margin-bottom:14px">
+      <div>
+        <div class="section-title">Разгледай по категория</div>
+        <div class="section-sub">Кликни категория за да видиш всички оферти</div>
+      </div>
+    </div>
+    <div class="cat-ov-grid">${tilesHtml}</div>`;
 }
 
-// ── Render: filtered grid for specific food category ─────────────
-function renderFilteredGrid(filtered, grid) {
+// ── Render: category detail grid with back button ────────────────
+function renderCategoryDetail(filtered, catInfo, grid) {
+  const label = catInfo ? `${catInfo.emoji} ${catInfo.label}` : 'Оферти';
+  const backRow = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <span class="back-btn" onclick="filterKaufFoodCat('')">← Всички категории</span>
+      <span style="color:var(--text2);font-size:14px;font-weight:600">${label}</span>
+      <span style="color:var(--text3);font-size:13px">· ${filtered.length} оферти</span>
+    </div>`;
+
   if (!filtered.length) {
-    grid.innerHTML = `
+    grid.innerHTML = backRow + `
       <div class="results-grid">
         <div class="placeholder" style="grid-column:1/-1">
           <div class="placeholder-icon">🔍</div>
@@ -1271,7 +1318,7 @@ function renderFilteredGrid(filtered, grid) {
       </div>`;
     return;
   }
-  grid.innerHTML = `<div class="results-grid">${filtered.map(o => buildOfferCard(o)).join('')}</div>`;
+  grid.innerHTML = backRow + `<div class="results-grid">${filtered.map(o => buildOfferCard(o)).join('')}</div>`;
 }
 
 // ── Build offer card (new design) ────────────────────────────────
