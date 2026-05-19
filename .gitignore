@@ -1,0 +1,14 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.json
+!package.json
+*.log
+.DS_Store
+Thumbs.db
+kaufland_sample.json
+billa_sample.json
+fantastico_sample.json
