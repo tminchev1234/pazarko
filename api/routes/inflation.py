@@ -152,7 +152,7 @@ async def inflation_by_category():
 
 @router.get("/inflation/biggest-movers")
 async def biggest_movers(
-    direction: str = Query("up", regex="^(up|down)$"),
+    direction: str = Query("up", pattern="^(up|down)$"),
     limit: int = Query(10, ge=5, le=20),
 ):
     """

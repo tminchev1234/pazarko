@@ -84,7 +84,7 @@ class BaseScraper(ABC):
 
     def _soup(self, url: str, **kwargs) -> BeautifulSoup:
         resp = self._get(url, **kwargs)
-        return BeautifulSoup(resp.text, "lxml")
+        return BeautifulSoup(resp.text, "html.parser")
 
     # ── abstract interface ────────────────────────────────────────────────────
 
