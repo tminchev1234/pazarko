@@ -4,7 +4,14 @@ Central config — reads from .env
 
 import os
 from functools import lru_cache
+from pathlib import Path
+
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
+
+# Force-load .env from the project root, overriding any empty system env vars
+_env_path = Path(__file__).resolve().parents[1] / ".env"
+load_dotenv(_env_path, override=True)
 
 
 class Settings(BaseSettings):

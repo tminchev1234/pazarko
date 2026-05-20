@@ -203,40 +203,101 @@ a { color: inherit; text-decoration: none; }
 }
 .store-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
-/* ── INFLATION THERMOMETER ─────────────────────────────────── */
-.thermo-section { padding: 0 20px 60px; }
-.thermo-card {
-  max-width: 1120px; margin: 0 auto;
+/* ── INSIGHTS STRIP ─────────────────────────────────────────── */
+.insights-section {
   background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 32px 40px;
-  display: grid; grid-template-columns: 1fr 1fr 1fr 1fr;
-  gap: 24px; align-items: center;
-  box-shadow: var(--shadow);
+  border-bottom: 1.5px solid var(--border);
+  padding: 12px 20px;
 }
-.thermo-label {
-  font-size: 12px; text-transform: uppercase; letter-spacing: .8px;
-  color: var(--text3); margin-bottom: 6px; font-weight: 500;
+.insights-inner {
+  max-width: 1120px; margin: 0 auto;
+  display: flex; gap: 10px; flex-wrap: wrap;
+  align-items: center; justify-content: center;
 }
-.thermo-value { font-size: 36px; font-weight: 800; letter-spacing: -1px; }
-.thermo-sub   { font-size: 13px; color: var(--text2); margin-top: 4px; }
-.thermo-hot    { color: var(--red); }
-.thermo-warm   { color: var(--amber); }
-.thermo-neutral{ color: var(--text2); }
-.thermo-cool   { color: var(--green); }
-.thermo-cold   { color: var(--blue); }
+.insight-pill {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 100px;
+  background: var(--bg3); border: 1px solid var(--border);
+  font-size: 13px; color: var(--text2); white-space: nowrap;
+}
+.insight-pill strong { color: var(--text); font-weight: 700; }
+.insight-pill.hot  strong { color: var(--red); }
+.insight-pill.good strong { color: var(--green); }
 
-.thermo-bar-wrap {
-  grid-column: 1 / -1;
-  height: 6px; background: var(--bg3); border-radius: 100px;
-  overflow: hidden; margin-top: 8px;
+/* ── BASKET ─────────────────────────────────────────────────── */
+.basket-empty { text-align: center; padding: 64px 20px; color: var(--text3); }
+.basket-empty-icon { font-size: 56px; margin-bottom: 16px; }
+.basket-empty h3 { font-size: 18px; color: var(--text2); margin-bottom: 8px; }
+
+.basket-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+.basket-item {
+  display: grid; grid-template-columns: 1fr auto auto;
+  gap: 12px; align-items: center;
+  padding: 12px 16px; border-radius: var(--radius-sm);
+  background: var(--bg2); border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
 }
-.thermo-bar-fill {
-  height: 100%; border-radius: 100px;
-  background: var(--grad);
-  transition: width 1.2s cubic-bezier(.4,0,.2,1);
+.basket-item-name  { font-size: 14px; font-weight: 600; color: var(--text); }
+.basket-item-store { font-size: 12px; color: var(--text3); margin-top: 2px; }
+.basket-item-price { font-size: 16px; font-weight: 800; color: var(--green); white-space: nowrap; }
+.basket-item-rm {
+  background: none; border: none; color: var(--text3);
+  font-size: 18px; cursor: pointer; padding: 4px 6px;
+  border-radius: var(--radius-sm); line-height: 1;
+  transition: all .15s;
 }
+.basket-item-rm:hover { color: var(--red); background: var(--red-dim); }
+
+.basket-compare {
+  background: var(--bg2); border: 1.5px solid var(--border);
+  border-radius: var(--radius); padding: 22px 24px; margin-top: 8px;
+  box-shadow: var(--shadow-sm);
+}
+.basket-compare-title { font-size: 13px; font-weight: 600; color: var(--text3);
+  text-transform: uppercase; letter-spacing: .6px; margin-bottom: 18px; }
+.basket-cmp-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.basket-cmp-store { width: 90px; font-size: 13px; font-weight: 600; flex-shrink: 0; }
+.basket-cmp-bar-wrap { flex: 1; height: 10px; background: var(--bg3); border-radius: 100px; overflow: hidden; }
+.basket-cmp-bar-fill { height: 100%; border-radius: 100px; transition: width .7s cubic-bezier(.4,0,.2,1); }
+.basket-cmp-price { font-size: 15px; font-weight: 800; min-width: 68px; text-align: right; }
+.basket-cmp-best {
+  font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 100px;
+  background: var(--green-dim); color: var(--green);
+  border: 1px solid rgba(21,128,61,.2);
+}
+
+/* ── BASKET ADD BUTTON (on offer card) ──────────────────────── */
+.basket-add-btn {
+  position: absolute; bottom: 8px; right: 8px;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--bg3); border: 1.5px solid var(--border2);
+  color: var(--text3); font-size: 18px; font-weight: 700;
+  cursor: pointer; transition: all .15s;
+  display: flex; align-items: center; justify-content: center;
+  line-height: 1;
+}
+.basket-add-btn:hover  { background: var(--green-dim); border-color: var(--green-mid); color: var(--green-mid); }
+.basket-add-btn.in-basket { background: var(--green-mid); border-color: var(--green-mid); color: #fff; }
+
+/* ── BASKET NAV BUTTON ──────────────────────────────────────── */
+.nav-basket {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: var(--radius-sm);
+  font-size: 14px; font-weight: 500; cursor: pointer;
+  border: 1.5px solid var(--border2); background: var(--bg2);
+  color: var(--text2); transition: all .15s; position: relative;
+}
+.nav-basket:hover { border-color: var(--green-mid); color: var(--green); background: var(--green-dim); }
+.nav-basket.filled { border-color: var(--green-mid); color: var(--green); background: var(--green-dim); }
+.basket-badge {
+  background: var(--red); color: #fff; font-size: 10px; font-weight: 800;
+  min-width: 17px; height: 17px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; padding: 0 3px;
+}
+
+/* ── VIEW TRANSITION ─────────────────────────────────────────── */
+#kaufGrid { transition: opacity .16s ease; }
+#kaufGrid.fading { opacity: 0; pointer-events: none; }
 
 /* ── MAIN CONTENT ──────────────────────────────────────────── */
 .main-content { padding: 0 20px 80px; }
@@ -658,6 +719,90 @@ a { color: inherit; text-decoration: none; }
 }
 .back-btn:hover { background: rgba(21,128,61,.15); }
 
+/* ── COMPACT DEAL CARD (like Зnam-Cenite vertical cards) ─────────── */
+.compact-card {
+  background: var(--bg2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 12px 12px;
+  cursor: pointer; text-align: center;
+  transition: all .2s; box-shadow: var(--shadow-sm);
+  flex: 0 0 152px; width: 152px;
+}
+.compact-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: var(--border2); }
+.cc-disc {
+  background: var(--red); color: #fff;
+  font-size: 15px; font-weight: 800;
+  padding: 4px 10px; border-radius: 8px;
+  display: inline-block; margin-bottom: 10px;
+}
+.cc-name {
+  font-size: 13px; font-weight: 600; color: var(--text);
+  margin-bottom: 7px; line-height: 1.3;
+  display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden;
+  min-height: 2.6em;
+}
+.cc-store { font-size: 11px; font-weight: 600; margin-bottom: 1px; }
+.cc-unit  { font-size: 11px; color: var(--text3); margin-bottom: 8px; }
+.cc-price { font-size: 18px; font-weight: 800; color: var(--red); letter-spacing: -.4px; }
+.cc-old   { font-size: 11px; color: var(--text3); text-decoration: line-through; margin-top: 2px; }
+
+/* ── PROMO WIDGET ────────────────────────────────────────────────── */
+.promo-widget {
+  background: var(--bg2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px; margin-bottom: 28px;
+  box-shadow: var(--shadow);
+}
+.promo-widget-hdr {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 14px;
+}
+.promo-widget-title { font-size: 18px; font-weight: 700; }
+.promo-widget-see-all {
+  font-size: 13px; color: var(--green); font-weight: 500;
+  cursor: pointer; padding: 4px 10px; border-radius: var(--radius-sm);
+  background: var(--green-dim); border: 1px solid rgba(21,128,61,.2);
+}
+.promo-widget-see-all:hover { background: rgba(21,128,61,.15); }
+.promo-cat-links {
+  display: flex; gap: 0; flex-wrap: wrap;
+  margin-bottom: 18px; font-size: 13px; color: var(--text2);
+}
+.promo-cat-link {
+  cursor: pointer; padding: 3px 8px; border-radius: 100px;
+  transition: all .15s; font-weight: 500;
+}
+.promo-cat-link:hover  { color: var(--green); background: var(--green-dim); }
+.promo-cat-link.active { color: var(--green); background: var(--green-dim); font-weight: 700; }
+.cat-section-more:hover { color: var(--text); cursor: pointer; background: var(--bg2); border-color: var(--border2); }
+.promo-deals-row {
+  display: flex; gap: 12px;
+  overflow-x: auto; padding-bottom: 6px;
+  scrollbar-width: thin;
+}
+.promo-footer { font-size: 12px; color: var(--text3); margin-top: 14px; font-style: italic; }
+
+/* ── SUBCATEGORY SECTION HEADERS ────────────────────────────────── */
+.cat-section-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px; padding-bottom: 10px;
+  border-bottom: 1.5px solid var(--border);
+}
+.cat-section-title {
+  font-size: 15px; font-weight: 700; color: var(--text);
+  display: flex; align-items: center; gap: 8px;
+}
+.cat-section-sub { font-size: 12px; color: var(--text3); font-weight: 400; }
+.cat-section-more {
+  font-size: 12px; color: var(--text3); font-weight: 500;
+  padding: 3px 10px; border-radius: 100px;
+  background: var(--bg3); border: 1px solid var(--border);
+}
+.cat-section-wrap { margin-bottom: 32px; }
+
 /* ── STATS BAR ─────────────────────────────────────────────── */
 .stats-bar {
   display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px;
@@ -687,15 +832,15 @@ a { color: inherit; text-decoration: none; }
 
 /* ── Responsive ────────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .thermo-card  { grid-template-columns: 1fr 1fr; padding: 24px; }
-  .chat-panel   { width: calc(100vw - 32px); right: 16px; }
-  .hero         { padding: 60px 20px 40px; }
-  .modal        { padding: 24px; }
+  .chat-panel { width: calc(100vw - 32px); right: 16px; }
+  .hero       { padding: 60px 20px 40px; }
+  .modal      { padding: 24px; }
+  .basket-cmp-store { width: 70px; }
 }
 @media (max-width: 480px) {
-  .thermo-card  { grid-template-columns: 1fr; }
-  .nav-links    { display: none; }
-  .hero h1      { letter-spacing: -1px; }
+  .nav-links  { display: none; }
+  .hero h1    { letter-spacing: -1px; }
+  .insights-inner { justify-content: flex-start; overflow-x: auto; flex-wrap: nowrap; }
 }
 </style>
 </head>
@@ -706,11 +851,15 @@ a { color: inherit; text-decoration: none; }
   <div class="nav-inner">
     <div class="nav-logo" onclick="scrollToTop()">Пазар<span>ко</span></div>
     <div class="nav-links">
-      <div class="nav-link active" id="navSearch"    onclick="showTab('search')">🔍 Търси</div>
-      <div class="nav-link"        id="navDeals"     onclick="showTab('deals')">🏷️ Оферти</div>
-      <div class="nav-link"        id="navInflation" onclick="showTab('inflation')">📊 Инфлация</div>
+      <div class="nav-link active" id="navDeals"   onclick="showTab('deals')">🏷️ Оферти</div>
+      <div class="nav-link"        id="navSearch"  onclick="showTab('search')">🔍 Търси</div>
+      <div class="nav-link"        id="navBasket"  onclick="showTab('basket')">🛒 Кошница</div>
     </div>
-    <button class="nav-cta" onclick="openChat()">🤖 AI Асистент</button>
+    <button class="nav-basket" id="navBasketBtn" onclick="showTab('basket')">
+      🛒 <span id="navBasketLabel">Кошница</span>
+      <span class="basket-badge" id="basketBadge" style="display:none">0</span>
+    </button>
+    <button class="nav-cta" onclick="openChat()">🤖 AI</button>
   </div>
 </nav>
 
@@ -762,31 +911,11 @@ a { color: inherit; text-decoration: none; }
   </div>
 </section>
 
-<!-- ── INFLATION THERMOMETER ─────────────────────────────────── -->
-<section class="thermo-section" id="thermoSection">
-  <div class="thermo-card" id="thermoCard">
-    <div>
-      <div class="thermo-label">Потребителска кошница (30 стоки)</div>
-      <div class="thermo-value" id="thermoTotal">—</div>
-      <div class="thermo-sub">текущо €</div>
-    </div>
-    <div>
-      <div class="thermo-label">Спрямо миналия месец</div>
-      <div class="thermo-value" id="thermoMoM">—</div>
-      <div class="thermo-sub" id="thermoMoMSub">МоМ</div>
-    </div>
-    <div>
-      <div class="thermo-label">Спрямо миналата година</div>
-      <div class="thermo-value" id="thermoYoY">—</div>
-      <div class="thermo-sub" id="thermoYoYSub">ГоГ</div>
-    </div>
-    <div>
-      <div class="thermo-label">Тенденция</div>
-      <div class="thermo-value" id="thermoTrend" style="font-size:22px">—</div>
-      <div class="thermo-sub" id="thermoTrendLabel">—</div>
-    </div>
-    <div class="thermo-bar-wrap">
-      <div class="thermo-bar-fill" id="thermoBar" style="width:0%"></div>
+<!-- ── INSIGHTS STRIP ─────────────────────────────────────────── -->
+<section class="insights-section" id="insightsSection">
+  <div class="insights-inner" id="insightsRow">
+    <div class="insight-pill">
+      <span>🛒</span> Зареждаме данни...
     </div>
   </div>
 </section>
@@ -797,13 +926,13 @@ a { color: inherit; text-decoration: none; }
 
     <!-- Tabs -->
     <div class="tabs">
-      <div class="tab active" id="tab-search"    onclick="switchMainTab('search')">🔍 Резултати</div>
-      <div class="tab"        id="tab-deals"     onclick="switchMainTab('deals')">🏷️ Оферти</div>
-      <div class="tab"        id="tab-inflation" onclick="switchMainTab('inflation')">📊 Инфлация</div>
+      <div class="tab active" id="tab-deals"   onclick="switchMainTab('deals')">🏷️ Оферти</div>
+      <div class="tab"        id="tab-search"  onclick="switchMainTab('search')">🔍 Резултати</div>
+      <div class="tab"        id="tab-basket"  onclick="switchMainTab('basket')">🛒 Кошница</div>
     </div>
 
     <!-- Search results panel -->
-    <div id="panel-search">
+    <div id="panel-search" style="display:none">
       <div class="placeholder" id="searchPlaceholder">
         <div class="placeholder-icon">🛒</div>
         <h3>Търси продукт горе</h3>
@@ -812,8 +941,8 @@ a { color: inherit; text-decoration: none; }
       <div class="results-grid" id="resultsGrid" style="display:none"></div>
     </div>
 
-    <!-- Kaufland Deals panel -->
-    <div id="panel-deals" style="display:none">
+    <!-- Offers panel (default) -->
+    <div id="panel-deals">
       <!-- Stats bar -->
       <div class="stats-bar" id="kaufStats"></div>
 
@@ -827,9 +956,6 @@ a { color: inherit; text-decoration: none; }
         <div class="cat-chip" onclick="filterKaufStore('metro')" style="border-left:3px solid #003087">🔷 Metro</div>
         <div class="cat-chip" onclick="filterKaufStore('tmarket')" style="border-left:3px solid #e67e22">🟠 T-Market</div>
       </div>
-
-      <!-- Category filter -->
-      <div class="cat-filter-bar" id="kaufCatFilter"></div>
 
       <div class="section-hdr">
         <div>
@@ -867,10 +993,30 @@ a { color: inherit; text-decoration: none; }
       </div>
     </div>
 
-    <!-- Inflation panel -->
-    <div id="panel-inflation" style="display:none">
-      <div id="inflationContent" class="placeholder">
-        <div class="loading-dots"><span></span><span></span><span></span></div>
+    <!-- Basket panel -->
+    <div id="panel-basket" style="display:none">
+      <div class="section-hdr" style="margin-bottom:24px">
+        <div>
+          <div class="section-title">🛒 Пазарска кошница</div>
+          <div class="section-sub" id="basketSubtitle">Добави стоки от Оферти с бутона +</div>
+        </div>
+        <button id="basketClearBtn" onclick="clearBasket()"
+          style="display:none;padding:7px 14px;border-radius:var(--radius-sm);border:1.5px solid var(--border2);
+                 background:var(--bg2);color:var(--text2);font-size:13px;cursor:pointer">
+          Изчисти
+        </button>
+      </div>
+      <div id="basketContent">
+        <div class="basket-empty">
+          <div class="basket-empty-icon">🛒</div>
+          <h3>Кошницата е празна</h3>
+          <p>Отвори <strong>Оферти</strong> и натисни <strong>+</strong> до продукт за да го добавиш тук.<br>
+             Ще видиш в кой магазин ще излезе най-евтино.</p>
+          <button onclick="showTab('deals')" style="margin-top:20px;padding:10px 24px;border-radius:100px;
+            background:var(--green-mid);color:#fff;border:none;font-size:14px;font-weight:600;cursor:pointer">
+            → Разгледай оферти
+          </button>
+        </div>
       </div>
     </div>
 
@@ -919,9 +1065,9 @@ a { color: inherit; text-decoration: none; }
 <footer class="footer">
   <div class="footer-logo">Пазар<span>ко</span></div>
   <div class="footer-links">
+    <span class="footer-link" onclick="showTab('deals')">Оферти</span>
     <span class="footer-link" onclick="showTab('search')">Търсене</span>
-    <span class="footer-link" onclick="showTab('deals')">Оферти по категории</span>
-    <span class="footer-link" onclick="showTab('inflation')">Инфлация</span>
+    <span class="footer-link" onclick="showTab('basket')">Кошница</span>
     <span class="footer-link" onclick="openChat()">AI Асистент</span>
   </div>
   <p>Сравняваме цени в Kaufland, Billa, Lidl, Фантастико и T-Market всяка седмица.</p>
@@ -939,10 +1085,14 @@ let _chatHistory  = [];
 let _currentProductId = null;
 
 // Offers tab state
-let _allOffers   = [];        // all loaded offers (cached)
-let _kaufLoaded  = false;
-let _kaufStore   = '';        // selected store filter
-let _kaufFoodCat = '';        // selected food category id
+let _allOffers      = [];     // all loaded offers (cached)
+let _kaufLoaded     = false;
+let _kaufStore      = '';     // selected store filter
+let _kaufFoodCat    = '';     // selected food category id
+let _promoWidgetCat = '';     // active category in promo widget
+
+// Basket state
+let _basket = [];             // [{id, name, price, store, unit, url, _discPct}]
 
 const STORE_LABELS = {
   kaufland: 'Kaufland', billa: 'Billa',
@@ -955,48 +1105,129 @@ const STORE_COLORS = {
   metro: '#003087', tmarket: '#e67e22',
 };
 
-// ── Food categories with keyword maps ──────────────────────────
+// ── Food categories with keyword maps + subcategories ──────────
 const FOOD_CATS = [
-  { id: 'frozen',    label: 'Замразени',       emoji: '🧊',
-    keys: ['замраз', 'замрожен', 'фризир'] },
-  { id: 'fish',      label: 'Риба',            emoji: '🐟',
+  { id: 'frozen', label: 'Замразени', emoji: '🧊',
+    keys: ['замраз', 'замрожен', 'фризир'],
+    subcats: [
+      { id: 'frozen_ready',  label: 'Готови ястия',    keys: ['пица', 'лазан', 'готово', 'панирано'] },
+      { id: 'frozen_vegs',   label: 'Зеленчуци',       keys: ['зеленчук', 'грах ', 'царевиц', 'броколи', 'спанак'] },
+      { id: 'frozen_meat',   label: 'Месо и риба',     keys: ['пилешк', 'рибн', 'риба', 'свинск', 'кайма'] },
+      { id: 'frozen_sweets', label: 'Сладолед',        keys: ['сладолед', 'айскрем', 'ice cream'] },
+    ] },
+
+  { id: 'fish', label: 'Риба', emoji: '🐟',
     keys: ['риба', 'риб ', 'рибн', 'сьомг', 'скумрия', 'херинг', 'паламуд', 'сафрид',
-            'туна', 'скариц', 'октопод', 'калмар', 'треска', 'шаран', 'пъстърв', 'морски дар'] },
-  { id: 'meat',      label: 'Месо',            emoji: '🥩',
+           'туна', 'скариц', 'октопод', 'калмар', 'треска', 'шаран', 'пъстърв', 'морски дар'],
+    subcats: [
+      { id: 'tuna',      label: 'Риба тон',       keys: ['туна', 'риба тон'] },
+      { id: 'salmon',    label: 'Сьомга',          keys: ['сьомг'] },
+      { id: 'seafood',   label: 'Морски дарове',   keys: ['скариц', 'октопод', 'калмар', 'морски дар'] },
+      { id: 'freshfish', label: 'Прясна риба',     keys: ['шаран', 'пъстърв', 'скумрия', 'херинг', 'треска', 'сафрид', 'паламуд'] },
+      { id: 'canned_f',  label: 'Консервирана',    keys: ['консерв', 'рибн', 'риба '] },
+    ] },
+
+  { id: 'meat', label: 'Месо', emoji: '🥩',
     keys: ['пилешк', 'пиле ', 'свинск', 'телешк', 'агнешк', 'говеждо', 'пуешк',
-            'кайма', 'бутче', 'пилешко', 'гърди', 'карбонад', 'котлет', 'шишче',
-            'месо ', 'ребра', 'шницел', 'вратна', 'плешка'] },
-  { id: 'deli',      label: 'Колбаси',         emoji: '🌭',
+           'кайма', 'бутче', 'пилешко', 'гърди', 'карбонад', 'котлет', 'шишче',
+           'месо ', 'ребра', 'шницел', 'вратна', 'плешка'],
+    subcats: [
+      { id: 'chicken', label: 'Пилешко',          keys: ['пилешк', 'пиле ', 'бутче', 'гърди', 'пилешко'] },
+      { id: 'pork',    label: 'Свинско',           keys: ['свинск', 'карбонад', 'котлет', 'ребра', 'вратна', 'плешка', 'шницел'] },
+      { id: 'beef',    label: 'Говеждо/Телешко',  keys: ['телешк', 'говеждо', 'шишче'] },
+      { id: 'minced',  label: 'Кайма',             keys: ['кайма'] },
+      { id: 'lamb',    label: 'Агнешко/Пуешко',   keys: ['агнешк', 'пуешк'] },
+    ] },
+
+  { id: 'deli', label: 'Колбаси', emoji: '🌭',
     keys: ['наденица', 'кебап', 'луканка', 'салам ', 'суджук', 'шунка', 'пастет',
-            'карначе', 'колбас', 'бекон', 'кренвирш', 'кабанос', 'мортадела', 'виенска'] },
-  { id: 'dairy',     label: 'Млечни и яйца',   emoji: '🥛',
+           'карначе', 'колбас', 'бекон', 'кренвирш', 'кабанос', 'мортадела', 'виенска'],
+    subcats: [
+      { id: 'sausage', label: 'Наденици',          keys: ['наденица', 'кренвирш', 'кабанос', 'виенска', 'карначе'] },
+      { id: 'salami',  label: 'Салами и суджуци',  keys: ['салам ', 'луканка', 'суджук', 'кебап', 'колбас'] },
+      { id: 'ham',     label: 'Шунка и бекон',     keys: ['шунка', 'бекон', 'мортадела'] },
+      { id: 'pate',    label: 'Пастет',             keys: ['пастет'] },
+    ] },
+
+  { id: 'dairy', label: 'Млечни и яйца', emoji: '🥛',
     keys: ['мляко', 'млечн', 'кисело', 'сирене', 'сирен', 'кашкавал', 'яйца', 'яйце',
-            'извара', 'крем сирен', 'йогурт', 'масло', 'заквасена', 'прясно', 'краве'] },
-  { id: 'produce',   label: 'Плодове и зел.',  emoji: '🥦',
+           'извара', 'крем сирен', 'йогурт', 'масло', 'заквасена', 'прясно', 'краве'],
+    subcats: [
+      { id: 'yogurt',  label: 'Кисело мляко',      keys: ['кисело', 'йогурт'] },
+      { id: 'milk',    label: 'Прясно мляко',       keys: ['прясно мляко', 'прясно', 'мляко', 'краве'] },
+      { id: 'cheese',  label: 'Сирене',             keys: ['сирене', 'сирен', 'крем сирен'] },
+      { id: 'kashk',   label: 'Кашкавал',           keys: ['кашкавал'] },
+      { id: 'butter',  label: 'Масло и сметана',    keys: ['масло', 'заквасена', 'сметан'] },
+      { id: 'eggs',    label: 'Яйца',               keys: ['яйца', 'яйце'] },
+      { id: 'cottage', label: 'Извара',             keys: ['извара'] },
+      { id: 'dessert', label: 'Млечни десерти',     keys: ['млечн', 'пудинг', 'десерт'] },
+    ] },
+
+  { id: 'produce', label: 'Плодове и зел.', emoji: '🥦',
     keys: ['плодов', 'зеленчук', 'домат', 'краставиц', 'морков', 'картоф', 'ябълк',
-            'банан', 'портокал', 'лимон', 'грозд', 'черешк', 'ягода', 'праскова',
-            'круша', 'тиквичк', 'лук ', 'чесън', 'спанак', 'маруля', 'зеле ', 'пипер',
-            'цвекло', 'целина', 'магданоз', 'авокадо', 'киви'] },
-  { id: 'bread',     label: 'Хляб и печива',   emoji: '🍞',
+           'банан', 'портокал', 'лимон', 'грозд', 'черешк', 'ягода', 'праскова',
+           'круша', 'тиквичк', 'лук ', 'чесън', 'спанак', 'маруля', 'зеле ', 'пипер',
+           'цвекло', 'целина', 'магданоз', 'авокадо', 'киви'],
+    subcats: [
+      { id: 'vegs',   label: 'Зеленчуци',         keys: ['домат', 'краставиц', 'морков', 'картоф', 'тиквичк',
+                                                          'лук ', 'чесън', 'спанак', 'маруля', 'зеле ', 'пипер',
+                                                          'цвекло', 'целина', 'магданоз', 'зеленчук'] },
+      { id: 'fruits', label: 'Плодове',            keys: ['ябълк', 'банан', 'портокал', 'лимон', 'грозд',
+                                                          'черешк', 'ягода', 'праскова', 'круша', 'авокадо',
+                                                          'киви', 'плодов'] },
+      { id: 'olives', label: 'Маслини',            keys: ['маслин'] },
+      { id: 'nuts',   label: 'Ядки и сушени',      keys: ['ядки', 'бадем', 'орех', 'лешник', 'фъстък', 'сушен'] },
+    ] },
+
+  { id: 'bread', label: 'Хляб и печива', emoji: '🍞',
     keys: ['хляб', 'хлеб', 'баниц', 'кифл', 'погач', 'козунак', 'питка', 'питки',
-            'руло ', 'геврек', 'мекиц', 'плетен', 'тарт', 'кроасан', 'франзела', 'пица'] },
-  { id: 'sweets',    label: 'Захарни и снакс', emoji: '🍫',
+           'руло ', 'геврек', 'мекиц', 'плетен', 'тарт', 'кроасан', 'франзела', 'пица'],
+    subcats: [
+      { id: 'loaves',  label: 'Хляб',             keys: ['хляб', 'хлеб', 'франзела', 'плетен'] },
+      { id: 'rolls',   label: 'Кифли и питки',    keys: ['кифл', 'питка', 'питки', 'погач', 'руло '] },
+      { id: 'pastry',  label: 'Банички и тесто',  keys: ['баниц', 'кроасан', 'тарт', 'мекиц', 'геврек', 'козунак'] },
+      { id: 'pizza',   label: 'Пица',             keys: ['пица'] },
+    ] },
+
+  { id: 'sweets', label: 'Захарни и снакс', emoji: '🍫',
     keys: ['шоколад', 'бонбон', 'вафл', 'бисквит', 'торта', 'сладолед', 'конфитюр',
-            'мармалад', 'снакс', 'чипс', 'пуканки', 'халва', 'локум', 'нугат', 'крекер'] },
-  { id: 'staples',   label: 'Основни храни',   emoji: '🥫',
+           'мармалад', 'снакс', 'чипс', 'пуканки', 'халва', 'локум', 'нугат', 'крекер'],
+    subcats: [
+      { id: 'choc',    label: 'Шоколад',          keys: ['шоколад', 'нугат', 'халва', 'локум'] },
+      { id: 'biscuit', label: 'Бисквити',          keys: ['бисквит', 'вафл', 'крекер'] },
+      { id: 'icecr',   label: 'Сладолед',          keys: ['сладолед'] },
+      { id: 'jam',     label: 'Конфитюри',         keys: ['конфитюр', 'мармалад'] },
+      { id: 'snack',   label: 'Снакс',             keys: ['снакс', 'чипс', 'пуканки', 'бонбон', 'торта'] },
+    ] },
+
+  { id: 'staples', label: 'Основни храни', emoji: '🥫',
     keys: ['ориз', 'брашно', 'паста ', 'спагети', 'макарони', 'консерв', 'боб ',
-            'леща', 'нахут', 'грах ', 'зърнен', 'грис', 'овесен', 'мюсли', 'олио',
-            'оцет', 'захар', 'брашн', 'сол '] },
-  { id: 'beverages', label: 'Напитки',         emoji: '🧃',
+           'леща', 'нахут', 'грах ', 'зърнен', 'грис', 'овесен', 'мюсли', 'олио',
+           'оцет', 'захар', 'брашн', 'сол '],
+    subcats: [] },
+
+  { id: 'beverages', label: 'Напитки', emoji: '🧃',
     keys: ['вода ', 'сок ', 'бира ', 'вино ', 'кафе', 'чай ', 'нектар', 'енергийн',
-            'газиран', 'минерал', 'айрян', 'кефир', 'напитк', 'уиски', 'ракия', 'лимонад'] },
-  { id: 'household', label: 'Домакинство',     emoji: '🧹',
+           'газиран', 'минерал', 'айрян', 'кефир', 'напитк', 'уиски', 'ракия', 'лимонад'],
+    subcats: [
+      { id: 'water',  label: 'Вода',              keys: ['вода ', 'минерал'] },
+      { id: 'juice',  label: 'Сокове',            keys: ['сок ', 'нектар', 'лимонад'] },
+      { id: 'beer',   label: 'Бира',              keys: ['бира '] },
+      { id: 'wine',   label: 'Вино и спиртни',    keys: ['вино ', 'уиски', 'ракия'] },
+      { id: 'coffee', label: 'Кафе и чай',        keys: ['кафе', 'чай '] },
+      { id: 'energy', label: 'Енергийни',         keys: ['енергийн', 'газиран', 'айрян', 'кефир'] },
+    ] },
+
+  { id: 'household', label: 'Домакинство', emoji: '🧹',
     keys: ['перилен', 'омекотит', 'почистващ', 'тоалетна хартия', 'кухненска хартия',
-            'домакинск', 'течност за', 'дезинфекц', 'торбичка', 'найлон',
-            'алуминиево', 'пергамент', 'белина', 'парцал'] },
-  { id: 'cosmetics', label: 'Козметика',       emoji: '🧴',
+           'домакинск', 'течност за', 'дезинфекц', 'торбичка', 'найлон',
+           'алуминиево', 'пергамент', 'белина', 'парцал'],
+    subcats: [] },
+
+  { id: 'cosmetics', label: 'Козметика', emoji: '🧴',
     keys: ['шампоан', 'душ гел', 'душ пяна', 'дезодоран', 'паста за зъб',
-            'антиперспиран', 'козметик', 'четка за зъб', 'самобръснач', 'хигиенни'] },
+           'антиперспиран', 'козметик', 'четка за зъб', 'самобръснач', 'хигиенни'],
+    subcats: [] },
 ];
 
 // ── Валута: всички цени в БД са в лева (BGN), показваме EUR ────
@@ -1017,6 +1248,19 @@ function detectFoodCategory(o) {
   return 'other';
 }
 
+// ── Subcategory detection (within a food category) ─────────────
+function detectSubcategory(o, foodCatId) {
+  const cat = FOOD_CATS.find(c => c.id === foodCatId);
+  if (!cat || !cat.subcats?.length) return null;
+  const text = (
+    (o.raw_name || '') + ' ' + (o.description || '') + ' ' + (o.category_raw || '')
+  ).toLowerCase();
+  for (const sub of cat.subcats) {
+    if (sub.keys.some(k => text.includes(k))) return sub.id;
+  }
+  return 'other';
+}
+
 // ── Discount percentage helper ──────────────────────────────────
 function discountPct(o) {
   const price    = parseFloat(o.price);
@@ -1029,6 +1273,33 @@ function discountPct(o) {
     return m ? parseInt(m[1]) : 0;
   }
   return 0;
+}
+
+// ── Compact deal card (Znam-Cenite style vertical card) ─────────
+function buildCompactCard(o) {
+  const pct   = o._discPct || 0;
+  const color = STORE_COLORS[o.store] || '#aaa';
+  const sName = STORE_LABELS[o.store] || o.store || '';
+  const url   = o.url ? o.url.replace(/'/g, "\\'") : '';
+
+  const imgHtml = o.image_url
+    ? `<img src="${o.image_url}" alt="" style="width:72px;height:72px;object-fit:contain;
+         border-radius:8px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto"
+         onerror="this.style.display='none'">`
+    : `<div style="width:72px;height:72px;display:flex;align-items:center;justify-content:center;
+         font-size:30px;margin:0 auto 8px">🛒</div>`;
+
+  return `
+    <div class="compact-card" ${url ? `onclick="window.open('${url}','_blank')"` : ''}>
+      ${pct > 0 ? `<div class="cc-disc">-${pct}%</div>` : ''}
+      ${imgHtml}
+      <div class="cc-name">${o.raw_name || ''}</div>
+      <div style="font-size:11px;margin-bottom:6px">
+        <span style="color:${color};font-weight:600">${sName}</span>${o.unit ? ' · ' + o.unit : ''}
+      </div>
+      <div class="cc-price">${eur(o.price)}</div>
+      ${pct > 0 && o.old_price ? `<div class="cc-old">${eur(o.old_price)}</div>` : ''}
+    </div>`;
 }
 
 // ── Search ──────────────────────────────────────────────────────
@@ -1135,18 +1406,20 @@ function filterStore(store) {
 
 // ── Main tabs ───────────────────────────────────────────────────
 function switchMainTab(name) {
-  ['search','deals','inflation'].forEach(t => {
-    document.getElementById(`tab-${t}`).classList.toggle('active', t === name);
-    document.getElementById(`panel-${t}`).style.display = t === name ? '' : 'none';
+  ['search','deals','basket'].forEach(t => {
+    const tab   = document.getElementById(`tab-${t}`);
+    const panel = document.getElementById(`panel-${t}`);
+    if (tab)   tab.classList.toggle('active', t === name);
+    if (panel) panel.style.display = t === name ? '' : 'none';
   });
   // Update nav links
-  ['Search','Deals','Inflation'].forEach(n => {
+  ['Deals','Search','Basket'].forEach(n => {
     const el = document.getElementById('nav' + n);
     if (el) el.classList.toggle('active', n.toLowerCase() === name);
   });
 
-  if (name === 'deals'     && !_kaufLoaded) loadKaufland();
-  if (name === 'inflation')                loadInflationDetail();
+  if (name === 'deals'  && !_kaufLoaded) loadKaufland();
+  if (name === 'basket')                 renderBasket();
 }
 
 // ── Load ALL offers (cached) ─────────────────────────────────────
@@ -1177,6 +1450,7 @@ async function loadKaufland() {
     _kaufLoaded = true;
     updateKaufStats();
     applyFiltersAndRender();
+    updateInsightsFromOffers();
 
   } catch (err) {
     console.error('[offers]', err);
@@ -1239,23 +1513,51 @@ function applyFiltersAndRender() {
   document.getElementById('kaufLoadMore').style.display = 'none';
 }
 
-// ── Render: category overview tiles (clean default view) ────────
+// ── Render: overview — promo widget + category tiles ────────────
 function renderOverview(offers, grid) {
-  // Top deals strip: top 4 with biggest discount
-  const topDeals = offers.filter(o => o._discPct >= 20).slice(0, 4);
+  _promoWidgetCat = '';   // reset widget filter
 
-  const topDealsHtml = topDeals.length ? `
-    <div style="margin-bottom:32px">
-      <div class="section-hdr" style="margin-bottom:14px">
-        <div>
-          <div class="section-title">🔥 Топ намаления</div>
-          <div class="section-sub">Най-голямо намаление тази седмица</div>
-        </div>
+  // ── Promo widget ──────────────────────────────────────────────
+  const allDeals = offers
+    .filter(o => o._discPct >= 10)
+    .sort((a, b) => (b._discPct || 0) - (a._discPct || 0));
+
+  // Category quick-link chips (only those with ≥1 deal)
+  const catLinksHtml = FOOD_CATS.map(cat => {
+    const cnt = allDeals.filter(o => o._foodCat === cat.id).length;
+    if (!cnt) return '';
+    return `<span class="promo-cat-link" data-cat="${cat.id}"
+               onclick="filterPromoWidget('${cat.id}')">
+               ${cat.emoji} ${cat.label}
+               <span style="opacity:.55;font-size:11px">${cnt}</span>
+             </span>`;
+  }).filter(Boolean).join('');
+
+  const topDeals  = allDeals.slice(0, 14);
+  const lastScrpd = offers.find(o => o.scraped_at)?.scraped_at?.slice(0, 10) || '';
+
+  const promoWidget = topDeals.length ? `
+    <div class="promo-widget" id="promoWidget">
+      <div class="promo-widget-hdr">
+        <div class="promo-widget-title">🔥 Актуални промоции</div>
+        <span class="promo-widget-see-all"
+              onclick="filterKaufFoodCat('')">Виж всички →</span>
       </div>
-      <div class="results-grid">${topDeals.map(o => buildOfferCard(o)).join('')}</div>
+
+      <div class="promo-cat-links" id="promoCatLinks">
+        <span class="promo-cat-link active" data-cat=""
+              onclick="filterPromoWidget('')">🏷️ Всички</span>
+        ${catLinksHtml}
+      </div>
+
+      <div class="promo-deals-row" id="promoDealsRow">
+        ${topDeals.map(o => buildCompactCard(o)).join('')}
+      </div>
+
+      ${lastScrpd ? `<div class="promo-footer">Обновено: ${lastScrpd}</div>` : ''}
     </div>` : '';
 
-  // Category overview tiles
+  // ── Category overview tiles ───────────────────────────────────
   let tilesHtml = '';
   for (const cat of FOOD_CATS) {
     const catOffers = offers.filter(o => o._foodCat === cat.id);
@@ -1263,6 +1565,7 @@ function renderOverview(offers, grid) {
 
     const minPrice = Math.min(...catOffers.map(o => parseFloat(o.price) || 999));
     const maxDisc  = Math.max(...catOffers.map(o => o._discPct || 0));
+    const dealCnt  = catOffers.filter(o => o._discPct > 0).length;
 
     tilesHtml += `
       <div class="cat-ov-card" onclick="filterKaufFoodCat('${cat.id}')">
@@ -1270,55 +1573,124 @@ function renderOverview(offers, grid) {
         <div class="cat-ov-name">${cat.label}</div>
         <div class="cat-ov-count">${catOffers.length} продукта</div>
         <div class="cat-ov-price">от ${eur(minPrice)}</div>
-        ${maxDisc > 0 ? `<div class="cat-ov-disc">до -${maxDisc}%</div>` : ''}
+        ${maxDisc > 0
+          ? `<div class="cat-ov-disc">до -${maxDisc}%</div>`
+          : `<div style="height:20px"></div>`}
       </div>`;
   }
 
-  if (!tilesHtml) {
+  if (!tilesHtml && !promoWidget) {
     grid.innerHTML = `
-      <div class="results-grid">
-        <div class="placeholder" style="grid-column:1/-1">
-          <div class="placeholder-icon">🏷️</div>
-          <h3>Няма намерени оферти</h3>
-          <p>Стартирай скрейпърите за да заредиш данни</p>
-        </div>
+      <div class="placeholder" style="text-align:center;padding:60px 20px">
+        <div class="placeholder-icon">🏷️</div>
+        <h3>Няма намерени оферти</h3>
+        <p>Стартирай скрейпърите за да заредиш данни</p>
       </div>`;
     return;
   }
 
   grid.innerHTML = `
-    ${topDealsHtml}
+    ${promoWidget}
+    ${tilesHtml ? `
     <div class="section-hdr" style="margin-bottom:14px">
       <div>
         <div class="section-title">Разгледай по категория</div>
         <div class="section-sub">Кликни категория за да видиш всички оферти</div>
       </div>
     </div>
-    <div class="cat-ov-grid">${tilesHtml}</div>`;
+    <div class="cat-ov-grid">${tilesHtml}</div>` : ''}`;
 }
 
-// ── Render: category detail grid with back button ────────────────
+// ── Render: category detail — grouped by subcategory ────────────
 function renderCategoryDetail(filtered, catInfo, grid) {
-  const label = catInfo ? `${catInfo.emoji} ${catInfo.label}` : 'Оферти';
+  const label   = catInfo ? `${catInfo.emoji} ${catInfo.label}` : 'Оферти';
+  const catId   = catInfo?.id || '';
   const backRow = `
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap">
       <span class="back-btn" onclick="filterKaufFoodCat('')">← Всички категории</span>
-      <span style="color:var(--text2);font-size:14px;font-weight:600">${label}</span>
+      <span style="color:var(--text2);font-size:15px;font-weight:700">${label}</span>
       <span style="color:var(--text3);font-size:13px">· ${filtered.length} оферти</span>
     </div>`;
 
   if (!filtered.length) {
     grid.innerHTML = backRow + `
-      <div class="results-grid">
-        <div class="placeholder" style="grid-column:1/-1">
-          <div class="placeholder-icon">🔍</div>
-          <h3>Няма оферти в тази категория</h3>
-          <p>Опитай с друга категория или магазин</p>
-        </div>
+      <div class="placeholder" style="text-align:center;padding:48px 20px">
+        <div class="placeholder-icon">🔍</div>
+        <h3>Няма оферти в тази категория</h3>
+        <p>Опитай с друга категория или магазин</p>
       </div>`;
     return;
   }
-  grid.innerHTML = backRow + `<div class="results-grid">${filtered.map(o => buildOfferCard(o)).join('')}</div>`;
+
+  // No subcats → flat grid
+  const subcats = catInfo?.subcats;
+  if (!subcats?.length) {
+    grid.innerHTML = backRow +
+      `<div class="results-grid">${filtered.map(o => buildOfferCard(o)).join('')}</div>`;
+    return;
+  }
+
+  // Assign subcategory to each offer (once)
+  filtered.forEach(o => {
+    if (!o._subCat) o._subCat = detectSubcategory(o, catId);
+  });
+
+  // Sort — discounted first within each bucket
+  filtered.sort((a, b) => (b._discPct || 0) - (a._discPct || 0));
+
+  const SHOW = 6;   // products visible before "Виж още"
+  let sectionsHtml = '';
+
+  for (const sub of subcats) {
+    const group = filtered.filter(o => o._subCat === sub.id);
+    if (!group.length) continue;
+
+    const visible   = group.slice(0, SHOW);
+    const remaining = group.length - SHOW;
+
+    sectionsHtml += `
+      <div class="cat-section-wrap">
+        <div class="cat-section-hdr">
+          <div>
+            <span class="cat-section-title">${sub.label}</span>
+            <span class="cat-section-sub"> · ${group.length} продукта</span>
+          </div>
+          ${remaining > 0
+            ? `<span class="cat-section-more"
+                     onclick="showAllSubcat('${catId}','${sub.id}')">
+                 Виж още ${remaining} →
+               </span>`
+            : ''}
+        </div>
+        <div class="results-grid">${visible.map(o => buildOfferCard(o)).join('')}</div>
+      </div>`;
+  }
+
+  // "Останали" bucket — offers that matched no subcat
+  const others = filtered.filter(o => !subcats.some(s => s.id === o._subCat));
+  if (others.length) {
+    const visible   = others.slice(0, SHOW);
+    const remaining = others.length - SHOW;
+    sectionsHtml += `
+      <div class="cat-section-wrap">
+        <div class="cat-section-hdr">
+          <div>
+            <span class="cat-section-title">Останали</span>
+            <span class="cat-section-sub"> · ${others.length} продукта</span>
+          </div>
+          ${remaining > 0
+            ? `<span class="cat-section-more"
+                     onclick="showAllSubcat('${catId}','other')">
+                 Виж още ${remaining} →
+               </span>`
+            : ''}
+        </div>
+        <div class="results-grid">${visible.map(o => buildOfferCard(o)).join('')}</div>
+      </div>`;
+  }
+
+  grid.innerHTML = backRow + (sectionsHtml ||
+    `<div class="results-grid">${filtered.map(o => buildOfferCard(o)).join('')}</div>`);
 }
 
 // ── Build offer card (new design) ────────────────────────────────
@@ -1345,8 +1717,10 @@ function buildOfferCard(o) {
     ? `<span class="oc-price">${eur(o.price)}</span><span class="oc-old">${eur(o.old_price)}</span>`
     : `<span class="oc-price no-deal">${eur(o.price)}</span>`;
 
-  const url = o.url ? o.url.replace(/'/g, "\\'") : '';
+  const url       = o.url ? o.url.replace(/'/g, "\\'") : '';
   const clickAttr = url ? `onclick="window.open('${url}','_blank')"` : '';
+  const oId       = (o.id || o.raw_name || '').replace(/'/g, "\\'");
+  const inBasket  = _basket.some(b => b.id === (o.id || o.raw_name));
 
   return `
     <div class="offer-card ${hasDeal ? 'on-sale' : ''}" ${clickAttr}>
@@ -1364,6 +1738,12 @@ function buildOfferCard(o) {
         ${subHtml}
         <div class="oc-price-row">${priceHtml}</div>
       </div>
+      <button class="basket-add-btn ${inBasket ? 'in-basket' : ''}"
+              data-id="${oId}"
+              onclick="event.stopPropagation();addToBasket('${oId}')"
+              title="Добави в кошница">
+        ${inBasket ? '✓' : '+'}
+      </button>
     </div>`;
 }
 
@@ -1394,32 +1774,35 @@ function updateKaufStats() {
     ${storePills}`;
 }
 
-// ── Food category chips ───────────────────────────────────────────
-function initFoodCatFilter() {
-  const bar = document.getElementById('kaufCatFilter');
-  if (!bar) return;
-  bar.innerHTML = `
-    <div class="cat-chip active" onclick="filterKaufFoodCat('')">🏷️ Всички</div>
-    ${FOOD_CATS.map(c =>
-      `<div class="cat-chip" onclick="filterKaufFoodCat('${c.id}')">${c.emoji} ${c.label}</div>`
-    ).join('')}`;
-}
 
 function filterKaufFoodCat(cat) {
   _kaufFoodCat = cat;
-  document.querySelectorAll('#kaufCatFilter .cat-chip').forEach(c => {
-    const isAll = !cat && c.textContent.includes('Всички');
-    const isCat = cat && c.getAttribute('onclick')?.includes(`'${cat}'`);
-    c.classList.toggle('active', isAll || !!isCat);
-  });
 
+  // Fade transition
+  const grid = document.getElementById('kaufGrid');
+  if (grid) {
+    grid.classList.add('fading');
+    setTimeout(() => {
+      applyFiltersAndRender();
+      grid.classList.remove('fading');
+    }, 160);
+  } else {
+    applyFiltersAndRender();
+  }
+
+  // Update title
   const catInfo = FOOD_CATS.find(c => c.id === cat);
   const titleEl = document.getElementById('kaufOffersTitle');
   if (titleEl) titleEl.textContent = catInfo
     ? `${catInfo.emoji} ${catInfo.label}`
     : 'Актуални оферти';
 
-  applyFiltersAndRender();
+  // Scroll to top of the offers panel so users see the new view from the start
+  const panel = document.getElementById('panel-deals');
+  if (panel) {
+    const top = panel.getBoundingClientRect().top + window.scrollY - 72;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  }
 }
 
 function filterKaufStore(store) {
@@ -1441,74 +1824,254 @@ function filterKaufStore(store) {
   else loadKaufland();
 }
 
-// ── Inflation detail ────────────────────────────────────────────
-let _inflLoaded = false;
-async function loadInflationDetail() {
-  if (_inflLoaded) return;
-  try {
-    const res  = await fetch(`${API}/api/inflation/by-category`);
-    const data = await res.json();
-    const cats = data.categories || [];
+// ── Basket ───────────────────────────────────────────────────────
+function addToBasket(offerId) {
+  const o = _allOffers.find(x => (x.id || x.raw_name) === offerId);
+  if (!o) return;
 
-    const el = document.getElementById('inflationContent');
-    if (!cats.length) {
-      el.innerHTML = `
-        <div class="placeholder-icon">📊</div>
-        <h3>Събираме данни...</h3>
-        <p>Ще е готово след първото сканиране на цените</p>
-      `;
-      return;
+  const alreadyIn = _basket.some(b => b.id === offerId);
+  if (alreadyIn) {
+    _basket = _basket.filter(b => b.id !== offerId);
+  } else {
+    _basket.push({
+      id:      offerId,
+      name:    o.raw_name || '',
+      price:   parseFloat(o.price) || 0,
+      store:   o.store || '',
+      unit:    o.unit || '',
+      url:     o.url || '',
+      _discPct: o._discPct || 0,
+    });
+  }
+
+  updateBasketBadge();
+
+  // Update the "+" button appearance on this card
+  const btn = document.querySelector(`.basket-add-btn[data-id="${CSS.escape(offerId)}"]`);
+  if (btn) {
+    if (_basket.some(b => b.id === offerId)) {
+      btn.textContent = '✓'; btn.classList.add('in-basket');
+    } else {
+      btn.textContent = '+'; btn.classList.remove('in-basket');
     }
-
-    el.style.cssText = '';
-    el.innerHTML = `
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px">
-        ${cats.map(c => {
-          const pct  = c.yoy_pct || 0;
-          const col  = pct > 4 ? 'var(--red)' : pct > 0 ? 'var(--amber)' : 'var(--green)';
-          const bg   = pct > 4 ? 'var(--red-dim)' : pct > 0 ? 'rgba(217,119,6,.08)' : 'var(--green-dim)';
-          return `
-          <div style="background:var(--bg2);border:1.5px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow-sm)">
-            <div style="font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:8px;font-weight:500">${c.category_label || c.category}</div>
-            <div style="font-size:30px;font-weight:800;color:${col}">${pct > 0 ? '+' : ''}${pct}%</div>
-            <div style="font-size:13px;color:var(--text2);margin-top:4px">год./год. промяна</div>
-          </div>`
-        }).join('')}
-      </div>
-    `;
-    _inflLoaded = true;
-  } catch (err) {
-    console.error(err);
   }
 }
 
-// ── Inflation thermometer ────────────────────────────────────────
-async function loadThermometer() {
-  try {
-    const res = await fetch(`${API}/api/inflation/thermometer`);
-    const d   = await res.json();
+function clearBasket() {
+  _basket = [];
+  updateBasketBadge();
+  renderBasket();
+  // Reset all card buttons
+  document.querySelectorAll('.basket-add-btn.in-basket').forEach(btn => {
+    btn.textContent = '+'; btn.classList.remove('in-basket');
+  });
+}
 
-    document.getElementById('thermoTotal').textContent =
-      d.current_total ? eur(d.current_total) : '—';
+function updateBasketBadge() {
+  const n     = _basket.length;
+  const badge = document.getElementById('basketBadge');
+  const btn   = document.getElementById('navBasketBtn');
 
-    const momEl = document.getElementById('thermoMoM');
-    momEl.textContent = d.mom_pct !== 0 ? `${d.mom_pct > 0 ? '+' : ''}${d.mom_pct}%` : '—';
-    momEl.className   = `thermo-value thermo-${d.mom_pct > 2 ? 'hot' : d.mom_pct > 0 ? 'warm' : 'cool'}`;
+  if (badge) { badge.textContent = n; badge.style.display = n > 0 ? 'flex' : 'none'; }
+  if (btn)   btn.classList.toggle('filled', n > 0);
 
-    const yoyEl = document.getElementById('thermoYoY');
-    yoyEl.textContent = d.yoy_pct !== 0 ? `${d.yoy_pct > 0 ? '+' : ''}${d.yoy_pct}%` : '—';
-    yoyEl.className   = `thermo-value thermo-${d.trend}`;
+  const clearBtn = document.getElementById('basketClearBtn');
+  if (clearBtn) clearBtn.style.display = n > 0 ? '' : 'none';
 
-    const EMOJI = { hot:'🔴', warm:'🟠', neutral:'⚪', cool:'🟢', cold:'🔵' };
-    document.getElementById('thermoTrend').textContent      = EMOJI[d.trend] || '⚪';
-    document.getElementById('thermoTrendLabel').textContent = d.trend_label || '—';
-
-    const pct = Math.min(100, Math.max(0, ((d.yoy_pct + 5) / 20) * 100));
-    document.getElementById('thermoBar').style.width = `${pct}%`;
-
-  } catch (err) {
-    console.warn('Thermometer fetch failed:', err);
+  const subtitle = document.getElementById('basketSubtitle');
+  if (subtitle) {
+    subtitle.textContent = n > 0
+      ? `${n} стоки · виж в кой магазин излизат най-евтино`
+      : 'Добави стоки от Оферти с бутона +';
   }
+}
+
+function renderBasket() {
+  const el = document.getElementById('basketContent');
+  if (!el) return;
+
+  if (!_basket.length) {
+    el.innerHTML = `
+      <div class="basket-empty">
+        <div class="basket-empty-icon">🛒</div>
+        <h3>Кошницата е празна</h3>
+        <p>Отвори <strong>Оферти</strong> и натисни <strong>+</strong> до продукт.<br>
+           Ще видиш в кой магазин ще излезе най-евтино.</p>
+        <button onclick="showTab('deals')" style="margin-top:20px;padding:10px 24px;border-radius:100px;
+          background:var(--green-mid);color:#fff;border:none;font-size:14px;font-weight:600;cursor:pointer">
+          → Разгледай оферти
+        </button>
+      </div>`;
+    return;
+  }
+
+  // Item list
+  const itemsHtml = _basket.map(b => `
+    <div class="basket-item">
+      <div>
+        <div class="basket-item-name">${b.name}</div>
+        <div class="basket-item-store">
+          <span style="color:${STORE_COLORS[b.store]||'#aaa'};font-weight:600">${STORE_LABELS[b.store]||b.store}</span>
+          ${b.unit ? ' · ' + b.unit : ''}
+          ${b._discPct > 0 ? ` · <span style="color:var(--red);font-weight:700">-${b._discPct}%</span>` : ''}
+        </div>
+      </div>
+      <div class="basket-item-price">${eur(b.price)}</div>
+      <button class="basket-item-rm" onclick="addToBasket('${b.id.replace(/'/g,"\\'")}')">✕</button>
+    </div>`).join('');
+
+  // Per-store totals — sum up prices
+  const storeTotals = {};
+  _basket.forEach(b => {
+    if (!b.store) return;
+    storeTotals[b.store] = (storeTotals[b.store] || 0) + b.price;
+  });
+
+  // Also estimate for stores not in basket: find cheapest alternative per item per store
+  const storeAlts = {};
+  _basket.forEach(item => {
+    // find all offers for same raw_name in other stores
+    const variants = _allOffers.filter(o => o.raw_name === item.name);
+    variants.forEach(v => {
+      if (!storeAlts[v.store]) storeAlts[v.store] = 0;
+      storeAlts[v.store] += parseFloat(v.price) || 0;
+    });
+  });
+
+  // Merge storeTotals (items user picked) with storeAlts for cross-store view
+  // Show stores that have ALL items OR at least have basket items
+  const allStores = [...new Set([...Object.keys(storeTotals), ...Object.keys(storeAlts)])];
+  const compareData = allStores.map(store => ({
+    store,
+    total: storeTotals[store] || storeAlts[store] || 0,
+    hasAll: !!storeTotals[store],
+  })).filter(x => x.total > 0).sort((a, b) => a.total - b.total);
+
+  let compareHtml = '';
+  if (compareData.length > 1) {
+    const maxTotal  = compareData[compareData.length - 1].total;
+    const minTotal  = compareData[0].total;
+    compareHtml = `
+      <div class="basket-compare">
+        <div class="basket-compare-title">В кой магазин ще излезе най-евтино?</div>
+        ${compareData.map((d, i) => {
+          const pct = Math.round((d.total / maxTotal) * 100);
+          const color = STORE_COLORS[d.store] || '#aaa';
+          const saving = d.total - minTotal;
+          return `
+            <div class="basket-cmp-row">
+              <div class="basket-cmp-store" style="color:${color}">${STORE_LABELS[d.store]||d.store}</div>
+              <div class="basket-cmp-bar-wrap">
+                <div class="basket-cmp-bar-fill" style="width:${pct}%;background:${color}88"></div>
+              </div>
+              <div class="basket-cmp-price" style="color:${color}">${eur(d.total)}</div>
+              ${i === 0 ? `<span class="basket-cmp-best">НАЙ-ЕВТИНО</span>` :
+                `<span style="font-size:12px;color:var(--text3)">+${eur(saving)}</span>`}
+            </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  el.innerHTML = `<div class="basket-list">${itemsHtml}</div>${compareHtml}`;
+}
+
+// ── Insights strip ────────────────────────────────────────────
+async function loadInsightsStrip() {
+  const el = document.getElementById('insightsRow');
+  if (!el) return;
+  try {
+    const stats = await fetch(`${API}/api/kaufland/offers/stats`).then(r => r.json());
+    el.innerHTML = `
+      <div class="insight-pill">🛒 <strong>${stats.total_offers || '—'}</strong> активни оферти</div>
+      <div class="insight-pill">🏪 <strong>5</strong> магазина сравнени</div>
+      ${stats.last_scraped
+        ? `<div class="insight-pill">🕐 Обновено <strong>${stats.last_scraped.slice(0,10)}</strong></div>`
+        : ''}
+      <div class="insight-pill good">💚 <strong>Безплатно</strong> и без реклами</div>
+    `;
+  } catch(e) {
+    document.getElementById('insightsSection').style.display = 'none';
+  }
+}
+
+function updateInsightsFromOffers() {
+  const el = document.getElementById('insightsRow');
+  if (!el || !_allOffers.length) return;
+
+  const withDeals = _allOffers.filter(o => o._discPct >= 10);
+  const topDeal   = [...withDeals].sort((a,b) => b._discPct - a._discPct)[0];
+  const stores    = [...new Set(_allOffers.map(o => o.store))].length;
+  const lastDate  = _allOffers.find(o => o.scraped_at)?.scraped_at?.slice(0,10) || '';
+
+  el.innerHTML = `
+    <div class="insight-pill">🛒 <strong>${_allOffers.length}</strong> оферти</div>
+    <div class="insight-pill hot">🔥 <strong>${withDeals.length}</strong> с намаление</div>
+    ${topDeal ? `<div class="insight-pill hot">⚡ Топ: <strong>-${topDeal._discPct}%</strong> ${(topDeal.raw_name||'').slice(0,22)}</div>` : ''}
+    <div class="insight-pill">🏪 <strong>${stores}</strong> магазина</div>
+    ${lastDate ? `<div class="insight-pill">🕐 <strong>${lastDate}</strong></div>` : ''}
+  `;
+}
+
+// ── Promo widget category filter ────────────────────────────────
+function filterPromoWidget(cat) {
+  _promoWidgetCat = cat;
+
+  // Update active chip
+  document.querySelectorAll('.promo-cat-link').forEach(el => {
+    const dc  = el.dataset.cat || '';
+    const all = !cat && !dc;
+    el.classList.toggle('active', all || dc === cat);
+  });
+
+  // Re-render deal cards
+  let pool = _kaufStore ? _allOffers.filter(o => o.store === _kaufStore) : _allOffers;
+  const deals = pool
+    .filter(o => o._discPct >= 10 && (!cat || o._foodCat === cat))
+    .sort((a, b) => (b._discPct || 0) - (a._discPct || 0))
+    .slice(0, 14);
+
+  const row = document.getElementById('promoDealsRow');
+  if (row) row.innerHTML = deals.length
+    ? deals.map(o => buildCompactCard(o)).join('')
+    : `<div style="padding:32px;color:var(--text3);font-size:13px">Няма промоции в тази категория</div>`;
+}
+
+// ── Show all products in a subcategory ───────────────────────────
+function showAllSubcat(catId, subcatId) {
+  const catInfo  = FOOD_CATS.find(c => c.id === catId);
+  if (!catInfo) return;
+  const subcats  = catInfo.subcats || [];
+  const subInfo  = subcatId === 'other'
+    ? { label: 'Останали' }
+    : subcats.find(s => s.id === subcatId);
+  if (!subInfo) return;
+
+  let pool = _kaufStore ? _allOffers.filter(o => o.store === _kaufStore) : _allOffers;
+
+  // Ensure subcats are assigned for this category
+  pool.filter(o => o._foodCat === catId).forEach(o => {
+    if (!o._subCat) o._subCat = detectSubcategory(o, catId);
+  });
+
+  // "other" = no matching subcat
+  const subOffers = pool
+    .filter(o => {
+      if (o._foodCat !== catId) return false;
+      if (subcatId === 'other') return !subcats.some(s => s.id === o._subCat);
+      return o._subCat === subcatId;
+    })
+    .sort((a, b) => (b._discPct || 0) - (a._discPct || 0));
+
+  const grid    = document.getElementById('kaufGrid');
+  const backRow = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px;flex-wrap:wrap">
+      <span class="back-btn" onclick="filterKaufFoodCat('${catId}')">← ${catInfo.emoji} ${catInfo.label}</span>
+      <span style="color:var(--text2);font-size:14px;font-weight:600">${subInfo.label}</span>
+      <span style="color:var(--text3);font-size:13px">· ${subOffers.length} оферти</span>
+    </div>`;
+
+  grid.innerHTML = backRow +
+    `<div class="results-grid">${subOffers.map(o => buildOfferCard(o)).join('')}</div>`;
 }
 
 // ── Product modal ────────────────────────────────────────────────
@@ -1635,14 +2198,14 @@ function catLabel(cat) {
 }
 function scrollToTop() { window.scrollTo({ top: 0, behavior: 'smooth' }); }
 function showTab(name) {
-  if (name === 'search') scrollToTop();
+  scrollToTop();
   switchMainTab(name);
 }
 
 // ── Init ─────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  loadThermometer();
-  initFoodCatFilter();   // populate food category chips
+  loadInsightsStrip();       // populate insights strip immediately
+  switchMainTab('deals');    // start on Offers tab (loads data)
 });
 </script>
 </body>
