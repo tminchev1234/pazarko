@@ -1,0 +1,1148 @@
+"""
+Alex — AI Electronics Advisor
+Claude Tool Use endpoint for electronics price comparison in Bulgaria.
+
+Endpoints:
+  POST /api/alex/chat          — streaming SSE with tool calls
+  POST /api/alex/chat/simple   — non-streaming (for testing)
+  GET  /api/alex/search        — direct product search
+"""
+
+from __future__ import annotations
+import json
+import logging
+import re
+import time as _time
+from datetime import datetime
+from pathlib import Path
+from typing import AsyncIterator, List, Optional, Any
+
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+import anthropic
+
+from api.config import get_settings
+from api.db import get_supabase
+
+logger = logging.getLogger(__name__)
+router = APIRouter(tags=["alex"])
+
+# ── Local JSON fallback ────────────────────────────────────────────────────────
+# When PostgREST schema cache is broken, we read from local JSON files.
+
+_LOCAL_CACHE: list[dict] | None = None
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]   # pazarko/
+
+_JSON_FILES = [
+    "emag_offers.json",
+    "technopolis_offers.json",
+    "ardes_offers.json",
+    "technomarket_offers.json",
+    "zora_offers.json",
+]
+
+
+def _reload_local() -> None:
+    """Force reload of local JSON cache (call after new scrape)."""
+    global _LOCAL_CACHE
+    _LOCAL_CACHE = None
+
+
+def _load_local() -> list[dict]:
+    """Load + cache all offers — JSON files locally, Supabase in production."""
+    global _LOCAL_CACHE
+    if _LOCAL_CACHE is not None:
+        return _LOCAL_CACHE
+
+    offers: list[dict] = []
+    for fname in _JSON_FILES:
+        path = _PROJECT_ROOT / fname
+        if path.exists():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                offers.extend(data)
+                logger.info("[alex/local] Loaded %d offers from %s", len(data), fname)
+            except Exception as exc:
+                logger.warning("[alex/local] Could not read %s: %s", fname, exc)
+
+    if not offers:
+        # No JSON files (production / Render) — load everything from Supabase
+        try:
+            sb = get_supabase()
+            page_size = 1000
+            offset = 0
+            while True:
+                resp = (
+                    sb.table("electronics_offers")
+                    .select("*")
+                    .range(offset, offset + page_size - 1)
+                    .execute()
+                )
+                batch = resp.data or []
+                offers.extend(batch)
+                if len(batch) < page_size:
+                    break
+                offset += page_size
+            logger.info("[alex/supabase] Loaded %d offers from Supabase", len(offers))
+        except Exception as exc:
+            logger.warning("[alex/supabase] Could not load from Supabase: %s", exc)
+
+    _LOCAL_CACHE = offers
+    logger.info("[alex/cache] Total offers in cache: %d", len(offers))
+    return _LOCAL_CACHE
+
+
+def _local_search(
+    query: str = "",
+    category: str | None = None,
+    store: str | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    limit: int = 10,
+) -> list[dict]:
+    offers = _load_local()
+    q = query.lower().strip()
+
+    def _matches(o: dict) -> bool:
+        name = (o.get("raw_name") or "").lower()
+        if q and q not in name:
+            return False
+        if category and o.get("category") != category:
+            return False
+        if store and o.get("store") != store:
+            return False
+        price = o.get("price") or 0
+        if min_price and price < min_price:
+            return False
+        if max_price and price > max_price:
+            return False
+        return True
+
+    def _row(o: dict) -> dict:
+        return {
+            "raw_name":    o.get("raw_name", ""),
+            "brand":       o.get("brand", ""),
+            "category":    o.get("category", ""),
+            "category_raw": o.get("category_raw", ""),
+            "price":       o.get("price") or 0,
+            "old_price":   o.get("old_price"),
+            "discount_pct": o.get("discount_pct"),
+            "store":       o.get("store", ""),
+            "image_url":   o.get("image_url", ""),
+            "url":         o.get("url", ""),
+        }
+
+    results = [_row(o) for o in offers if _matches(o)]
+    results.sort(key=lambda x: x["price"] or 0)
+
+    # If query returned nothing but category is set, fall back to category-only
+    if not results and q and category:
+        fallback = [_row(o) for o in offers if o.get("category") == category]
+        fallback.sort(key=lambda x: x["price"] or 0)
+        return fallback[:limit]
+
+    return results[:limit]
+
+
+def _local_prices(product_name: str, category: str | None = None) -> list[dict]:
+    return _local_search(query=product_name, category=category, limit=20)
+
+
+def _local_deals(category: str | None = None, limit: int = 8) -> list[dict]:
+    offers = _load_local()
+    results = []
+    for o in offers:
+        disc = o.get("discount_pct")
+        if not disc or disc <= 0:
+            continue
+        if not o.get("image_url"):
+            continue
+        if category and o.get("category") != category:
+            continue
+        results.append({
+            "raw_name":    o.get("raw_name", ""),
+            "brand":       o.get("brand", ""),
+            "category":    o.get("category", ""),
+            "price":       o.get("price", 0),
+            "old_price":   o.get("old_price"),
+            "discount_pct": disc,
+            "store":       o.get("store", ""),
+            "image_url":   o.get("image_url", ""),
+            "url":         o.get("url", ""),
+        })
+    results.sort(key=lambda x: x["discount_pct"] or 0, reverse=True)
+    return results[:limit]
+
+# ── Models ────────────────────────────────────────────────────────────────────
+
+class AlexMessage(BaseModel):
+    role: str       # "user" | "assistant"
+    content: str
+
+
+class AlexChatRequest(BaseModel):
+    messages: List[AlexMessage]
+    user_id:  Optional[str] = None
+    category: Optional[str] = None
+
+
+# ── System prompt ─────────────────────────────────────────────────────────────
+
+ALEX_SYSTEM = """Ти си Алекс — AI съветник по електроника за България.
+
+Помагаш на хората да вземат умни решения при покупка на техника — слушалки, телефони, лаптопи, телевизори, конзоли, фотоапарати, домакински уреди и аксесоари.
+
+════════════════════════════════════════
+АБСОЛЮТНИ ПРАВИЛА (нарушението е грешка)
+════════════════════════════════════════
+
+❌ ЗАБРАНЕНО: Да показваш цена, която не е от базата данни
+❌ ЗАБРАНЕНО: Приблизителни цени (~€45, "около €50", "между €40-60")
+❌ ЗАБРАНЕНО: Да препоръчваш продукт, който не е намерен в търсенето
+❌ ЗАБРАНЕНО: Да казваш "лв." — само EUR (€)
+
+✅ ЗАДЪЛЖИТЕЛНО: В таблиците показвай САМО продукти от search_products резултатите
+✅ ЗАДЪЛЖИТЕЛНО: Цените са ТОЧНО това, което е в базата — нито стотинка повече или по-малко
+✅ ЗАДЪЛЖИТЕЛНО: Ако даден модел не е в базата → не го включвай в таблицата с цени
+
+════════════════════════════════════════
+СТРАТЕГИЯ ЗА ТЪРСЕНЕ
+════════════════════════════════════════
+
+При "безжични слушалки до 100€" направи ПОСЛЕДОВАТЕЛНО:
+1. search_products(query="bluetooth", category="headphones", max_price=100, limit=20)
+2. Ако < 5 резултата → search_products(query="wireless", category="headphones", max_price=100, limit=20)
+3. Ако пак < 5 → search_products(query="", category="headphones", max_price=100, limit=20)
+4. Работи с намереното — не измисляй
+
+Правило за търсене по марка: ако питат за "Sony слушалки" → query="Sony", category="headphones"
+За TV по размер: query="55", category="tvs"
+НЕ търси с български думи — само английски: "bluetooth", "wireless", "Samsung", "laptop"
+
+════════════════════════════════════════
+СТРУКТУРА НА ОТГОВОРА
+════════════════════════════════════════
+
+**СТЪПКА 1 — ТЪРСЕНЕ:**
+Извикай search_products. При нужда — 2-3 различни заявки за по-добро покритие.
+
+**СТЪПКА 2 — ТОП 5 ОТ НАМЕРЕНОТО:**
+Избери 5 от РЕАЛНИТЕ резултати по различни критерии:
+
+| # | Критерий | Модел | Цена | Защо? |
+|---|----------|-------|------|-------|
+| 🥇 | Най-добра стойност | [реален модел от базата] | €XX,XX | ... |
+| 🥈 | Най-добър бюджет | [реален модел от базата] | €XX,XX | ... |
+| 🥉 | Премиум избор | [реален модел от базата] | €XX,XX | ... |
+| 4️⃣ | За [конкретна употреба] | [реален модел от базата] | €XX,XX | ... |
+| 5️⃣ | Скрита перла | [реален модел от базата] | €XX,XX | ... |
+
+Ако имаш само 3 реални резултата — показвай само 3, не измисляй останалите.
+
+**СТЪПКА 3 — СРАВНЕНИЕ НА ТОП 2:**
+Таблица с характеристики на №1 и №2. Цените — точно от базата. Спецификациите (батерия, Bluetooth версия и т.н.) — от твоите знания за модела.
+
+| Характеристика | [Модел 1] | [Модел 2] |
+|---|---|---|
+| Цена | €XX,XX | €XX,XX |
+| [Спец] | ... | ... |
+
+**СТЪПКА 4 — ЗАДЪЛЖИТЕЛЕН ПРОАКТИВЕН ВЪПРОС:**
+Всеки отговор завършва с конкретен въпрос — никога с "Мога ли да помогна с нещо друго?"
+
+════════════════════════════════════════
+ПРАВИЛА ЗА FOLLOW-UP
+════════════════════════════════════════
+
+- Follow-up (сравни, кой е по-добър, ти кой би избрал) → НЕ търси отново, работи с вече намереното
+- Ново търсене само при НОВА категория или продукт
+- Всеки отговор завършва с уточняващ въпрос
+
+**Магазини:** eMAG · Технополис · Ардес · Техномаркет
+**Категории:** headphones, phones, laptops, tvs, tablets, gaming, cameras, appliances, accessories
+**Бюджет в лв.:** раздели на 1.96 → "200 лв." = max_price=102
+"""
+
+# ── Tool definitions ──────────────────────────────────────────────────────────
+
+ALEX_TOOLS = [
+    {
+        "name": "search_products",
+        "description": (
+            "Търси продукти в базата данни от български електронни магазини. "
+            "Използвай при: препоръки, сравнения, питания 'колко струва X', 'намери ми Y'. "
+            "Връща списък с продукти (name, price, store, category, discount_pct, url)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Търсен текст — марка, модел или описание. Пример: 'Sony WH-1000XM5', 'безжични слушалки', 'iPhone 15'"
+                },
+                "category": {
+                    "type": "string",
+                    "description": "Категория (незадължително): headphones, phones, laptops, tvs, tablets, gaming, cameras, appliances, accessories",
+                    "enum": ["headphones", "phones", "laptops", "tvs", "tablets", "gaming", "cameras", "appliances", "accessories"]
+                },
+                "max_price": {
+                    "type": "number",
+                    "description": "Максимална цена в EUR/€ (незадължително). Ако потребителят дава бюджет в лв., раздели на 1.96."
+                },
+                "min_price": {
+                    "type": "number",
+                    "description": "Минимална цена в EUR/€ (незадължително). Ако потребителят дава бюджет в лв., раздели на 1.96."
+                },
+                "store": {
+                    "type": "string",
+                    "description": "Магазин (незадължително): technopolis, emag",
+                    "enum": ["technopolis", "emag"]
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Брой резултати (по подразбиране 10, макс 30)",
+                    "default": 10
+                }
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "get_prices",
+        "description": (
+            "Взима цените на конкретен продукт от всички магазини. "
+            "Използвай когато потребителят е избрал продукт и иска да знае откъде е най-евтино. "
+            "Търси по точно или частично съвпадение на марка+модел."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_name": {
+                    "type": "string",
+                    "description": "Пълно или частично название на продукта. Пример: 'Samsung Galaxy S24', 'Sony WH-1000XM5'"
+                },
+                "category": {
+                    "type": "string",
+                    "description": "Категория за по-точно търсене (незадължително)"
+                }
+            },
+            "required": ["product_name"]
+        }
+    },
+    {
+        "name": "get_top_deals",
+        "description": (
+            "Показва топ оферти с най-голяма отстъпка в дадена категория. "
+            "Използвай когато потребителят пита за 'намаления', 'промоции', 'най-добри оферти'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string",
+                    "description": "Категория: headphones, phones, laptops, tvs, tablets, gaming, cameras, appliances, accessories"
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Брой оферти (по подразбиране 8)",
+                    "default": 8
+                }
+            },
+            "required": []
+        }
+    }
+]
+
+# ── Tool execution ────────────────────────────────────────────────────────────
+
+def _exec_search_products(args: dict) -> list[dict]:
+    query = args.get("query", "").strip()
+    limit = min(int(args.get("limit", 10)), 30)
+
+    # Try Supabase first
+    try:
+        sb = get_supabase()
+        q = (
+            sb.table("electronics_offers")
+            .select("raw_name, brand, category, category_raw, price, old_price, discount_pct, store, image_url, url")
+            .ilike("raw_name", f"%{query}%")
+        )
+        if args.get("category"):
+            q = q.eq("category", args["category"])
+        if args.get("store"):
+            q = q.eq("store", args["store"])
+        if args.get("max_price"):
+            q = q.lte("price", args["max_price"])
+        if args.get("min_price"):
+            q = q.gte("price", args["min_price"])
+        resp = q.order("price", desc=False).limit(limit).execute()
+        if resp.data:
+            return resp.data
+    except Exception as exc:
+        logger.warning("[alex] Supabase search_products failed, using local JSON: %s", exc)
+
+    # Fallback: local JSON
+    return _local_search(
+        query=query,
+        category=args.get("category"),
+        store=args.get("store"),
+        min_price=args.get("min_price"),
+        max_price=args.get("max_price"),
+        limit=limit,
+    )
+
+
+def _exec_get_prices(args: dict) -> list[dict]:
+    product_name = args.get("product_name", "").strip()
+
+    try:
+        sb = get_supabase()
+        q = (
+            sb.table("electronics_offers")
+            .select("raw_name, brand, category, price, old_price, discount_pct, store, image_url, url")
+            .ilike("raw_name", f"%{product_name}%")
+        )
+        if args.get("category"):
+            q = q.eq("category", args["category"])
+        resp = q.order("price", desc=False).limit(20).execute()
+        if resp.data:
+            return resp.data
+    except Exception as exc:
+        logger.warning("[alex] Supabase get_prices failed, using local JSON: %s", exc)
+
+    return _local_prices(product_name=product_name, category=args.get("category"))
+
+
+def _exec_get_top_deals(args: dict) -> list[dict]:
+    limit = min(int(args.get("limit", 8)), 20)
+
+    try:
+        sb = get_supabase()
+        q = (
+            sb.table("electronics_offers")
+            .select("raw_name, brand, category, price, old_price, discount_pct, store, image_url, url")
+            .not_.is_("discount_pct", "null")
+            .gt("discount_pct", 0)
+        )
+        if args.get("category"):
+            q = q.eq("category", args["category"])
+        resp = q.order("discount_pct", desc=True).limit(limit).execute()
+        if resp.data:
+            return [r for r in resp.data if r.get("image_url")]
+    except Exception as exc:
+        logger.warning("[alex] Supabase get_top_deals failed, using local JSON: %s", exc)
+
+    return _local_deals(category=args.get("category"), limit=limit)
+
+
+def _run_tool(tool_name: str, tool_input: dict) -> Any:
+    if tool_name == "search_products":
+        return _exec_search_products(tool_input)
+    if tool_name == "get_prices":
+        return _exec_get_prices(tool_input)
+    if tool_name == "get_top_deals":
+        return _exec_get_top_deals(tool_input)
+    return {"error": f"Unknown tool: {tool_name}"}
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _blocks_to_dicts(content: list) -> list[dict]:
+    """Convert Anthropic SDK content block objects to plain API-compatible dicts."""
+    result = []
+    for b in content:
+        btype = getattr(b, "type", None)
+        if btype == "text":
+            result.append({"type": "text", "text": b.text})
+        elif btype == "tool_use":
+            result.append({"type": "tool_use", "id": b.id, "name": b.name, "input": b.input})
+    return result
+
+
+# ── Streaming chat ─────────────────────────────────────────────────────────────
+
+def _alex_dna_addendum(dna: dict) -> str:
+    """Inject personalization context into Alex's system prompt."""
+    sensitivity = dna.get("price_sensitivity", 0.5)
+    categories  = dna.get("top_categories", [])
+    searches    = dna.get("searches_count", 0)
+
+    tier = (
+        "бюджетни продукти (под средната цена на категорията)" if sensitivity > 0.65
+        else "продукти от средна ценова категория"              if sensitivity > 0.35
+        else "по-скъпи, premium продукти"
+    )
+    cat_str = ", ".join(categories[:4]) if categories else "все още неизвестно"
+
+    return f"""
+
+═══ ПРОФИЛ НА ПОТРЕБИТЕЛЯ (Shopping DNA) ═══
+• Предпочита: {tier}
+• Интересувал се е от: {cat_str}
+• Общо питания към Alex: {searches}
+
+Адаптирай препоръките спрямо профила — не предлагай продукти извън предпочитания ценови клас без изрично питане.
+При cross-category предложения, фокусирай се върху категориите, от които потребителят вече се е интересувал.
+════════════════════════════════════════════"""
+
+
+def _update_alex_dna(
+    user_id: str,
+    category: Optional[str],
+    max_prices: list[float],
+    current_dna: Optional[dict],
+) -> None:
+    """Update user DNA after a chat session — best-effort, sync."""
+    try:
+        sb = get_supabase()
+        if not _CATEGORY_MEDIANS:
+            _compute_medians()
+
+        update: dict = {}
+
+        # Update top_categories (most recent first, max 6)
+        if category:
+            cats = list(current_dna.get("top_categories", []) if current_dna else [])
+            if category in cats:
+                cats.remove(category)
+            cats.insert(0, category)
+            update["top_categories"] = cats[:6]
+
+        # Infer price sensitivity from max_price relative to category median
+        if max_prices and category:
+            median = _CATEGORY_MEDIANS.get(category, 0)
+            if median > 0:
+                avg_max = sum(max_prices) / len(max_prices)
+                if avg_max < median * 0.8:     # clearly budget
+                    target = 0.8
+                elif avg_max > median * 1.6:   # clearly premium
+                    target = 0.2
+                else:
+                    target = None
+                if target is not None:
+                    cur = current_dna.get("price_sensitivity", 0.5) if current_dna else 0.5
+                    update["price_sensitivity"] = round(0.75 * cur + 0.25 * target, 3)
+
+        if update:
+            update["updated_at"] = datetime.utcnow().isoformat()
+            sb.table("user_dna").upsert({"user_id": user_id, **update}).execute()
+
+        # Always bump search count
+        sb.rpc("increment_search_count", {"uid": user_id}).execute()
+
+    except Exception as exc:
+        logger.warning("[alex/dna] update failed for %s: %s", user_id, exc)
+
+
+async def _stream_alex(
+    messages: List[AlexMessage],
+    system: str,
+    user_id: Optional[str] = None,
+    category: Optional[str] = None,
+    user_dna: Optional[dict] = None,
+) -> AsyncIterator[str]:
+    settings = get_settings()
+
+    if not settings.anthropic_api_key:
+        yield f"data: {json.dumps({'error': 'ANTHROPIC_API_KEY не е зададен'})}\n\n"
+        yield "data: [DONE]\n\n"
+        return
+
+    sync_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    msg_dicts   = [{"role": m.role, "content": m.content} for m in messages]
+    collected_max_prices: list[float] = []
+
+    try:
+        for _round in range(5):
+            with sync_client.messages.stream(
+                model      = "claude-sonnet-4-6",
+                max_tokens = 2048,
+                system     = system,
+                tools      = ALEX_TOOLS,
+                messages   = msg_dicts,
+            ) as stream:
+                for text_chunk in stream.text_stream:
+                    yield f"data: {json.dumps({'text': text_chunk})}\n\n"
+                final_msg = stream.get_final_message()
+
+            full_content = final_msg.content
+            stop_reason  = final_msg.stop_reason
+
+            tool_calls = [
+                {"id": b.id, "name": b.name, "input": b.input}
+                for b in full_content
+                if getattr(b, "type", None) == "tool_use"
+            ]
+
+            if stop_reason != "tool_use":
+                break
+
+            tool_results: list[dict] = []
+            for tc in tool_calls:
+                inp = tc.get("input", {})
+                yield f"data: {json.dumps({'tool': tc['name'], 'input': inp})}\n\n"
+                # Collect max_price for profile inference
+                if inp.get("max_price"):
+                    collected_max_prices.append(float(inp["max_price"]))
+                result = _run_tool(tc["name"], inp)
+                tool_results.append({
+                    "type":        "tool_result",
+                    "tool_use_id": tc["id"],
+                    "content":     json.dumps(result, ensure_ascii=False),
+                })
+
+            for tc, tr in zip(tool_calls, tool_results):
+                raw = json.loads(tr["content"])
+                if isinstance(raw, list) and raw:
+                    yield f"data: {json.dumps({'products': raw, 'tool': tc['name'], 'input': tc.get('input', {})})}\n\n"
+
+            msg_dicts.append({"role": "assistant", "content": _blocks_to_dicts(full_content)})
+            msg_dicts.append({"role": "user",      "content": tool_results})
+
+    except Exception as exc:
+        logger.error("[alex] stream error: %s", exc)
+        yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+
+    # Persist DNA update before signalling done
+    if user_id:
+        _update_alex_dna(user_id, category, collected_max_prices, user_dna)
+
+    yield "data: [DONE]\n\n"
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router.post("/alex/chat")
+async def alex_chat(req: AlexChatRequest):
+    """Streaming SSE chat — Claude Tool Use with electronics search."""
+    if not req.messages:
+        raise HTTPException(status_code=400, detail="Няма съобщения")
+
+    # Load Shopping DNA for personalization
+    user_dna: Optional[dict] = None
+    if req.user_id:
+        try:
+            sb = get_supabase()
+            resp = sb.table("user_dna").select("*").eq("user_id", req.user_id).single().execute()
+            user_dna = resp.data
+        except Exception:
+            pass  # DNA is optional — chat works without it
+
+    system = ALEX_SYSTEM
+    if user_dna:
+        system += _alex_dna_addendum(user_dna)
+
+    return StreamingResponse(
+        _stream_alex(req.messages, system, req.user_id, req.category, user_dna),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control":    "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post("/alex/chat/simple")
+async def alex_chat_simple(req: AlexChatRequest):
+    """Non-streaming version — runs the agentic tool loop and returns final text."""
+    settings = get_settings()
+    client   = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
+    if not req.messages:
+        raise HTTPException(status_code=400, detail="Няма съобщения")
+
+    msg_dicts = [{"role": m.role, "content": m.content} for m in req.messages]
+    products_found: list[dict] = []
+
+    for _round in range(5):  # max tool rounds
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2048,
+            system=ALEX_SYSTEM,
+            tools=ALEX_TOOLS,
+            messages=msg_dicts,
+        )
+
+        if response.stop_reason != "tool_use":
+            text = "".join(
+                b.text for b in response.content if hasattr(b, "text")
+            )
+            return {
+                "response": text,
+                "products": products_found,
+                "usage": {
+                    "input_tokens":  response.usage.input_tokens,
+                    "output_tokens": response.usage.output_tokens,
+                },
+            }
+
+        # Run tool calls
+        tool_results = []
+        for block in response.content:
+            if block.type != "tool_use":
+                continue
+            result = _run_tool(block.name, block.input)
+            if isinstance(result, list):
+                products_found.extend(result)
+            tool_results.append({
+                "type":        "tool_result",
+                "tool_use_id": block.id,
+                "content":     json.dumps(result, ensure_ascii=False),
+            })
+
+        msg_dicts.append({"role": "assistant", "content": response.content})
+        msg_dicts.append({"role": "user",      "content": tool_results})
+
+    raise HTTPException(status_code=500, detail="Tool loop exceeded max rounds")
+
+
+@router.get("/alex/search")
+async def alex_search(
+    q:        str            = Query(..., description="Search query"),
+    category: Optional[str] = Query(None),
+    store:    Optional[str] = Query(None),
+    min_price: Optional[float] = Query(None),
+    max_price: Optional[float] = Query(None),
+    limit:    int            = Query(10, le=50),
+):
+    """Direct product search — no AI, just database lookup."""
+    results = _exec_search_products({
+        "query":     q,
+        "category":  category,
+        "store":     store,
+        "min_price": min_price,
+        "max_price": max_price,
+        "limit":     limit,
+    })
+    return {"results": results, "count": len(results)}
+
+
+@router.get("/alex/deals")
+async def alex_deals(
+    category: Optional[str] = Query(None),
+    limit:    int            = Query(8, le=30),
+):
+    """Top discounted products."""
+    results = _exec_get_top_deals({"category": category, "limit": limit})
+    return {"results": results, "count": len(results)}
+
+
+# ── Alex Score ────────────────────────────────────────────────────────────────
+
+_CATEGORY_MEDIANS: dict[str, float] = {}
+
+
+def _compute_medians() -> None:
+    offers = _load_local()
+    from collections import defaultdict
+    by_cat: dict[str, list[float]] = defaultdict(list)
+    for o in offers:
+        p = o.get("price")
+        if p and o.get("category"):
+            by_cat[o["category"]].append(p)
+    global _CATEGORY_MEDIANS
+    for cat, prices in by_cat.items():
+        prices.sort()
+        _CATEGORY_MEDIANS[cat] = prices[len(prices) // 2]
+
+
+def alex_score(product: dict) -> float:
+    """Score a product 4.0–9.8 based on discount, price vs median, brand."""
+    if not _CATEGORY_MEDIANS:
+        _compute_medians()
+
+    score = 6.0
+    discount = product.get("discount_pct") or 0
+    price    = product.get("price") or 0
+    brand    = (product.get("brand") or "").lower()
+    category = product.get("category") or ""
+
+    # Discount bonus (up to +2.0)
+    if   discount >= 40: score += 2.0
+    elif discount >= 30: score += 1.5
+    elif discount >= 20: score += 1.0
+    elif discount >= 10: score += 0.5
+
+    # Price position vs category median (cheaper = better)
+    median = _CATEGORY_MEDIANS.get(category, 0)
+    if median and price:
+        ratio = price / median
+        if   ratio < 0.5:  score += 1.0
+        elif ratio < 0.75: score += 0.5
+        elif ratio > 2.5:  score -= 0.5
+
+    # Reputable brand bonus
+    top_brands = {
+        "samsung", "apple", "sony", "lg", "lenovo", "hp", "dell", "asus",
+        "bose", "jbl", "sennheiser", "jabra", "xiaomi", "panasonic", "philips",
+        "tcl", "hisense", "canon", "nikon", "logitech", "razer", "microsoft",
+    }
+    if brand in top_brands:
+        score += 0.3
+
+    # Has image and URL
+    if product.get("image_url"): score += 0.1
+    if product.get("url"):       score += 0.1
+
+    return round(min(9.8, max(4.0, score)), 1)
+
+
+# ── Expert Picks cache ────────────────────────────────────────────────────────
+
+_PICKS_CACHE: dict[str, dict] = {}
+_PICKS_TTL   = 6 * 3600  # 6 hours
+
+# ── Homepage Picks cache ───────────────────────────────────────────────────────
+
+_HOME_PICKS_CACHE: dict | None = None
+_HOME_PICKS_TS: float = 0.0
+
+_HOME_CATEGORIES = [
+    "phones", "laptops", "tvs", "headphones", "tablets", "gaming",
+    "fridges", "washing", "ac", "vacuum",
+]
+_CAT_LABELS = {
+    "phones": "Телефони", "headphones": "Слушалки", "laptops": "Лаптопи",
+    "tvs": "Телевизори", "tablets": "Таблети", "gaming": "Гейминг",
+    "fridges": "Хладилници", "washing": "Перални", "ac": "Климатици",
+    "vacuum": "Прахосмукачки", "cooking": "Печки", "dishwasher": "Съдомиялни",
+}
+
+# Minimum price to be considered a meaningful product (filters out accessories/junk)
+_CAT_MIN_PRICE = {
+    "phones":     120.0,
+    "headphones":  20.0,
+    "laptops":    400.0,
+    "tvs":        250.0,
+    "tablets":    150.0,
+    "gaming":      40.0,
+    "fridges":    200.0,
+    "washing":    250.0,
+    "ac":         400.0,
+    "vacuum":      60.0,
+    "cooking":    150.0,
+    "dishwasher": 250.0,
+}
+
+# Keyword blocklist — products whose names contain these are excluded from candidates
+_CAT_BLOCKLIST = {
+    "tablets":    ["рисуване", "drawing", "natec", "графичен", "wacom"],
+    "gaming":     ["калъф", "case", "протектор", "стъкло", "кабел", "слушалк"],
+    "headphones": ["калъф", "case", "кабел"],
+}
+
+
+def _home_pick_candidates(cat: str) -> list[dict]:
+    """Return meaningful candidates for a category — filtered by price and blocklist."""
+    prods = _local_search(query="", category=cat, limit=100)
+    min_price = _CAT_MIN_PRICE.get(cat, 0)
+    blocklist = [w.lower() for w in _CAT_BLOCKLIST.get(cat, [])]
+
+    filtered = []
+    for p in prods:
+        if not p.get("image_url"):
+            continue
+        price = p.get("price") or 0
+        if price < min_price:
+            continue
+        name_lower = (p.get("raw_name") or "").lower()
+        if any(bl in name_lower for bl in blocklist):
+            continue
+        filtered.append(p)
+
+    if not filtered:
+        return []
+
+    # Sort by alex_score, then pick from the mid-to-upper tier (skip absolute cheapest)
+    filtered.sort(key=lambda p: alex_score(p), reverse=True)
+    # Take top 12 by score, but cap at products up to 2.5× the minimum price or above
+    sweet_spot = [p for p in filtered if (p.get("price") or 0) >= min_price * 1.3]
+    candidates = sweet_spot[:10] if len(sweet_spot) >= 3 else filtered[:10]
+    return candidates
+
+
+def _generate_home_picks() -> list[dict]:
+    settings = get_settings()
+    sections: list[str] = []
+    cat_products: dict[str, list[dict]] = {}
+
+    for cat in _HOME_CATEGORIES:
+        candidates = _home_pick_candidates(cat)
+        if not candidates:
+            continue
+        cat_products[cat] = candidates
+
+        # Include price context so Claude can reason about value tiers
+        prices = [p["price"] for p in candidates]
+        avg_price = sum(prices) / len(prices)
+        lines = "\n".join(
+            f"  - {p['raw_name']} | €{p['price']:.0f}"
+            + (f" | -{p['discount_pct']}% намален" if p.get("discount_pct") else "")
+            + f" | score {alex_score(p):.1f}"
+            for p in candidates[:8]
+        )
+        sections.append(f"[{cat}] (средна цена сред кандидатите: €{avg_price:.0f})\n{lines}")
+
+    if not sections:
+        return []
+
+    prompt = f"""Ти си независим AI съветник за електроника в България. Задачата ти е да намериш продуктите с НАЙ-ДОБРО съотношение качество-цена от списъка по-долу.
+
+ВАЖНО — какво означава "добро качество-цена":
+- НЕ е най-евтиният продукт в категорията
+- Е продукт малко над дъното по цена, но значително по-добър по характеристики
+- При лаптоп: предпочитай по-бърз процесор, повече RAM, по-голям екран пред само €50 пестене
+- При телефон: предпочитай камера/5G/AMOLED пред base модел
+- При слушалки: предпочитай ANC/безжични пред базови кабелни
+- При телевизор: предпочитай Smart/4K пред HD-ready
+
+Кандидати по категория:
+{chr(10).join(sections)}
+
+Избери 1-2 продукта от всяка категория, при които потребителят получава РЕАЛНО повече за малко повече пари. Обясни конкретно с кои характеристики — не пиши "висок score" или "добра цена", а конкретни неща (напр. "AMOLED екран и 5G за €180", "16GB RAM и SSD за €550").
+
+Отговори САМО с валиден JSON (без обяснения, без markdown):
+{{
+  "picks": [
+    {{"category": "laptops", "name": "ТОЧНО ИМЕ ОТ СПИСЪКА", "reason": "до 18 конкретни думи защо — с характеристики"}},
+    ...
+  ]
+}}
+
+Максимум 8 picks общо. Използвай ТОЧНИ имена от списъка."""
+
+    try:
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        resp = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=800,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = resp.content[0].text.strip()
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if not match:
+            return []
+        data = json.loads(match.group())
+
+        result = []
+        for entry in data.get("picks", []):
+            cat = entry.get("category", "")
+            prods = cat_products.get(cat, [])
+            prod = _match_product(entry.get("name", ""), prods)
+            if not prod:
+                continue
+            result.append({
+                "category":    cat,
+                "cat_label":   _CAT_LABELS.get(cat, cat),
+                "reason":      entry.get("reason", ""),
+                "raw_name":    prod["raw_name"],
+                "price":       prod["price"],
+                "old_price":   prod.get("old_price"),
+                "discount_pct": prod.get("discount_pct"),
+                "store":       prod["store"],
+                "image_url":   prod.get("image_url", ""),
+                "url":         prod.get("url", ""),
+                "alex_score":  alex_score(prod),
+            })
+        return result
+
+    except Exception as exc:
+        logger.error("[alex/homepage-picks] %s", exc)
+        return []
+
+
+@router.get("/alex/homepage-picks")
+async def alex_homepage_picks(refresh: bool = False):
+    """Cross-category AI-curated picks for the homepage (cached 6h)."""
+    global _HOME_PICKS_CACHE, _HOME_PICKS_TS
+    now = _time.time()
+    if not refresh and _HOME_PICKS_CACHE is not None and (now - _HOME_PICKS_TS) < _PICKS_TTL:
+        return {"picks": _HOME_PICKS_CACHE}
+    picks = _generate_home_picks()
+    _HOME_PICKS_CACHE = picks
+    _HOME_PICKS_TS = now
+    return {"picks": picks}
+
+
+def _match_product(name: str, products: list[dict]) -> dict | None:
+    name_l = name.lower()
+    for p in products:
+        if name_l in (p.get("raw_name") or "").lower():
+            return p
+    words = name_l.split()[:5]
+    best, best_hits = None, 0
+    for p in products:
+        pname = (p.get("raw_name") or "").lower()
+        hits  = sum(1 for w in words if len(w) > 2 and w in pname)
+        if hits > best_hits:
+            best, best_hits = p, hits
+    return best if best_hits >= 2 else None
+
+
+def _generate_picks(category: str) -> dict | None:
+    settings = get_settings()
+    products = _local_search(query="", category=category, limit=25)
+    if len(products) < 4:
+        return None
+
+    product_list = "\n".join(
+        f"- {p['raw_name']} | €{p['price']:.2f} | {p['store']}"
+        + (f" | -{p['discount_pct']}%" if p.get("discount_pct") else "")
+        for p in products[:20]
+    )
+
+    prompt = f"""Анализирай тези реални продукти от категория "{category}" и избери 4 по различни критерии.
+
+{product_list}
+
+Отговори САМО с JSON (без обяснения):
+{{
+  "best_value":   {{"name": "...", "reason": "до 25 думи защо"}},
+  "best_budget":  {{"name": "...", "reason": "до 25 думи защо"}},
+  "mid_range":    {{"name": "...", "reason": "до 25 думи защо"}},
+  "overall_best": {{"name": "...", "reason": "до 25 думи защо"}},
+  "verdict": "2-3 изречения: текущото състояние на пазара в тази категория в България"
+}}
+
+Използвай ТОЧНИ имена от списъка."""
+
+    try:
+        client   = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        response = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=600,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text  = response.content[0].text.strip()
+        match = re.search(r"\{.*\}", text, re.DOTALL)
+        if not match:
+            return None
+        data = json.loads(match.group())
+
+        # Enrich picks with real product data
+        labels = {
+            "best_value":   {"label": "Най-добра стойност", "icon": "💰"},
+            "best_budget":  {"label": "Най-добър бюджет",   "icon": "🎯"},
+            "mid_range":    {"label": "Среден клас",         "icon": "⚡"},
+            "overall_best": {"label": "Без компромис",       "icon": "👑"},
+        }
+        picks = {"verdict": data.get("verdict", ""), "items": []}
+        for key, meta in labels.items():
+            entry = data.get(key, {})
+            prod  = _match_product(entry.get("name", ""), products)
+            if prod:
+                picks["items"].append({
+                    "key":       key,
+                    "label":     meta["label"],
+                    "icon":      meta["icon"],
+                    "reason":    entry.get("reason", ""),
+                    "raw_name":  prod["raw_name"],
+                    "price":     prod["price"],
+                    "old_price": prod.get("old_price"),
+                    "discount_pct": prod.get("discount_pct"),
+                    "store":     prod["store"],
+                    "image_url": prod.get("image_url", ""),
+                    "url":       prod.get("url", ""),
+                    "alex_score": alex_score(prod),
+                })
+        return picks
+
+    except Exception as exc:
+        logger.error("[alex/picks] %s: %s", category, exc)
+        return None
+
+
+@router.get("/alex/category/{category}")
+async def alex_category_products(
+    category: str,
+    brand:     Optional[str]   = Query(None),
+    min_price: Optional[float] = Query(None),
+    max_price: Optional[float] = Query(None),
+    sort:      str              = Query("price_asc"),
+    limit:     int              = Query(60, le=120),
+):
+    """Products for a category page — includes alex_score, supports filtering."""
+    offers = _load_local()
+    cat_offers = [o for o in offers if o.get("category") == category and o.get("image_url")]
+    total_count = len(cat_offers)
+    results = []
+    for o in cat_offers:
+        price = o.get("price") or 0
+        if brand and (o.get("brand") or "").lower() != brand.lower():
+            continue
+        if min_price and price < min_price:
+            continue
+        if max_price and price > max_price:
+            continue
+        results.append({
+            "raw_name":    o.get("raw_name", ""),
+            "brand":       o.get("brand", ""),
+            "category":    category,
+            "price":       price,
+            "old_price":   o.get("old_price"),
+            "discount_pct": o.get("discount_pct"),
+            "store":       o.get("store", ""),
+            "image_url":   o.get("image_url", ""),
+            "url":         o.get("url", ""),
+            "alex_score":  alex_score(o),
+        })
+
+    if   sort == "price_desc": results.sort(key=lambda x: x["price"], reverse=True)
+    elif sort == "discount":   results.sort(key=lambda x: x.get("discount_pct") or 0, reverse=True)
+    elif sort == "score":      results.sort(key=lambda x: x["alex_score"], reverse=True)
+    else:                      results.sort(key=lambda x: x["price"])
+
+    return {"results": results[:limit], "count": len(results), "total_count": total_count}
+
+
+@router.get("/alex/brands/{category}")
+async def alex_brands(category: str):
+    """Unique brands for a category (used by filter dropdowns)."""
+    offers = _load_local()
+    brands = sorted(set(
+        o.get("brand", "").strip()
+        for o in offers
+        if o.get("category") == category and o.get("brand")
+    ))
+    return {"brands": brands}
+
+
+@router.get("/alex/picks/{category}")
+async def alex_picks_endpoint(category: str):
+    """Expert picks for a category, cached 6 h."""
+    now    = _time.time()
+    cached = _PICKS_CACHE.get(category)
+    if cached and now - cached.get("_ts", 0) < _PICKS_TTL:
+        return {k: v for k, v in cached.items() if k != "_ts"}
+
+    picks = _generate_picks(category)
+    if picks is None:
+        raise HTTPException(status_code=404, detail=f"Not enough products for {category}")
+
+    _PICKS_CACHE[category] = {**picks, "_ts": now}
+    return picks
+
+
+@router.get("/alex/stats")
+async def alex_stats():
+    """Quick stats for the Alex homepage."""
+    try:
+        sb = get_supabase()
+        total  = sb.table("electronics_offers").select("id", count="exact").execute()
+        stores = sb.table("electronics_offers").select("store").execute()
+        store_counts: dict[str, int] = {}
+        for row in (stores.data or []):
+            store_counts[row["store"]] = store_counts.get(row["store"], 0) + 1
+        if total.count:
+            return {"total_products": total.count, "stores": store_counts}
+    except Exception as exc:
+        logger.warning("[alex] Supabase stats failed, using local JSON: %s", exc)
+
+    # Fallback: count from local JSON
+    offers = _load_local()
+    store_counts = {}
+    for o in offers:
+        s = o.get("store", "unknown")
+        store_counts[s] = store_counts.get(s, 0) + 1
+    return {"total_products": len(offers), "stores": store_counts}

@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alex — AI Съветник по Електроника</title>
+<meta name="description" content="Alex е твоят AI експерт по електроника в България. Реални цени от eMAG, Технополис, Ардес и Техномаркет.">
+<style>
+:root {
+  --nav-bg: #111827;
+  --bg: #f3f4f6;
+  --surface: #ffffff;
+  --border: #e5e7eb;
+  --text: #111827;
+  --text2: #374151;
+  --muted: #6b7280;
+  --blue: #2563eb;
+  --blue-lt: #dbeafe;
+  --orange: #f97316;
+  --green: #059669;
+  --green-lt: #d1fae5;
+  --amber: #d97706;
+  --red: #ef4444;
+  --radius: 12px;
+  --sh: 0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
+  --sh-md: 0 4px 6px rgba(0,0,0,.07),0 2px 4px rgba(0,0,0,.06);
+  --sh-lg: 0 10px 15px rgba(0,0,0,.1),0 4px 6px rgba(0,0,0,.05);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;line-height:1.6;background:var(--bg);color:var(--text);min-height:100vh}
+img{display:block;max-width:100%}
+a{color:inherit;text-decoration:none}
+button{cursor:pointer;border:none;background:none;font-family:inherit}
+
+/* ── NAV ── */
+.nav{position:sticky;top:0;z-index:100;background:var(--nav-bg);box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.nav-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;gap:16px;padding:0 20px;height:60px}
+.nav-logo{font-size:22px;font-weight:800;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;letter-spacing:-.5px;flex-shrink:0;line-height:1.1}
+.nav-logo small{font-size:10px;font-weight:400;color:#9ca3af;display:block;-webkit-text-fill-color:#9ca3af}
+.nav-cats{display:flex;gap:4px;overflow-x:auto;flex:1;scrollbar-width:none}
+.nav-cats::-webkit-scrollbar{display:none}
+.nav-cat{white-space:nowrap;padding:6px 12px;border-radius:6px;font-size:13px;color:#9ca3af;transition:all .15s;flex-shrink:0}
+.nav-cat:hover{color:#fff;background:rgba(255,255,255,.1)}
+.nav-cat.active{color:#fff;background:rgba(99,102,241,.3)}
+.nav-ask{flex-shrink:0;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;white-space:nowrap;transition:opacity .15s}
+.nav-ask:hover{opacity:.9}
+
+/* ── PAGE ── */
+.page{max-width:1200px;margin:0 auto;padding:0 20px 100px}
+
+/* ── HERO ── */
+.hero{background:linear-gradient(135deg,#111827 0%,#1e3a5f 100%);color:#fff;padding:60px 40px;border-radius:0 0 24px 24px;text-align:center;margin:0 -20px 32px}
+.hero-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(99,102,241,.25);border:1px solid rgba(99,102,241,.4);padding:4px 12px;border-radius:20px;font-size:12px;color:#a5b4fc;margin-bottom:16px}
+.hero h1{font-size:clamp(26px,5vw,46px);font-weight:800;line-height:1.2;margin-bottom:12px}
+.hero h1 .acc{background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero p{font-size:16px;color:#9ca3af;max-width:500px;margin:0 auto 24px}
+.hero-btn{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;font-size:15px;font-weight:600;padding:12px 24px;border-radius:10px;box-shadow:0 4px 12px rgba(37,99,235,.4);transition:transform .15s,box-shadow .15s}
+.hero-btn:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(37,99,235,.5)}
+.hero-stats{display:flex;justify-content:center;gap:32px;margin-top:32px;flex-wrap:wrap}
+.h-stat-n{font-size:24px;font-weight:800;color:#60a5fa}
+.h-stat-l{font-size:12px;color:#6b7280;margin-top:2px}
+
+/* ── SECTION HEAD ── */
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;margin:28px 0 14px}
+.sec-head h2{font-size:19px;font-weight:700}
+.sec-head a{font-size:13px;color:var(--blue)}
+
+/* ── CATEGORY GRID ── */
+.cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px}
+.cat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 14px;text-align:center;cursor:pointer;transition:all .15s;box-shadow:var(--sh)}
+.cat-card:hover{border-color:var(--blue);transform:translateY(-2px);box-shadow:var(--sh-md)}
+.cat-icon{font-size:30px;margin-bottom:8px}
+.cat-label{font-size:13px;font-weight:600}
+.cat-desc{font-size:11px;color:var(--muted);margin-top:2px}
+
+/* ── DEALS SCROLL ── */
+/* ── HOME PICKS GRID ── */
+.home-picks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:8px}
+.home-pick-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:all .18s;box-shadow:var(--sh);display:flex;flex-direction:column}
+.home-pick-card:hover{transform:translateY(-3px);box-shadow:var(--sh-md);border-color:var(--blue)}
+.home-pick-img{width:100%;height:140px;background:#f9fafb;display:flex;align-items:center;justify-content:center;font-size:40px;position:relative;overflow:hidden}
+.home-pick-img img{width:100%;height:100%;object-fit:contain;padding:10px}
+.home-pick-disc{position:absolute;top:8px;left:8px;background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px}
+.home-pick-body{padding:12px 14px;display:flex;flex-direction:column;flex:1;gap:4px}
+.home-pick-cat{font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px}
+.home-pick-name{font-size:13px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.home-pick-reason{font-size:12px;color:var(--muted);line-height:1.5;font-style:italic;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex:1}
+.home-pick-foot{display:flex;align-items:center;justify-content:space-between;margin-top:6px;flex-wrap:wrap;gap:4px}
+.home-pick-price{font-size:15px;font-weight:800;color:var(--text)}
+.home-pick-old{font-size:11px;color:var(--muted);text-decoration:line-through;margin-left:4px}
+.home-pick-link{display:block;text-align:center;margin-top:8px;padding:7px;background:var(--blue);color:#fff;border-radius:7px;font-size:12px;font-weight:600;transition:opacity .15s}
+.home-pick-link:hover{opacity:.88}
+/* ── LEGACY DEALS (kept for reference) ── */
+.deals-scroll{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;scrollbar-width:thin}
+.deals-scroll::-webkit-scrollbar{height:4px}
+.deals-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.deal-card{flex-shrink:0;width:175px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:all .15s;box-shadow:var(--sh)}
+.deal-card:hover{transform:translateY(-2px);box-shadow:var(--sh-md)}
+.deal-img{width:100%;height:115px;background:#f9fafb;display:flex;align-items:center;justify-content:center;font-size:34px;position:relative;overflow:hidden}
+.deal-img img{width:100%;height:100%;object-fit:contain;padding:8px}
+.deal-badge{position:absolute;top:6px;left:6px;background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:2px 6px;border-radius:4px}
+.deal-body{padding:10px 12px}
+.deal-name{font-size:12px;font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:6px}
+.deal-price-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.deal-price{font-size:14px;font-weight:700}
+.deal-old{font-size:11px;color:var(--muted);text-decoration:line-through}
+
+/* ── BREADCRUMB ── */
+.crumb{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);padding:16px 0 8px}
+.crumb a{color:var(--blue)}
+
+/* ── CATEGORY HEADER ── */
+.cat-hd{padding:20px 0 16px;border-bottom:1px solid var(--border);margin-bottom:20px}
+.cat-hd-top{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+.cat-hd-icon{font-size:38px}
+.cat-hd-title{font-size:26px;font-weight:800}
+.cat-hd-desc{font-size:14px;color:var(--muted)}
+
+/* ── VERDICT ── */
+.verdict{background:linear-gradient(135deg,#eff6ff,#f5f3ff);border:1px solid #bfdbfe;border-radius:var(--radius);padding:16px 20px;margin-bottom:24px;display:flex;gap:12px;align-items:flex-start}
+.verdict-ico{font-size:22px;flex-shrink:0;margin-top:2px}
+.verdict-tag{font-size:11px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.verdict-text{font-size:14px;color:var(--text2);line-height:1.6}
+
+/* ── PICKS ── */
+.picks-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:12px;margin-bottom:28px}
+.pick-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:all .15s;box-shadow:var(--sh);display:flex;flex-direction:column}
+.pick-card:hover{transform:translateY(-2px);box-shadow:var(--sh-md);border-color:var(--blue)}
+.pick-hd{background:var(--nav-bg);color:#fff;padding:8px 12px;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600}
+.pick-img{width:100%;height:120px;background:#f9fafb;display:flex;align-items:center;justify-content:center;font-size:38px}
+.pick-img img{width:100%;height:100%;object-fit:contain;padding:10px}
+.pick-body{padding:11px;flex:1}
+.pick-name{font-size:12px;font-weight:600;line-height:1.3;margin-bottom:5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pick-price{font-size:17px;font-weight:800;margin-bottom:5px}
+.pick-reason{font-size:11px;color:var(--muted);line-height:1.4}
+.pick-ft{display:flex;align-items:center;justify-content:space-between;padding:7px 11px;border-top:1px solid var(--border);background:#f9fafb}
+
+/* ── FILTERS ── */
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:18px;box-shadow:var(--sh)}
+.fl-group{display:flex;align-items:center;gap:7px}
+.fl-label{font-size:12px;color:var(--muted);white-space:nowrap}
+.fl-select,.fl-input{font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:inherit;cursor:pointer}
+.fl-input{width:78px}
+.fl-sep{color:var(--muted)}
+.fl-count{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap}
+
+/* ── PRODUCT GRID ── */
+.prod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:14px}
+.prod-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;transition:all .15s;box-shadow:var(--sh);display:flex;flex-direction:column;position:relative}
+.prod-card:hover{transform:translateY(-2px);box-shadow:var(--sh-md);border-color:var(--blue)}
+.prod-badges{position:absolute;top:8px;left:8px;right:8px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;z-index:1}
+.prod-disc{background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px}
+.prod-score{font-size:11px;font-weight:700;padding:3px 7px;border-radius:6px;color:#fff}
+.sc-green{background:#059669}.sc-blue{background:#2563eb}.sc-amber{background:#d97706}.sc-gray{background:#9ca3af}
+.prod-img{width:100%;height:135px;background:#f9fafb;display:flex;align-items:center;justify-content:center;font-size:38px;cursor:pointer}
+.prod-img img{width:100%;height:100%;object-fit:contain;padding:10px}
+.prod-body{padding:11px;flex:1}
+.prod-name{font-size:12px;font-weight:500;line-height:1.3;margin-bottom:7px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.prod-price-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:2px}
+.prod-price{font-size:16px;font-weight:700}
+.prod-old{font-size:11px;color:var(--muted);text-decoration:line-through}
+.prod-ft{display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding:7px 11px;background:#f9fafb;gap:4px}
+.store-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;color:#fff;white-space:nowrap}
+.s-emag{background:#f97316}.s-technopolis{background:#2563eb}.s-ardes{background:#1e3a8a}.s-technomarket{background:#7c3aed}
+.prod-link{font-size:11px;color:var(--blue);font-weight:600;white-space:nowrap}
+.cmp-btn{width:22px;height:22px;border-radius:5px;border:1px solid var(--border);background:none;color:var(--muted);font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
+.cmp-btn:hover{border-color:var(--blue);color:var(--blue)}
+.cmp-btn.in{border-color:var(--blue);color:var(--blue);background:var(--blue-lt)}
+
+/* ── SKELETON ── */
+@keyframes shimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+.sk{background:#f3f4f6;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)}
+.sk-img{background:linear-gradient(90deg,#f3f4f6 25%,#e5e7eb 50%,#f3f4f6 75%);background-size:200% 100%;animation:shimmer 1.5s infinite}
+.sk-ln{height:11px;background:linear-gradient(90deg,#f3f4f6 25%,#e5e7eb 50%,#f3f4f6 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:4px;margin-bottom:7px}
+.w80{width:80%}.w60{width:60%}.w40{width:40%}
+.sk-body{padding:12px}
+
+/* ── EMPTY STATE ── */
+.empty{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty-ico{font-size:46px;margin-bottom:14px}
+.empty h3{font-size:17px;color:var(--text);margin-bottom:7px}
+
+/* ── CHAT FAB ── */
+.chat-fab{position:fixed;bottom:24px;right:24px;width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;font-size:21px;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(37,99,235,.4);z-index:200;transition:transform .2s,box-shadow .2s}
+.chat-fab:hover{transform:scale(1.07);box-shadow:0 6px 16px rgba(37,99,235,.5)}
+
+/* ── CHAT DRAWER ── */
+.chat-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;opacity:0;pointer-events:none;transition:opacity .3s}
+.chat-ov.open{opacity:1;pointer-events:all}
+.chat-drawer{
+  position:fixed;bottom:0;left:50%;
+  transform:translateX(-50%) translateY(100%);
+  width:min(1000px,96vw);height:90vh;
+  background:var(--surface);
+  border-radius:20px 20px 0 0;
+  box-shadow:0 -8px 48px rgba(0,0,0,.22);
+  z-index:400;display:flex;flex-direction:column;
+  transition:transform .35s cubic-bezier(.34,1.4,.64,1);
+}
+.chat-drawer.open{transform:translateX(-50%) translateY(0)}
+.chat-dh{display:flex;align-items:center;gap:14px;padding:18px 24px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.chat-logo{font-size:20px;font-weight:800;background:linear-gradient(135deg,#2563eb,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.chat-sub{font-size:12px;color:var(--muted)}
+.chat-close{margin-left:auto;width:32px;height:32px;border-radius:8px;background:#f3f4f6;font-size:16px;display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .15s}
+.chat-close:hover{background:#e5e7eb;color:var(--text)}
+
+/* Layout: sidebar (welcome/context) + main chat */
+.chat-body{display:flex;flex:1;overflow:hidden}
+.chat-msgs{flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:14px}
+.chat-msgs::-webkit-scrollbar{width:5px}
+.chat-msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+.chat-welcome{text-align:center;padding:28px 20px;max-width:560px;margin:0 auto}
+.chat-welcome-ico{font-size:42px;margin-bottom:14px}
+.chat-welcome h3{font-size:20px;font-weight:700;margin-bottom:8px}
+.chat-welcome p{font-size:14px;color:var(--muted);line-height:1.6}
+.chat-qbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:20px}
+.chat-qbtn{background:#f3f4f6;border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:13px;text-align:left;color:var(--text);transition:all .15s;line-height:1.4}
+.chat-qbtn:hover{background:var(--blue-lt);border-color:var(--blue);color:var(--blue)}
+
+.chat-msg{display:flex;gap:10px;align-items:flex-start;max-width:880px}
+.chat-msg.user{flex-direction:row-reverse;margin-left:auto}
+.chat-av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;background:#f3f4f6}
+.chat-msg.user .chat-av{background:#dbeafe}
+.chat-bubble{max-width:78%;padding:12px 16px;border-radius:14px;font-size:14px;line-height:1.6}
+.chat-msg.user .chat-bubble{background:#2563eb;color:#fff;border-radius:14px 14px 3px 14px}
+.chat-msg.assistant .chat-bubble{background:#f3f4f6;color:var(--text);border-radius:14px 14px 14px 3px;max-width:90%}
+
+/* Rich content inside bubbles */
+.chat-bubble table{border-collapse:collapse;font-size:13px;margin:10px 0;width:100%;border-radius:8px;overflow:hidden}
+.chat-bubble th,.chat-bubble td{border:1px solid #d1d5db;padding:8px 12px;text-align:left;vertical-align:top}
+.chat-bubble th{background:#e5e7eb;font-weight:600;white-space:nowrap}
+.chat-bubble tr:nth-child(even) td{background:rgba(0,0,0,.02)}
+.chat-bubble strong{font-weight:700}
+.chat-bubble em{font-style:italic}
+.chat-bubble h2{font-size:16px;font-weight:700;margin:14px 0 6px;padding-bottom:4px;border-bottom:2px solid var(--border)}
+.chat-bubble h3{font-size:14px;font-weight:700;margin:10px 0 4px;color:var(--blue)}
+.chat-bubble br+br{display:none}
+
+.chat-typing{display:flex;gap:5px;align-items:center;padding:8px 0}
+.chat-typing span{width:7px;height:7px;border-radius:50%;background:#9ca3af;animation:bounce .8s infinite}
+.chat-typing span:nth-child(2){animation-delay:.15s}
+.chat-typing span:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.chat-tool{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;padding:4px 0;font-style:italic}
+.chat-tool::before{content:'🔍'}
+.chat-nudge{display:flex;gap:12px;align-items:flex-start;background:linear-gradient(135deg,#eff6ff,#f0fdf4);border:1px solid #bfdbfe;border-radius:12px;padding:14px 16px;margin:10px 0;animation:fadeIn .4s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.nudge-ico{font-size:24px;flex-shrink:0;margin-top:2px}
+.nudge-body{display:flex;flex-direction:column;gap:6px;flex:1}
+.nudge-body strong{font-size:13px;font-weight:700;color:#1e40af}
+.nudge-body span{font-size:12px;color:#374151;line-height:1.5}
+.nudge-btns{display:flex;gap:8px;margin-top:4px}
+.nudge-btn-prim{background:#2563eb;color:#fff;border:none;border-radius:7px;padding:6px 14px;font-size:12px;font-weight:600;cursor:pointer;transition:opacity .15s}
+.nudge-btn-prim:hover{opacity:.88}
+.nudge-btn-sec{background:none;border:1px solid #cbd5e1;border-radius:7px;padding:6px 12px;font-size:12px;color:var(--muted);cursor:pointer}
+
+/* Product grid inside chat — 3 columns */
+.chat-prod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:10px}
+.chat-prod{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;transition:all .15s}
+.chat-prod:hover{border-color:var(--blue);transform:translateY(-1px);box-shadow:var(--sh)}
+.chat-prod-img{height:110px;background:#f9fafb;display:flex;align-items:center;justify-content:center;font-size:32px}
+.chat-prod-img img{width:100%;height:100%;object-fit:contain;padding:8px}
+.chat-prod-body{padding:8px 10px}
+.chat-prod-name{font-size:11px;line-height:1.3;margin-bottom:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-weight:500}
+.chat-prod-price{font-size:14px;font-weight:700;color:var(--text)}
+.chat-prod-store{font-size:10px;color:var(--muted);margin-top:2px}
+.chat-prod-link{display:block;text-align:center;padding:5px;background:var(--blue-lt);color:var(--blue);font-size:11px;font-weight:600;border-top:1px solid var(--border);transition:background .15s}
+.chat-prod-link:hover{background:#bfdbfe}
+
+/* Price comparison table */
+.chat-pt{margin-top:10px;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
+.chat-pr{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13px;transition:background .15s}
+.chat-pr:last-child{border-bottom:none}
+.chat-pr:hover{background:#f9fafb}
+.chat-pr.best{background:var(--green-lt);border-left:3px solid var(--green)}
+.chat-pr-store{font-weight:700;min-width:90px}
+.chat-pr-name{flex:1;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-pr-price{font-weight:700;font-size:15px;white-space:nowrap}
+.chat-best-b{background:var(--green);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;white-space:nowrap}
+
+.chat-ib{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0;background:#fafafa}
+.chat-ib textarea{flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14px;font-family:inherit;resize:none;min-height:42px;max-height:110px;background:#fff;color:var(--text);outline:none;line-height:1.5}
+.chat-ib textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.chat-send{width:42px;height:42px;border-radius:10px;background:var(--blue);color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s}
+.chat-send:hover{background:#1d4ed8}
+.chat-send:disabled{background:#9ca3af;cursor:not-allowed}
+
+/* ── COMPARE BAR ── */
+.cmp-bar{position:fixed;bottom:0;left:0;right:0;background:var(--nav-bg);color:#fff;padding:11px 20px;display:flex;align-items:center;gap:10px;z-index:150;transform:translateY(100%);transition:transform .3s;box-shadow:0 -3px 12px rgba(0,0,0,.2)}
+.cmp-bar.on{transform:translateY(0)}
+.cmp-items{display:flex;gap:7px;flex:1;flex-wrap:wrap}
+.cmp-item{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.1);padding:3px 9px;border-radius:6px;font-size:12px}
+.cmp-item-rm{color:#9ca3af;font-size:11px;margin-left:3px}
+.cmp-go{background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;white-space:nowrap}
+.cmp-clear{font-size:12px;color:#9ca3af}
+
+/* ── COMPARE MODAL ── */
+.cmp-modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px}
+.cmp-modal{background:var(--surface);border-radius:16px;max-width:780px;width:100%;max-height:80vh;overflow-y:auto;padding:22px;box-shadow:var(--sh-lg)}
+.cmp-modal h2{font-size:19px;font-weight:700;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between}
+.cmp-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.cmp-tbl th,.cmp-tbl td{padding:9px 13px;border:1px solid var(--border);text-align:left;vertical-align:top}
+.cmp-tbl th{background:#f3f4f6;font-weight:600}
+.cmp-tbl .rl{background:#f9fafb;font-weight:500;color:var(--muted)}
+.cmp-ask-btn{display:inline-flex;align-items:center;gap:7px;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;font-size:13px;font-weight:600;padding:8px 16px;border-radius:8px;margin-top:14px}
+
+/* ── TRUST STRIP ── */
+.trust-strip{display:flex;justify-content:center;gap:32px;flex-wrap:wrap;padding:20px;border-top:1px solid rgba(255,255,255,.08);margin-top:36px}
+.trust-item{display:flex;align-items:center;gap:8px;font-size:13px;color:rgba(255,255,255,.65)}
+.trust-item strong{color:#fff;font-weight:700}
+
+/* ── INDEPENDENCE BANNER ── */
+.indie-bar{background:linear-gradient(135deg,#064e3b,#065f46);color:#d1fae5;font-size:12px;text-align:center;padding:8px 20px;letter-spacing:.3px}
+.indie-bar strong{color:#6ee7b7}
+
+/* ── ALEX PICK (homepage featured) ── */
+.alex-pick{background:linear-gradient(135deg,#1e1b4b,#1e3a5f);border-radius:var(--radius);padding:0;overflow:hidden;display:grid;grid-template-columns:1fr 1fr;margin-bottom:28px;box-shadow:var(--sh-lg)}
+.pick-left{padding:28px 32px;color:#fff}
+.pick-eyebrow{font-size:11px;font-weight:700;color:#a5b4fc;text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.pick-eyebrow::before{content:'';width:8px;height:8px;border-radius:50%;background:#818cf8;display:inline-block;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.pick-headline{font-size:22px;font-weight:800;line-height:1.3;margin-bottom:10px}
+.pick-reason{font-size:14px;color:rgba(255,255,255,.7);line-height:1.6;margin-bottom:20px}
+.pick-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pick-price-big{font-size:28px;font-weight:900;color:#fff}
+.pick-old-price{font-size:14px;color:rgba(255,255,255,.5);text-decoration:line-through}
+.pick-disc-badge{background:#ef4444;color:#fff;font-size:12px;font-weight:700;padding:3px 8px;border-radius:6px}
+.pick-right{background:rgba(255,255,255,.05);display:flex;align-items:center;justify-content:center;padding:20px;min-height:200px}
+.pick-right img{max-height:180px;max-width:100%;object-fit:contain}
+.pick-right .no-img{font-size:60px}
+.pick-store-row{display:flex;align-items:center;gap:10px;margin-top:16px}
+.pick-btn{display:inline-flex;align-items:center;gap:6px;background:#fff;color:#1e1b4b;font-size:13px;font-weight:700;padding:9px 18px;border-radius:8px;transition:opacity .15s}
+.pick-btn:hover{opacity:.9}
+
+/* ── TRANSPARENCY CARD ── */
+.alex-trace{background:linear-gradient(135deg,#f0fdf4,#eff6ff);border:1px solid #bbf7d0;border-radius:10px;padding:12px 16px;margin-top:10px;font-size:12px;color:#374151;display:flex;align-items:flex-start;gap:10px}
+.alex-trace-icon{font-size:18px;flex-shrink:0}
+.alex-trace-text{line-height:1.6}
+.alex-trace strong{color:#059669}
+
+/* ── STAT COUNTER STRIP (category page) ── */
+.cat-stat-strip{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.cat-stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 18px;display:flex;align-items:center;gap:10px;box-shadow:var(--sh)}
+.cat-stat-n{font-size:22px;font-weight:800;color:var(--blue)}
+.cat-stat-l{font-size:12px;color:var(--muted)}
+
+/* ── HOW ALEX DECIDED (expandable) ── */
+.how-alex{margin-top:6px}
+.how-alex summary{font-size:11px;color:var(--blue);cursor:pointer;user-select:none;list-style:none;display:flex;align-items:center;gap:5px}
+.how-alex summary::before{content:'▶';font-size:9px;transition:transform .2s}
+details[open] .how-alex summary::before{transform:rotate(90deg)}
+.how-alex-body{background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 14px;margin-top:6px;font-size:12px;line-height:1.7;color:#374151}
+.how-step{display:flex;gap:8px;align-items:flex-start;margin-bottom:4px}
+.how-step-ico{flex-shrink:0;color:var(--blue)}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){
+  .hero{padding:40px 20px;margin:0 -20px 22px}
+  .cat-grid{grid-template-columns:repeat(4,1fr)}
+  .picks-row{grid-template-columns:repeat(2,1fr)}
+  .prod-grid{grid-template-columns:repeat(2,1fr)}
+  .chat-drawer{width:100vw;border-radius:16px 16px 0 0}
+  .nav-cats{display:none}
+}
+@media(max-width:480px){
+  .cat-grid{grid-template-columns:repeat(3,1fr)}
+  .picks-row{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="indie-bar">
+  <strong>Независим</strong> — без реклами, без комисионна, без спонсорирани резултати. Само реални цени и честен AI анализ.
+</div>
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="nav-logo" href="/alex/" onclick="nav('/alex/');return false">
+      Alex
+      <small>Независим AI съветник</small>
+    </a>
+    <div class="nav-cats" id="navCats"></div>
+    <button class="nav-ask" onclick="openChat()">💬 Попитай Alex</button>
+  </div>
+</nav>
+
+<div id="page"></div>
+
+<button class="chat-fab" id="chatFab" onclick="toggleChat()" title="Попитай Alex">💬</button>
+<div class="chat-ov" id="chatOv" onclick="closeChat()"></div>
+
+<div class="chat-drawer" id="chatDrawer">
+  <div class="chat-dh">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:18px">🤖</div>
+      <div>
+        <div class="chat-logo">Alex</div>
+        <div class="chat-sub">AI съветник · реални цени от 4 магазина</div>
+      </div>
+    </div>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+      <button onclick="resetChat()" title="Нов разговор"
+        style="padding:5px 10px;border-radius:7px;background:#f3f4f6;font-size:12px;color:var(--muted);border:1px solid var(--border)">↺ Нов</button>
+      <button class="chat-close" onclick="closeChat()">✕</button>
+    </div>
+  </div>
+  <div class="chat-body">
+    <div class="chat-msgs" id="chatMsgs">
+      <div class="chat-welcome" id="chatWelcome">
+        <div class="chat-welcome-ico">🤖</div>
+        <h3>Здравей! Аз съм Alex</h3>
+        <p>Твоят AI съветник по електроника. Питай ме за продукти, сравнения и реални цени от eMAG, Технополис, Ардес и Техномаркет.</p>
+        <div class="chat-qbtns" id="chatQuick">
+          <button class="chat-qbtn" onclick="chatQuick(this)">📱 Кой телефон до 600 € е най-добрата сделка?</button>
+          <button class="chat-qbtn" onclick="chatQuick(this)">💻 Лаптоп за работа от вкъщи до 800 €</button>
+          <button class="chat-qbtn" onclick="chatQuick(this)">🎧 Слушалки с ANC — кои си заслужават?</button>
+          <button class="chat-qbtn" onclick="chatQuick(this)">🔥 Топ 5 намаления в момента</button>
+          <button class="chat-qbtn" onclick="chatQuick(this)">📱 Samsung Galaxy S25 vs iPhone 16 — кой е по-добрата сделка?</button>
+          <button class="chat-qbtn" onclick="chatQuick(this)">🧊 Пералня с добро качество под 700 €</button>
+          <button class="chat-qbtn" onclick="chatQuick(this)">🎮 PS5 или Xbox Series X — кое да избера?</button>
+          <button class="chat-qbtn" onclick="chatQuick(this)">📺 Кой 55" телевизор предлага най-много за парите?</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="chat-ib">
+    <textarea id="chatInput" placeholder="Питай Alex за техника, цени, препоръки..." rows="1"
+      onkeydown="chatKey(event)" oninput="chatResize(this)"></textarea>
+    <button class="chat-send" id="chatSend" onclick="sendChat()">➤</button>
+  </div>
+</div>
+
+<div class="cmp-bar" id="cmpBar">
+  <div class="cmp-items" id="cmpItems"></div>
+  <button class="cmp-go" onclick="showCompare()">Сравни</button>
+  <button class="cmp-clear" onclick="clearCompare()">Изчисти</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════
+const API = '/api';
+
+const CATS = {
+  // ── Електроника ───────────────────────────────────────────────────
+  phones:     {label:'Телефони',      icon:'📱', desc:'Смартфони от всички марки'},
+  laptops:    {label:'Лаптопи',       icon:'💻', desc:'Ноутбуци за работа и гейминг'},
+  tvs:        {label:'Телевизори',    icon:'📺', desc:'Smart TV от 32" до 85"'},
+  headphones: {label:'Слушалки',      icon:'🎧', desc:'Жични, безжични, с ANC'},
+  tablets:    {label:'Таблети',       icon:'📟', desc:'iPad, Android, Windows'},
+  gaming:     {label:'Гейминг',       icon:'🎮', desc:'Конзоли, геймпади, аксесоари'},
+  cameras:    {label:'Фотоапарати',   icon:'📷', desc:'DSLR, беззеркални, компактни'},
+  // ── Бяла техника ─────────────────────────────────────────────────
+  appliances: {label:'Уреди',         icon:'🏠', desc:'Домакински уреди и техника'},
+  fridges:    {label:'Хладилници',    icon:'🧊', desc:'Хладилници, фризери, хладилни шкафове'},
+  washing:    {label:'Перални',       icon:'🫧', desc:'Перални машини, сушилни'},
+  ac:         {label:'Климатици',     icon:'❄️', desc:'Сплит системи за дома и офиса'},
+  vacuum:     {label:'Прахосмукачки', icon:'🌀', desc:'Прахосмукачки и роботи'},
+  cooking:    {label:'Печки',         icon:'🔥', desc:'Готварски печки, котлони, микровълнови'},
+  dishwasher: {label:'Съдомиялни',    icon:'🍽️', desc:'Вградени и свободностоящи'},
+};
+
+// ═══════════════════════════════════════
+// ROUTER
+// ═══════════════════════════════════════
+function getRoute() {
+  const p = location.pathname.replace(/\/$/, '') || '/alex';
+  if (p === '/alex') return {page:'home'};
+  const m = p.match(/^\/alex\/([a-z]+)$/);
+  if (m && CATS[m[1]]) return {page:'category', slug:m[1]};
+  return {page:'home'};
+}
+
+function nav(path) {
+  history.pushState({}, '', path);
+  render();
+}
+window.addEventListener('popstate', render);
+
+function render() {
+  const r = getRoute();
+  updateNavActive(r);
+  if (r.page === 'home')     renderHome();
+  else if (r.page === 'category') renderCategory(r.slug);
+}
+
+function updateNavActive(r) {
+  document.querySelectorAll('.nav-cat').forEach(el =>
+    el.classList.toggle('active', el.dataset.slug === (r.slug || ''))
+  );
+}
+
+// ═══════════════════════════════════════
+// NAV BUILD
+// ═══════════════════════════════════════
+function buildNav() {
+  document.getElementById('navCats').innerHTML =
+    Object.entries(CATS).map(([slug, c]) =>
+      `<button class="nav-cat" data-slug="${slug}" onclick="nav('/alex/${slug}')">${c.icon} ${c.label}</button>`
+    ).join('');
+}
+
+// ═══════════════════════════════════════
+// HOME PAGE
+// ═══════════════════════════════════════
+async function renderHome() {
+  document.title = 'Alex — Казва кое си заслужава';
+  _chatCat = null;
+  document.getElementById('page').innerHTML = `
+    <div class="hero">
+      <div class="hero-badge">🔍 Независим · Без комисионна · Само реални цени</div>
+      <h1>Казва кое<br><span class="acc">си заслужава.</span></h1>
+      <p>Не пазарувай сляпо. Alex анализира хиляди реални цени от eMAG, Технополис, Ардес и Техномаркет — и казва директно кое е наистина добра сделка.</p>
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+        <button class="hero-btn" onclick="openChat()">💬 Попитай Alex</button>
+        <button class="hero-btn" style="background:rgba(255,255,255,.12);box-shadow:none;border:1px solid rgba(255,255,255,.2)" onclick="document.getElementById('cats-section').scrollIntoView({behavior:'smooth'})">Виж категориите ↓</button>
+      </div>
+      <div class="trust-strip">
+        <div class="trust-item">🔍 <strong id="statN">…</strong> реални цени</div>
+        <div class="trust-item">🏪 <strong>4</strong> магазина</div>
+        <div class="trust-item">🤖 <strong>AI</strong> анализ</div>
+        <div class="trust-item">🚫 <strong>0</strong> реклами</div>
+        <div class="trust-item">💰 <strong>0 лв.</strong> комисионна</div>
+      </div>
+    </div>
+    <div class="page">
+      <div class="sec-head" style="margin-top:24px"><h2>⚡ Избор на деня</h2><span style="font-size:12px;color:var(--muted)">Най-добрата сделка в момента</span></div>
+      <div id="alexPick" class="alex-pick">${skRow(1,'',200)}</div>
+
+      <div class="sec-head" id="cats-section"><h2>Категории</h2></div>
+      <div class="cat-grid">
+        ${Object.entries(CATS).map(([slug,c]) => `
+          <div class="cat-card" onclick="nav('/alex/${slug}')">
+            <div class="cat-icon">${c.icon}</div>
+            <div class="cat-label">${c.label}</div>
+            <div class="cat-desc">${c.desc}</div>
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="sec-head" style="margin-top:32px">
+        <h2>⭐ Изборът на Alex</h2>
+        <span style="font-size:12px;color:var(--muted)">Топ стойност тази седмица — от всички категории</span>
+      </div>
+      <div class="home-picks-grid" id="homePicksGrid">${skRow(6,'home-pick-card',140)}</div>
+
+      <div style="background:linear-gradient(135deg,#1e1b4b,#1e3a5f);border-radius:var(--radius);padding:32px;text-align:center;margin-top:40px;color:#fff">
+        <div style="font-size:32px;margin-bottom:12px">🤖</div>
+        <h2 style="font-size:22px;font-weight:800;margin-bottom:10px">Не знаеш кое да избереш?</h2>
+        <p style="color:rgba(255,255,255,.7);max-width:480px;margin:0 auto 20px;font-size:15px">Alex анализира спецификациите, сравнява цените и ти казва директно кое си заслужава — за минути, не за часове.</p>
+        <button class="hero-btn" onclick="openChat()" style="font-size:15px;padding:13px 28px">💬 Попитай Alex безплатно</button>
+      </div>
+    </div>`;
+  loadStats();
+  loadDayPick();
+  loadHomePicks();
+}
+
+async function loadStats() {
+  try {
+    const d = await apiFetch('/alex/stats');
+    const el = document.getElementById('statN');
+    if (el) el.textContent = (d.total_products||0).toLocaleString();
+  } catch {}
+}
+
+async function loadDayPick() {
+  const el = document.getElementById('alexPick');
+  if (!el) return;
+  try {
+    const d = await apiFetch('/alex/deals?limit=30');
+    const picks = (d.results||[]).filter(p => p.image_url && p.url && p.discount_pct >= 10);
+    if (!picks.length) { el.style.display='none'; return; }
+    picks.sort((a,b) => (b.discount_pct||0) - (a.discount_pct||0));
+    const p = picks[0];
+    const reasons = [
+      p.discount_pct >= 30 ? `Намален с ${p.discount_pct}% — рядко виждаме такава оферта` : `${p.discount_pct}% под обичайната цена`,
+      p.old_price ? `Спестяваш ${fmt(p.old_price - p.price)} спрямо препоръчаната цена` : null,
+      `Наличен в ${sl(p.store)} прямо сега`
+    ].filter(Boolean);
+    el.style.display = '';
+    el.innerHTML = `
+      <div class="pick-left">
+        <div class="pick-eyebrow">🏆 Alex Избор на деня</div>
+        <div class="pick-headline">${eh(p.raw_name)}</div>
+        <div class="pick-reason">${reasons.join(' · ')}</div>
+        <div class="pick-meta">
+          <span class="pick-price-big">${fmt(p.price)}</span>
+          ${p.old_price?`<span class="pick-old-price">${fmt(p.old_price)}</span>`:''}
+          <span class="pick-disc-badge">-${p.discount_pct}%</span>
+        </div>
+        <div class="pick-store-row">
+          <span class="store-badge ${sc(p.store)}">${sl(p.store)}</span>
+          <a href="${ea(p.url)}" target="_blank" rel="noopener" class="pick-btn">Виж офертата →</a>
+        </div>
+      </div>
+      <div class="pick-right">
+        <img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" onerror="this.style.display='none'">
+      </div>`;
+  } catch(e) { console.error(e); el.style.display='none'; }
+}
+
+async function loadHomePicks() {
+  const el = document.getElementById('homePicksGrid');
+  if (!el) return;
+  try {
+    const d = await apiFetch('/alex/homepage-picks');
+    if (!d.picks?.length) { el.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-ico">📭</div><p>Зарежда се...</p></div>'; return; }
+    el.innerHTML = d.picks.filter(p => p.image_url).map(p => `
+      <div class="home-pick-card" onclick="${p.url?`window.open('${ea(p.url)}','_blank')`:''}">
+        <div class="home-pick-img">
+          ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`: '📦'}
+          ${p.discount_pct?`<span class="home-pick-disc">-${p.discount_pct}%</span>`:''}
+        </div>
+        <div class="home-pick-body">
+          <div class="home-pick-cat">${eh(p.cat_label)}</div>
+          <div class="home-pick-name">${eh(p.raw_name)}</div>
+          <div class="home-pick-reason">${eh(p.reason)}</div>
+          <div class="home-pick-foot">
+            <div>
+              <span class="home-pick-price">${fmt(p.price)}</span>
+              ${p.old_price?`<span class="home-pick-old">${fmt(p.old_price)}</span>`:''}
+            </div>
+            <span class="store-badge ${sc(p.store)}">${sl(p.store)}</span>
+          </div>
+          ${p.url?`<a class="home-pick-link" href="${ea(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Виж офертата →</a>`:''}
+        </div>
+      </div>`).join('');
+  } catch(e) { console.error(e); el.innerHTML = ''; }
+}
+
+// ═══════════════════════════════════════
+// CATEGORY PAGE
+// ═══════════════════════════════════════
+let _catSlug = '';
+let _chatCat = null;
+let _catF = {brand:'',min:'',max:'',sort:'price_asc'};
+let _fdTimer = null;
+
+async function renderCategory(slug) {
+  _catSlug = slug;
+  _chatCat = slug;
+  const c = CATS[slug];
+  document.title = `${c.label} — Alex`;
+  document.getElementById('page').innerHTML = `
+    <div class="page">
+      <div class="crumb">
+        <a href="/alex/" onclick="nav('/alex/');return false">Alex</a>
+        <span>›</span>
+        <span>${c.icon} ${c.label}</span>
+      </div>
+      <div class="cat-hd">
+        <div class="cat-hd-top">
+          <span class="cat-hd-icon">${c.icon}</span>
+          <h1 class="cat-hd-title">${c.label}</h1>
+        </div>
+        <div class="cat-hd-desc">${c.desc}</div>
+      </div>
+      <div id="catStats" class="cat-stat-strip">
+        <div class="cat-stat"><span class="cat-stat-n" id="statProds">…</span><span class="cat-stat-l">продукта</span></div>
+        <div class="cat-stat"><span class="cat-stat-n" id="statBrands">…</span><span class="cat-stat-l">марки</span></div>
+        <div class="cat-stat"><span class="cat-stat-n" id="statDeals">…</span><span class="cat-stat-l">намаления</span></div>
+      </div>
+      <div id="verdictEl"></div>
+      <div class="sec-head"><h2>⭐ Изборът на Alex</h2></div>
+      <div class="picks-row" id="picksEl">${skRow(4,'pick-card',120)}</div>
+      <div class="filters" id="filtersEl">
+        <div class="fl-group">
+          <span class="fl-label">Марка:</span>
+          <select class="fl-select" id="fBrand" onchange="applyF()">
+            <option value="">Всички марки</option>
+          </select>
+        </div>
+        <div class="fl-group">
+          <span class="fl-label">Цена:</span>
+          <input type="number" class="fl-input" id="fMin" placeholder="от €" oninput="debF()">
+          <span class="fl-sep">—</span>
+          <input type="number" class="fl-input" id="fMax" placeholder="до €" oninput="debF()">
+        </div>
+        <div class="fl-group">
+          <span class="fl-label">Сортирай:</span>
+          <select class="fl-select" id="fSort" onchange="applyF()">
+            <option value="price_asc">Цена ↑</option>
+            <option value="price_desc">Цена ↓</option>
+            <option value="discount">Намаление</option>
+            <option value="score">Alex Score</option>
+          </select>
+        </div>
+        <span class="fl-count" id="fCount"></span>
+      </div>
+      <div class="prod-grid" id="prodGrid">${skRow(12,'prod-card',135)}</div>
+    </div>`;
+  _catF = {brand:'',min:'',max:'',sort:'price_asc'};
+  loadPicks(slug);
+  loadBrands(slug);
+  loadProds(slug);
+}
+
+function skRow(n, cls, h) {
+  return Array.from({length:n}, () => `
+    <div class="sk ${cls}">
+      <div class="sk-img" style="height:${h}px"></div>
+      <div class="sk-body"><div class="sk-ln w80"></div><div class="sk-ln w60"></div><div class="sk-ln w40"></div></div>
+    </div>`).join('');
+}
+
+async function loadPicks(slug) {
+  try {
+    const d = await apiFetch(`/alex/picks/${slug}`);
+    if (d.verdict) {
+      const el = document.getElementById('verdictEl');
+      if (el) el.innerHTML = `
+        <div class="verdict">
+          <span class="verdict-ico">💬</span>
+          <div>
+            <div class="verdict-tag">Alex казва:</div>
+            <div class="verdict-text">${eh(d.verdict)}</div>
+          </div>
+        </div>`;
+    }
+    const pe = document.getElementById('picksEl');
+    if (!pe || !d.items?.length) return;
+    pe.innerHTML = d.items.map(item => `
+      <div class="pick-card" onclick="${item.url?`window.open('${ea(item.url)}','_blank')`:''}">
+        <div class="pick-hd"><span>${item.icon}</span><span>${eh(item.label)}</span></div>
+        <div class="pick-img">
+          ${item.image_url?`<img src="${ea(item.image_url)}" alt="${ea(item.raw_name)}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`: '📦'}
+        </div>
+        <div class="pick-body">
+          <div class="pick-name">${eh(item.raw_name)}</div>
+          <div class="pick-price">${fmt(item.price)}</div>
+          <div class="pick-reason">${eh(item.reason)}</div>
+        </div>
+        <div class="pick-ft">
+          <span class="store-badge ${sc(item.store)}">${sl(item.store)}</span>
+          <span class="prod-score ${scc(item.alex_score)}">${item.alex_score}</span>
+        </div>
+      </div>`).join('');
+  } catch {
+    const pe = document.getElementById('picksEl');
+    if (pe) pe.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:12px">Изборът на Alex се зарежда...</p>';
+  }
+}
+
+async function loadBrands(slug) {
+  try {
+    const d = await apiFetch(`/alex/brands/${slug}`);
+    const sel = document.getElementById('fBrand');
+    if (sel && d.brands?.length) {
+      sel.innerHTML = '<option value="">Всички марки</option>' +
+        d.brands.map(b => `<option value="${ea(b)}">${eh(b)}</option>`).join('');
+    }
+    const sb = document.getElementById('statBrands');
+    if (sb) sb.textContent = (d.brands?.length || 0).toLocaleString();
+  } catch {}
+}
+
+function debF() {
+  clearTimeout(_fdTimer);
+  _fdTimer = setTimeout(applyF, 600);
+}
+
+function applyF() {
+  _catF.brand = document.getElementById('fBrand')?.value || '';
+  _catF.min   = document.getElementById('fMin')?.value   || '';
+  _catF.max   = document.getElementById('fMax')?.value   || '';
+  _catF.sort  = document.getElementById('fSort')?.value  || 'price_asc';
+  loadProds(_catSlug);
+}
+
+async function loadProds(slug) {
+  const grid = document.getElementById('prodGrid');
+  if (!grid) return;
+  grid.innerHTML = skRow(12, 'prod-card', 135);
+  const p = new URLSearchParams();
+  if (_catF.brand) p.set('brand', _catF.brand);
+  if (_catF.min)   p.set('min_price', _catF.min);
+  if (_catF.max)   p.set('max_price', _catF.max);
+  p.set('sort', _catF.sort);
+  p.set('limit', '60');
+  try {
+    const d = await apiFetch(`/alex/category/${slug}?${p}`);
+    const fc = document.getElementById('fCount');
+    if (fc) fc.textContent = `${d.count||0} продукта`;
+    const sp = document.getElementById('statProds');
+    if (sp) sp.textContent = (d.total_count ?? d.count ?? 0).toLocaleString();
+    const sd = document.getElementById('statDeals');
+    if (sd) sd.textContent = (d.results||[]).filter(p=>p.discount_pct>0).length;
+    if (!d.results?.length) {
+      grid.innerHTML = `<div class="empty" style="grid-column:1/-1">
+        <div class="empty-ico">🔍</div><h3>Няма намерени продукти</h3>
+        <p><button style="color:var(--blue);font-size:inherit;background:none;border:none;cursor:pointer" onclick="clearF()">Изчисти филтрите</button></p>
+      </div>`;
+      return;
+    }
+    grid.innerHTML = d.results.filter(p => p.image_url).map(buildProdCard).join('');
+  } catch {
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚠️</div><h3>Грешка при зареждане</h3></div>`;
+  }
+}
+
+function clearF() {
+  _catF = {brand:'',min:'',max:'',sort:'price_asc'};
+  const b=document.getElementById('fBrand'), mn=document.getElementById('fMin'),
+        mx=document.getElementById('fMax'), s=document.getElementById('fSort');
+  if(b) b.value=''; if(mn) mn.value=''; if(mx) mx.value=''; if(s) s.value='price_asc';
+  loadProds(_catSlug);
+}
+
+// ─── Product card ───────────────────────────────
+function buildProdCard(p) {
+  const inCmp = _cmpList.some(c => c.n===p.raw_name && c.s===p.store);
+  return `
+    <div class="prod-card">
+      <div class="prod-badges">
+        ${p.discount_pct?`<span class="prod-disc">-${p.discount_pct}%</span>`:'<span></span>'}
+        <span class="prod-score ${scc(p.alex_score)}">${p.alex_score}</span>
+      </div>
+      <div class="prod-img" onclick="${p.url?`window.open('${ea(p.url)}','_blank')`:''}">
+        ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`: '📦'}
+      </div>
+      <div class="prod-body">
+        <div class="prod-name">${eh(p.raw_name)}</div>
+        <div class="prod-price-row">
+          <span class="prod-price">${fmt(p.price)}</span>
+          ${p.old_price?`<span class="prod-old">${fmt(p.old_price)}</span>`:''}
+        </div>
+      </div>
+      <div class="prod-ft">
+        <span class="store-badge ${sc(p.store)}">${sl(p.store)}</span>
+        ${p.url?`<a class="prod-link" href="${ea(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Виж →</a>`:''}
+        <button class="cmp-btn${inCmp?' in':''}"
+          data-n="${ea(p.raw_name)}" data-s="${ea(p.store)}"
+          data-p="${p.price}" data-u="${ea(p.url||'')}" data-i="${ea(p.image_url||'')}"
+          onclick="event.stopPropagation();tglCmp(this)"
+          title="${inCmp?'Премахни':'Добави за сравнение'}">${inCmp?'✓':'+'}</button>
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════
+// COMPARE
+// ═══════════════════════════════════════
+let _cmpList = [];
+
+function tglCmp(btn) {
+  const prod = {n:btn.dataset.n, s:btn.dataset.s, p:parseFloat(btn.dataset.p), u:btn.dataset.u, i:btn.dataset.i};
+  const idx = _cmpList.findIndex(c => c.n===prod.n && c.s===prod.s);
+  if (idx >= 0) {
+    _cmpList.splice(idx, 1);
+    btn.textContent='+'; btn.classList.remove('in'); btn.title='Добави за сравнение';
+  } else {
+    if (_cmpList.length >= 3) { alert('Можеш да сравниш до 3 продукта.'); return; }
+    _cmpList.push(prod);
+    btn.textContent='✓'; btn.classList.add('in'); btn.title='Премахни';
+  }
+  updCmpBar();
+}
+
+function updCmpBar() {
+  const bar=document.getElementById('cmpBar'), items=document.getElementById('cmpItems');
+  if (!bar || !items) return;
+  const fab = document.getElementById('chatFab');
+  if (_cmpList.length === 0) {
+    bar.classList.remove('on');
+    if(fab) fab.style.bottom='24px';
+    return;
+  }
+  bar.classList.add('on');
+  if(fab) fab.style.bottom='88px';
+  items.innerHTML = _cmpList.map(p => `
+    <div class="cmp-item">
+      <span>${eh(p.n.slice(0,28))}${p.n.length>28?'…':''}</span>
+      <button class="cmp-item-rm" data-n="${ea(p.n)}" data-s="${ea(p.s)}" onclick="rmCmp(this)">✕</button>
+    </div>`).join('');
+}
+
+function rmCmp(btn) {
+  const n=btn.dataset.n, s=btn.dataset.s;
+  _cmpList = _cmpList.filter(c => !(c.n===n && c.s===s));
+  // update any visible card button
+  document.querySelectorAll(`.cmp-btn[data-n="${ea(n)}"][data-s="${ea(s)}"]`).forEach(b => {
+    b.textContent='+'; b.classList.remove('in');
+  });
+  updCmpBar();
+}
+
+function clearCompare() {
+  _cmpList = [];
+  document.querySelectorAll('.cmp-btn.in').forEach(b => { b.textContent='+'; b.classList.remove('in'); });
+  updCmpBar();
+}
+
+function showCompare() {
+  if (_cmpList.length < 2) { alert('Избери поне 2 продукта за сравнение.'); return; }
+  const ov = document.createElement('div');
+  ov.className = 'cmp-modal-ov';
+  ov.onclick = e => { if(e.target===ov) ov.remove(); };
+  ov.innerHTML = `
+    <div class="cmp-modal">
+      <h2>Сравнение
+        <button onclick="this.closest('.cmp-modal-ov').remove()" style="font-size:18px;color:var(--muted)">✕</button>
+      </h2>
+      <table class="cmp-tbl">
+        <thead><tr>
+          <th style="width:110px">Характеристика</th>
+          ${_cmpList.map(p=>`<th>${eh(p.n.slice(0,45))}</th>`).join('')}
+        </tr></thead>
+        <tbody>
+          <tr><td class="rl">Цена</td>${_cmpList.map(p=>`<td><strong>${fmt(p.p)}</strong></td>`).join('')}</tr>
+          <tr><td class="rl">Магазин</td>${_cmpList.map(p=>`<td><span class="store-badge ${sc(p.s)}" style="display:inline-block">${sl(p.s)}</span></td>`).join('')}</tr>
+          <tr><td class="rl">Линк</td>${_cmpList.map(p=>`<td>${p.u?`<a href="${ea(p.u)}" target="_blank" style="color:var(--blue)">Виж →</a>`:'—'}</td>`).join('')}</tr>
+        </tbody>
+      </table>
+      <p style="margin-top:12px;font-size:12px;color:var(--muted)">За детайлно сравнение на спецификации — попитай Alex.</p>
+      <button class="cmp-ask-btn" onclick="askCmpAlex();this.closest('.cmp-modal-ov').remove()">
+        💬 Сравни с Alex
+      </button>
+    </div>`;
+  document.body.appendChild(ov);
+}
+
+function askCmpAlex() {
+  const names = _cmpList.map(p=>p.n).join(' vs ');
+  openChat();
+  setTimeout(() => sendChatText(`Сравни ми: ${names}`), 350);
+}
+
+// ═══════════════════════════════════════
+// CHAT
+// ═══════════════════════════════════════
+let _chatMsgs   = [];
+let _chatBusy   = false;
+let _chatOpen   = false;
+let _cardsShown = false;
+
+// ── Anonymous persistent user ID ──────
+const _alexUid = (() => {
+  let uid = localStorage.getItem('alex_uid');
+  if (!uid) { uid = crypto.randomUUID(); localStorage.setItem('alex_uid', uid); }
+  return uid;
+})();
+
+// ── Chat question counter (for nudge) ─
+let _alexAskCount = parseInt(localStorage.getItem('alex_ask_count') || '0');
+let _nudgeShown   = localStorage.getItem('alex_nudge_shown') === '1';
+
+function toggleChat() { _chatOpen ? closeChat() : openChat(); }
+
+function resetChat() {
+  _chatMsgs = [];
+  _cardsShown = false;
+  const msgs = document.getElementById('chatMsgs');
+  if (!msgs) return;
+  const returning = _alexAskCount >= 3;
+  msgs.innerHTML = `
+    <div class="chat-welcome" id="chatWelcome">
+      <div class="chat-welcome-ico">🤖</div>
+      <h3>${returning ? 'Добре дошъл обратно!' : 'Здравей! Аз съм Alex'}</h3>
+      <p>${returning
+        ? `Помня какво те интересува. Питай ме директно — без обяснения.`
+        : 'Твоят AI съветник по електроника. Питай ме за продукти, сравнения и реални цени от eMAG, Технополис, Ардес и Техномаркет.'
+      }</p>
+      <div class="chat-qbtns">
+        <button class="chat-qbtn" onclick="chatQuick(this)">📱 Кой телефон до 600 € е най-добрата сделка?</button>
+        <button class="chat-qbtn" onclick="chatQuick(this)">💻 Лаптоп за работа от вкъщи до 800 €</button>
+        <button class="chat-qbtn" onclick="chatQuick(this)">🎧 Слушалки с ANC — кои си заслужават?</button>
+        <button class="chat-qbtn" onclick="chatQuick(this)">🔥 Топ 5 намаления в момента</button>
+        <button class="chat-qbtn" onclick="chatQuick(this)">📱 Samsung Galaxy S25 vs iPhone 16 — кой е по-добрата сделка?</button>
+        <button class="chat-qbtn" onclick="chatQuick(this)">🧊 Пералня с добро качество под 700 €</button>
+        <button class="chat-qbtn" onclick="chatQuick(this)">🎮 PS5 или Xbox Series X — кое да избера?</button>
+        <button class="chat-qbtn" onclick="chatQuick(this)">📺 Кой 55" телевизор предлага най-много за парите?</button>
+      </div>
+    </div>`;
+}
+
+function openChat() {
+  _chatOpen = true;
+  document.getElementById('chatDrawer').classList.add('open');
+  document.getElementById('chatOv').classList.add('open');
+  document.getElementById('chatFab').style.display = 'none';
+  setTimeout(() => document.getElementById('chatInput')?.focus(), 300);
+  // Pre-seed with category context if fresh
+  if (_chatCat && _chatMsgs.length === 0) {
+    const lbl = CATS[_chatCat]?.label?.toLowerCase() || _chatCat;
+    sendChatText(`Разглеждам ${lbl} и искам да намеря нещо добро.`);
+  }
+}
+
+function closeChat() {
+  _chatOpen = false;
+  document.getElementById('chatDrawer').classList.remove('open');
+  document.getElementById('chatOv').classList.remove('open');
+  const fab = document.getElementById('chatFab');
+  if (fab) fab.style.display = '';
+}
+
+function chatKey(e) { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();} }
+function chatResize(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,90)+'px'; }
+function chatQuick(btn) { sendChatText(btn.textContent.trim()); }
+
+function sendChat() {
+  const inp = document.getElementById('chatInput');
+  const txt = inp.value.trim();
+  if (!txt || _chatBusy) return;
+  inp.value = '';
+  chatResize(inp);
+  sendChatText(txt);
+}
+
+async function sendChatText(txt) {
+  if (!txt || _chatBusy) return;
+  document.getElementById('chatWelcome')?.remove();
+  if (_chatMsgs.length === 0) _cardsShown = false;
+  addChatMsg('user', txt);
+  _chatMsgs.push({role:'user', content:txt});
+  const id = 'cm' + Date.now();
+  addChatPlaceholder(id);
+  _chatBusy = true;
+  const btn = document.getElementById('chatSend');
+  if (btn) btn.disabled = true;
+
+  // Track question count
+  _alexAskCount++;
+  localStorage.setItem('alex_ask_count', _alexAskCount);
+
+  try {
+    await streamChat(id);
+  } catch(e) {
+    updBubble(id, '⚠️ Грешка при свързване. Опитай отново.');
+  } finally {
+    _chatBusy = false;
+    if (btn) btn.disabled = false;
+    // Show account nudge after 3rd question (once per session)
+    if (_alexAskCount === 3 && !_nudgeShown) {
+      _nudgeShown = true;
+      localStorage.setItem('alex_nudge_shown', '1');
+      setTimeout(showAccountNudge, 800);
+    }
+  }
+}
+
+async function streamChat(id) {
+  const resp = await fetch(`${API}/alex/chat`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      messages: _chatMsgs,
+      user_id:  _alexUid,
+      category: _chatCat || null,
+    }),
+  });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  const reader = resp.body.getReader();
+  const dec = new TextDecoder();
+  let buf='', full='';
+  while (true) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, {stream:true});
+    const lines = buf.split('\n');
+    buf = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const payload = line.slice(6).trim();
+      if (payload === '[DONE]') break;
+      let data; try { data=JSON.parse(payload); } catch { continue; }
+      if (data.error) { updBubble(id, `⚠️ ${data.error}`); break; }
+      if (data.text)  { full += data.text; updBubble(id, full); }
+      if (data.tool)  { showTool(id, data.tool, data.input); }
+      if (data.products?.length) {
+        const isPrice = data.tool === 'get_prices';
+        if (isPrice || !_cardsShown) {
+          if (!isPrice) _cardsShown = true;
+          showChatProds(id, data.products, data.tool, data.input);
+        }
+      }
+    }
+  }
+  if (full) _chatMsgs.push({role:'assistant', content:full});
+  scrollChat();
+}
+
+function addChatMsg(role, text) {
+  const msgs = document.getElementById('chatMsgs');
+  const d = document.createElement('div');
+  d.className = `chat-msg ${role}`;
+  d.innerHTML = `
+    <div class="chat-av">${role==='user'?'👤':'🤖'}</div>
+    <div class="chat-bubble">${role==='user'?eh(text):mdRender(eh(text))}</div>`;
+  msgs.appendChild(d);
+  scrollChat();
+}
+
+function addChatPlaceholder(id) {
+  const msgs = document.getElementById('chatMsgs');
+  const d = document.createElement('div');
+  d.className = 'chat-msg assistant'; d.id = id;
+  d.innerHTML = `
+    <div class="chat-av">🤖</div>
+    <div class="chat-bubble" id="${id}-b">
+      <div class="chat-typing"><span></span><span></span><span></span></div>
+    </div>`;
+  msgs.appendChild(d);
+  scrollChat();
+}
+
+function updBubble(id, text) {
+  const el = document.getElementById(`${id}-b`);
+  if (el) el.innerHTML = mdRender(eh(text));
+  scrollChat();
+}
+
+function showTool(id, tool, input) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.querySelector('.chat-tool')?.remove();
+  const labels = {
+    search_products: `Търси: "${input?.query||''}"`,
+    get_prices:      `Проверява цени: "${input?.product_name||''}"`,
+    get_top_deals:   'Зарежда топ оферти',
+  };
+  const s = document.createElement('div');
+  s.className = 'chat-tool'; s.textContent = labels[tool] || tool;
+  el.appendChild(s);
+}
+
+function showChatProds(id, products, tool, input) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.querySelector('.chat-tool')?.remove();
+  const box = document.createElement('div');
+  if (tool === 'get_prices') {
+    box.className = 'chat-pt';
+    const min = Math.min(...products.map(p=>p.price));
+    products.filter(p => p.image_url).slice(0,10).forEach(p => {
+      const isBest = p.price===min;
+      const row = document.createElement('div');
+      row.className = `chat-pr${isBest?' best':''}`;
+      row.innerHTML = `
+        <span class="chat-pr-store">${sl(p.store)}</span>
+        <span class="chat-pr-name">${eh(p.raw_name)}</span>
+        <span class="chat-pr-price">${fmt(p.price)}</span>
+        ${isBest?'<span class="chat-best-b">★ Най-евтино</span>':''}`;
+      row.onclick = () => p.url && window.open(p.url,'_blank');
+      row.style.cursor = p.url ? 'pointer' : 'default';
+      box.appendChild(row);
+    });
+  } else {
+    box.className = 'chat-prod-grid';
+    products.filter(p => p.image_url).slice(0,9).forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'chat-prod';
+      const disc = p.discount_pct ? `<span style="position:absolute;top:6px;left:6px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px">-${p.discount_pct}%</span>` : '';
+      card.innerHTML = `
+        <div class="chat-prod-img" style="position:relative">
+          ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`: '📦'}
+          ${disc}
+        </div>
+        <div class="chat-prod-body">
+          <div class="chat-prod-name">${eh(p.raw_name)}</div>
+          <div class="chat-prod-price">${fmt(p.price)}${p.old_price?` <span style="font-size:11px;color:var(--muted);text-decoration:line-through;font-weight:400">${fmt(p.old_price)}</span>`:''}</div>
+          <div class="chat-prod-store"><span class="store-badge ${sc(p.store)}" style="display:inline-block;margin-top:3px">${sl(p.store)}</span></div>
+        </div>
+        ${p.url?`<a class="chat-prod-link" href="${ea(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Виж офертата →</a>`:''}`;
+      card.onclick = () => p.url && window.open(p.url,'_blank');
+      card.style.cursor = p.url ? 'pointer' : 'default';
+      box.appendChild(card);
+    });
+  }
+  el.appendChild(box);
+
+  // Transparency trace — "Как реши Alex"
+  const traceLabels = {
+    search_products: `Търси <strong>"${eh(input?.query||'')}"</strong>${input?.category?` в <strong>${eh(input.category)}</strong>`:''}`,
+    get_prices:      `Проверява цени за <strong>"${eh(input?.product_name||'')}"</strong>`,
+    get_top_deals:   `Зарежда топ оферти`,
+  };
+  const traceDetail = {
+    search_products: `Открити ${products.length} продукта${input?.max_price?` до ${fmt(input.max_price)}`:''}.`,
+    get_prices:      `Намерени ${products.length} цени от различни магазини.`,
+    get_top_deals:   `Намерени ${products.length} намалени продукта.`,
+  };
+  const trace = document.createElement('details');
+  trace.className = 'how-alex';
+  trace.innerHTML = `<summary>Как реши Alex</summary>
+    <div class="how-alex-body">
+      🔍 ${traceLabels[tool]||tool}<br>
+      📦 ${traceDetail[tool]||''}<br>
+      ✅ Всички цени са реални — само от базата данни на Alex.
+    </div>`;
+  el.appendChild(trace);
+
+  scrollChat();
+}
+
+function scrollChat() {
+  const m = document.getElementById('chatMsgs');
+  if (m) requestAnimationFrame(() => { m.scrollTop = m.scrollHeight; });
+}
+
+function showAccountNudge() {
+  const msgs = document.getElementById('chatMsgs');
+  if (!msgs) return;
+  const nudge = document.createElement('div');
+  nudge.className = 'chat-nudge';
+  nudge.innerHTML = `
+    <div class="nudge-ico">🧠</div>
+    <div class="nudge-body">
+      <strong>Alex те познава</strong>
+      <span>Запази профила си — Alex ще помни предпочитанията ти на всяко устройство.</span>
+      <div class="nudge-btns">
+        <button class="nudge-btn-prim" onclick="this.closest('.chat-nudge').remove()">Разбрах →</button>
+        <button class="nudge-btn-sec" onclick="this.closest('.chat-nudge').remove()">Затвори</button>
+      </div>
+    </div>`;
+  msgs.appendChild(nudge);
+  scrollChat();
+}
+
+// ═══════════════════════════════════════
+// MARKDOWN RENDERER
+// ═══════════════════════════════════════
+function mdRender(escapedHtml) {
+  const lines = escapedHtml.split('\n');
+  let out = '';
+  let i = 0;
+  while (i < lines.length) {
+    const ln = lines[i];
+    if (ln.startsWith('|') && ln.trim().endsWith('|')) {
+      // Collect table lines
+      const tbl = [];
+      while (i < lines.length && lines[i].startsWith('|')) { tbl.push(lines[i]); i++; }
+      out += buildMdTable(tbl);
+      continue;
+    }
+    let l = ln;
+    l = l.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    l = l.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    l = l.replace(/^### (.+)$/, '<h3>$1</h3>');
+    l = l.replace(/^## (.+)$/, '<h2>$1</h2>');
+    out += l + '<br>';
+    i++;
+  }
+  return out;
+}
+
+function buildMdTable(lines) {
+  const dataLines = lines.filter(l => !/^\|[\s\-\|:]+\|$/.test(l));
+  if (!dataLines.length) return lines.join('<br>');
+  let html = '<table>';
+  dataLines.forEach((line, idx) => {
+    const cells = line.split('|').filter((_,j,arr) => j>0 && j<arr.length-1);
+    const tag = idx===0 ? 'th' : 'td';
+    html += `<tr>${cells.map(c=>`<${tag}>${c.trim()}</${tag}>`).join('')}</tr>`;
+  });
+  html += '</table>';
+  return html;
+}
+
+// ═══════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════
+function eh(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function ea(s) { return String(s).replace(/"/g,'&quot;'); }
+function fmt(n) { if(n==null)return'—'; return Number(n).toFixed(2).replace('.',',')+' €'; }
+function sl(s) { return {technopolis:'Technopolis',emag:'eMAG',ardes:'Ардес',technomarket:'Техномаркет'}[s]||s; }
+function sc(s) { return {technopolis:'s-technopolis',emag:'s-emag',ardes:'s-ardes',technomarket:'s-technomarket'}[s]||''; }
+function scc(v) { return v>=8?'sc-green':v>=6.5?'sc-blue':v>=5?'sc-amber':'sc-gray'; }
+async function apiFetch(path) {
+  const r = await fetch(`${API}${path}`);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+buildNav();
+render();
+</script>
+</body>
+</html>
