@@ -1062,7 +1062,55 @@ async def alex_category_products(
     sort:      str              = Query("price_asc"),
     limit:     int              = Query(60, le=120),
 ):
-    """Products for a category page — includes alex_score, supports filtering."""
+    """Products for a category page — direct Supabase query with local fallback."""
+    # Try Supabase first (fast, no full-table load)
+    try:
+        sb = get_supabase()
+        pg_sort = {
+            "price_asc":  ("price", False),
+            "price_desc": ("price", True),
+            "discount":   ("discount_pct", True),
+            "score":      ("price", False),
+        }.get(sort, ("price", False))
+
+        q = (
+            sb.table("electronics_offers")
+            .select("raw_name, brand, category, price, old_price, discount_pct, store, image_url, url")
+            .eq("category", category)
+            .not_.is_("image_url", "null")
+            .neq("image_url", "")
+        )
+        if brand:
+            q = q.ilike("brand", brand)
+        if min_price:
+            q = q.gte("price", min_price)
+        if max_price:
+            q = q.lte("price", max_price)
+
+        # Get total count first
+        total_resp = (
+            sb.table("electronics_offers")
+            .select("id", count="exact")
+            .eq("category", category)
+            .not_.is_("image_url", "null")
+            .neq("image_url", "")
+            .execute()
+        )
+        total_count = total_resp.count or 0
+
+        resp = q.order(pg_sort[0], desc=pg_sort[1]).limit(limit).execute()
+        if resp.data is not None:
+            results = [
+                {**r, "alex_score": alex_score(r)}
+                for r in resp.data
+            ]
+            if sort == "score":
+                results.sort(key=lambda x: x["alex_score"], reverse=True)
+            return {"results": results, "count": len(results), "total_count": total_count}
+    except Exception as exc:
+        logger.warning("[alex] category Supabase failed, using local: %s", exc)
+
+    # Fallback: local JSON
     offers = _load_local()
     cat_offers = [o for o in offers if o.get("category") == category and o.get("image_url")]
     total_count = len(cat_offers)
@@ -1098,7 +1146,23 @@ async def alex_category_products(
 
 @router.get("/alex/brands/{category}")
 async def alex_brands(category: str):
-    """Unique brands for a category (used by filter dropdowns)."""
+    """Unique brands for a category — direct Supabase query."""
+    try:
+        sb = get_supabase()
+        resp = (
+            sb.table("electronics_offers")
+            .select("brand")
+            .eq("category", category)
+            .not_.is_("brand", "null")
+            .neq("brand", "")
+            .execute()
+        )
+        if resp.data is not None:
+            brands = sorted(set(r["brand"].strip() for r in resp.data if r.get("brand")))
+            return {"brands": brands}
+    except Exception as exc:
+        logger.warning("[alex] brands Supabase failed, using local: %s", exc)
+
     offers = _load_local()
     brands = sorted(set(
         o.get("brand", "").strip()
