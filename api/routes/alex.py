@@ -1276,7 +1276,7 @@ def _generate_picks(category: str) -> dict | None:
         picks = {"verdict": data.get("verdict", ""), "items": []}
         for key, meta in labels.items():
             entry = data.get(key, {})
-            prod  = _match_product(entry.get("name", ""), products)
+            prod  = _match_product(entry.get("name", ""), all_prods)
             if prod:
                 picks["items"].append({
                     "key":       key,
