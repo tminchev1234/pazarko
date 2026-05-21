@@ -9,6 +9,7 @@ Endpoints:
 """
 
 from __future__ import annotations
+import asyncio
 import json
 import logging
 import re
@@ -1381,7 +1382,9 @@ async def alex_picks_endpoint(category: str):
     if cached and now - cached.get("_ts", 0) < _PICKS_TTL:
         return {k: v for k, v in cached.items() if k != "_ts"}
 
-    picks = _generate_picks(category)
+    # Run sync Anthropic client in thread pool — never block the event loop
+    loop  = asyncio.get_event_loop()
+    picks = await loop.run_in_executor(None, _generate_picks, category)
     if picks is None:
         raise HTTPException(status_code=404, detail=f"Not enough products for {category}")
 

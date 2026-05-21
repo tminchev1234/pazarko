@@ -160,6 +160,8 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .prod-price-row{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:2px}
 .prod-price{font-size:16px;font-weight:700}
 .prod-old{font-size:11px;color:var(--muted);text-decoration:line-through}
+.prod-alex-tag{font-size:11px;color:#6366f1;font-weight:600;text-align:center;padding:5px 11px;background:#f5f3ff;border-top:1px solid #ede9fe;letter-spacing:.2px}
+.prod-alex-tag:hover{background:#ede9fe}
 .prod-ft{display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding:7px 11px;background:#f9fafb;gap:4px}
 .store-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;color:#fff;white-space:nowrap}
 .s-emag{background:#f97316}.s-technopolis{background:#2563eb}.s-ardes{background:#1e3a8a}.s-technomarket{background:#7c3aed}
@@ -936,6 +938,7 @@ function buildProdCard(p) {
           ${p.old_price?`<span class="prod-old">${fmt(p.old_price)}</span>`:''}
         </div>
       </div>
+      <div class="prod-alex-tag">💬 Мнение на Alex</div>
       <div class="prod-ft">
         <span class="store-badge ${sc(p.store)}">${sl(p.store)}</span>
         ${p.url?`<a class="prod-link" href="${ea(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Виж →</a>`:''}
