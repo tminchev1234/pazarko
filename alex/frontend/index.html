@@ -679,7 +679,7 @@ async function loadHomePicks() {
     el.innerHTML = d.picks.filter(p => p.image_url).map(p => `
       <div class="home-pick-card" onclick="${p.url?`window.open('${ea(p.url)}','_blank')`:''}">
         <div class="home-pick-img">
-          ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`: '📦'}
+          ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.closest('.home-pick-card').style.display='none'">`: ''}
           ${p.discount_pct?`<span class="home-pick-disc">-${p.discount_pct}%</span>`:''}
         </div>
         <div class="home-pick-body">
@@ -800,7 +800,7 @@ async function loadPicks(slug) {
       <div class="pick-card" onclick="${item.url?`window.open('${ea(item.url)}','_blank')`:''}">
         <div class="pick-hd"><span>${item.icon}</span><span>${eh(item.label)}</span></div>
         <div class="pick-img">
-          ${item.image_url?`<img src="${ea(item.image_url)}" alt="${ea(item.raw_name)}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`: '📦'}
+          ${item.image_url?`<img src="${ea(item.image_url)}" alt="${ea(item.raw_name)}" loading="lazy" onerror="this.closest('.pick-card').style.display='none'">`: ''}
         </div>
         <div class="pick-body">
           <div class="pick-name">${eh(item.raw_name)}</div>
@@ -958,7 +958,7 @@ function buildSegCard(p) {
           ${p.discount_pct?`<span class="seg-disc">-${p.discount_pct}%</span>`:'<span></span>'}
           <span class="seg-score ${scc(p.alex_score)}">${p.alex_score}</span>
         </div>
-        ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`: '📦'}
+        ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.closest('.seg-card').style.display='none'">`: ''}
       </div>
       <div class="seg-body">
         <div class="seg-name">${eh(p.raw_name)}</div>
@@ -1344,7 +1344,7 @@ function showChatProds(id, products, tool, input) {
       const disc = p.discount_pct ? `<span style="position:absolute;top:6px;left:6px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px">-${p.discount_pct}%</span>` : '';
       card.innerHTML = `
         <div class="chat-prod-img" style="position:relative">
-          ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`: '📦'}
+          ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.closest('.chat-prod-card').style.display='none'">`: ''}
           ${disc}
         </div>
         <div class="chat-prod-body">
