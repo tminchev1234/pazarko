@@ -58,7 +58,7 @@ def main():
                 "brand":        row.get("brand"),
                 "price":        row.get("price"),
                 "old_price":    row.get("old_price"),
-                "discount_pct": row.get("discount_pct"),
+                "discount_pct": int(row["discount_pct"]) if row.get("discount_pct") is not None else None,
                 "image_url":    row.get("image_url"),
                 "scraped_at":   now_ts,
             }
