@@ -155,7 +155,31 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .prod-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;transition:all .15s;box-shadow:var(--sh);display:flex;flex-direction:column;position:relative}
 .prod-card:hover{transform:translateY(-2px);box-shadow:var(--sh-md);border-color:var(--blue)}
 .prod-badges{position:absolute;top:8px;left:8px;right:8px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none;z-index:1}
-.prod-disc{background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px}
+.prod-disc{background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;display:inline-flex;align-items:center;gap:3px}
+.disc-chk{background:none;border:none;cursor:pointer;color:rgba(255,255,255,.8);font-size:10px;padding:0;line-height:1;transition:color .1s}
+.disc-chk:hover{color:#fff}
+
+/* Deal-check modal */
+.dc-ov{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1200;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .15s ease}
+.dc-modal{background:#fff;border-radius:16px;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.2);overflow:hidden}
+.dc-head{padding:18px 20px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.dc-title{font-size:15px;font-weight:700;color:var(--text)}
+.dc-close{width:28px;height:28px;border-radius:7px;background:#f3f4f6;border:none;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.dc-body{padding:18px 20px}
+.dc-verdict{display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;margin-bottom:16px;font-size:14px;font-weight:600}
+.dc-verdict.real{background:#f0fdf4;color:#15803d;border:1px solid #86efac}
+.dc-verdict.suspicious{background:#fff7ed;color:#c2410c;border:1px solid #fdba74}
+.dc-verdict.unknown{background:#f9fafb;color:#6b7280;border:1px solid #e5e7eb}
+.dc-verdict-icon{font-size:22px}
+.dc-reason{font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.5}
+.dc-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:6px 0;border-bottom:1px solid var(--border)}
+.dc-row:last-child{border-bottom:none}
+.dc-label{color:var(--muted)}
+.dc-val{font-weight:600}
+.dc-section{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:14px 0 6px}
+.dc-comp-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;border-bottom:1px dashed var(--border)}
+.dc-comp-row:last-child{border-bottom:none}
+.dc-loading{text-align:center;padding:30px;color:var(--muted);font-size:14px}
 .prod-score{font-size:11px;font-weight:700;padding:3px 7px;border-radius:6px;color:#fff}
 .sc-green{background:#059669}.sc-blue{background:#2563eb}.sc-amber{background:#d97706}.sc-gray{background:#9ca3af}
 .prod-img{width:100%;height:135px;background:#f9fafb;display:flex;align-items:center;justify-content:center;font-size:38px;cursor:pointer}
@@ -389,7 +413,7 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .seg-img{width:100%;height:110px;background:#f9fafb;display:flex;align-items:center;justify-content:center;font-size:34px;position:relative;overflow:hidden}
 .seg-img img{width:100%;height:100%;object-fit:contain;padding:8px}
 .seg-badges{position:absolute;top:6px;left:6px;right:6px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none}
-.seg-disc{background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px}
+.seg-disc{background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;display:inline-flex;align-items:center;gap:3px;pointer-events:auto}
 .seg-score{font-size:10px;font-weight:700;padding:2px 6px;border-radius:5px;color:#fff}
 .seg-body{padding:10px;flex:1}
 .seg-name{font-size:11px;font-weight:500;line-height:1.3;margin-bottom:5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -1077,7 +1101,7 @@ function buildProdCard(p) {
       data-url="${ea(p.url||'')}" data-score="${p.alex_score}"
       onclick="showVerdictFromCard(this)" style="cursor:pointer">
       <div class="prod-badges">
-        ${p.discount_pct?`<span class="prod-disc">-${p.discount_pct}%</span>`:'<span></span>'}
+        ${p.discount_pct?`<span class="prod-disc">-${p.discount_pct}%<button class="disc-chk" title="Реално ли е намалението?" onclick="event.stopPropagation();dealCheck(event,'${ea(p.url||'')}','${ea(p.raw_name||'')}',${p.price},${p.old_price||0},'${ea(p.store||'')}')">?</button></span>`:'<span></span>'}
         <span class="prod-score ${scc(p.alex_score)}">${p.alex_score}</span>
       </div>
       <div class="prod-img">
@@ -1140,7 +1164,7 @@ function buildSegCard(p) {
       onclick="showVerdictFromCard(this)">
       <div class="seg-img">
         <div class="seg-badges">
-          ${p.discount_pct?`<span class="seg-disc">-${p.discount_pct}%</span>`:'<span></span>'}
+          ${p.discount_pct?`<span class="seg-disc">-${p.discount_pct}%<button class="disc-chk" title="Реално ли е намалението?" onclick="event.stopPropagation();dealCheck(event,'${ea(p.url||'')}','${ea(p.raw_name||'')}',${p.price},${p.old_price||0},'${ea(p.store||'')}')">?</button></span>`:'<span></span>'}
           <span class="seg-score ${scc(p.alex_score)}">${p.alex_score}</span>
         </div>
         ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="imgErr(this,'${catIcon(p.category)}')">`:
@@ -1892,9 +1916,88 @@ document.addEventListener('keydown', e => {
   }
 });
 document.addEventListener('click', () => document.getElementById('whyPopup')?.classList.remove('show'));
+
+// ═══════════════════════════════════════
+// DEAL CHECK
+// ═══════════════════════════════════════
+async function dealCheck(evt, url, name, currentPrice, oldPrice, store) {
+  evt.stopPropagation();
+  if (!oldPrice || oldPrice <= currentPrice) return;
+
+  const ov   = document.getElementById('dcOv');
+  const body = document.getElementById('dcBody');
+  ov.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+  body.innerHTML = '<div class="dc-loading">Проверявам цени и история...</div>';
+
+  try {
+    const params = new URLSearchParams({
+      product_url:   url,
+      product_name:  name,
+      current_price: currentPrice,
+      old_price:     oldPrice,
+      store:         store,
+    });
+    const d = await apiFetch('/alex/deal-check?' + params);
+
+    const ICONS = { real: '✅', suspicious: '⚠️', unknown: '❓', no_discount: 'ℹ️' };
+    const LABELS = { real: 'Реално намаление', suspicious: 'Съмнително намаление', unknown: 'Недостатъчно данни', no_discount: 'Няма намаление' };
+    const icon  = ICONS[d.verdict]  || '❓';
+    const label = LABELS[d.verdict] || d.verdict;
+    const cls   = d.verdict === 'real' ? 'real' : d.verdict === 'suspicious' ? 'suspicious' : 'unknown';
+
+    let compHtml = '';
+    if (d.competitors?.length) {
+      const rows = d.competitors.map(c =>
+        `<div class="dc-comp-row">
+          <span class="store-badge ${sc(c.store)}">${sl(c.store)}</span>
+          <span class="dc-val">${fmt(c.price)}</span>
+         </div>`
+      ).join('');
+      compHtml = `<div class="dc-section">Цени в магазините</div>${rows}`;
+    }
+
+    const histHtml = d.avg_30d
+      ? `<div class="dc-row"><span class="dc-label">Средна цена (30 дни)</span><span class="dc-val">${fmt(d.avg_30d)}</span></div>
+         <div class="dc-row"><span class="dc-label">Записи в историята</span><span class="dc-val">${d.history_points}</span></div>`
+      : `<div class="dc-row"><span class="dc-label">История</span><span class="dc-val" style="color:var(--muted)">Събира се — ${d.history_points} записа</span></div>`;
+
+    body.innerHTML = `
+      <div class="dc-verdict ${cls}">
+        <span class="dc-verdict-icon">${icon}</span>
+        <span>${label}</span>
+      </div>
+      <p class="dc-reason">${eh(d.reason)}</p>
+      <div class="dc-row"><span class="dc-label">Обявена стара цена</span><span class="dc-val" style="text-decoration:line-through;color:var(--muted)">${fmt(d.old_price)}</span></div>
+      <div class="dc-row"><span class="dc-label">Текуща цена</span><span class="dc-val">${fmt(d.current_price)}</span></div>
+      <div class="dc-row"><span class="dc-label">Обявено намаление</span><span class="dc-val">-${d.claimed_pct}%</span></div>
+      ${histHtml}
+      ${compHtml}`;
+  } catch(e) {
+    body.innerHTML = '<div class="dc-loading" style="color:var(--red)">Грешка при проверката. Опитай отново.</div>';
+  }
+}
+
+function closeDealCheck() {
+  document.getElementById('dcOv').style.display = 'none';
+  document.body.style.overflow = '';
+}
 buildNav();
 render();
 </script>
 <div class="why-popup" id="whyPopup"></div>
+
+<!-- Deal-check modal -->
+<div class="dc-ov" id="dcOv" style="display:none" onclick="if(event.target===this)closeDealCheck()">
+  <div class="dc-modal">
+    <div class="dc-head">
+      <span class="dc-title">🔍 Реално ли е намалението?</span>
+      <button class="dc-close" onclick="closeDealCheck()">✕</button>
+    </div>
+    <div class="dc-body" id="dcBody">
+      <div class="dc-loading">Проверявам...</div>
+    </div>
+  </div>
+</div>
 </body>
 </html>

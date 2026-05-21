@@ -1919,6 +1919,125 @@ async def watchlist_remove(item_id: int, user_id: str = Query(...)):
         raise HTTPException(status_code=500, detail="Грешка при изтриване")
 
 
+@router.get("/alex/deal-check")
+async def deal_check(
+    product_url:   str   = Query(...),
+    product_name:  str   = Query(""),
+    current_price: float = Query(...),
+    old_price:     float = Query(0),
+    store:         str   = Query(""),
+):
+    """
+    Verify if a discount is genuine.
+    Compares against competitor prices and 30-day price history.
+    Returns verdict: real | suspicious | unknown | no_discount
+    """
+    if not old_price or old_price <= current_price:
+        return {"verdict": "no_discount", "reason": "Няма посочено намаление.", "competitors": [], "avg_30d": None, "history_points": 0}
+
+    claimed_pct = round((1 - current_price / old_price) * 100, 1)
+
+    competitors: list[dict] = []
+    avg_30d: float | None = None
+    history_points = 0
+
+    try:
+        sb = get_supabase()
+
+        # ── 1. Competitor prices (same URL, all stores) ──────────────────
+        comp_resp = (
+            sb.table("electronics_offers")
+            .select("store, price, url")
+            .eq("url", product_url)
+            .execute()
+        )
+        for row in (comp_resp.data or []):
+            competitors.append({"store": row["store"], "price": float(row["price"])})
+
+        # ── 2. Price history (last 30 days) ──────────────────────────────
+        from datetime import timezone, timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        hist_resp = (
+            sb.table("price_history")
+            .select("price, scraped_at")
+            .eq("product_url", product_url)
+            .gte("scraped_at", cutoff)
+            .execute()
+        )
+        hist_prices = [float(r["price"]) for r in (hist_resp.data or []) if r.get("price")]
+        history_points = len(hist_prices)
+        if history_points >= 3:
+            avg_30d = round(sum(hist_prices) / len(hist_prices), 2)
+
+    except Exception as exc:
+        logger.warning("[deal-check] DB error: %s", exc)
+
+    # ── 3. Verdict ────────────────────────────────────────────────────────
+    other_stores = [c for c in competitors if c["store"] != store]
+    prices_all   = [c["price"] for c in competitors]
+    prices_other = [c["price"] for c in other_stores]
+
+    verdict    = "unknown"
+    confidence = "low"
+    reason     = "Недостатъчно данни за сравнение."
+
+    if avg_30d and history_points >= 3:
+        # History-based verdict (most reliable)
+        if old_price > avg_30d * 1.15:
+            verdict    = "suspicious"
+            confidence = "high"
+            reason     = f"Историческата средна цена е {avg_30d:.0f} лв. — обявената стара цена е {((old_price/avg_30d-1)*100):.0f}% по-висока от реалната пазарна."
+        elif current_price <= avg_30d * 1.05:
+            verdict    = "real"
+            confidence = "high"
+            reason     = f"Текущата цена ({current_price:.0f} лв.) е под или близо до историческата средна ({avg_30d:.0f} лв.). Намалението изглежда реално."
+        else:
+            verdict    = "suspicious"
+            confidence = "medium"
+            reason     = f"Цената e над историческата средна от {avg_30d:.0f} лв. — намалението може да е частично."
+
+    elif prices_other:
+        max_comp = max(prices_other)
+        min_comp = min(prices_other)
+        avg_comp = round(sum(prices_other) / len(prices_other), 2)
+
+        if old_price > max_comp * 1.20:
+            verdict    = "suspicious"
+            confidence = "medium"
+            reason     = f"Конкурентите продават на макс. {max_comp:.0f} лв. — обявената стара цена ({old_price:.0f} лв.) е {((old_price/max_comp-1)*100):.0f}% по-висока от пазара."
+        elif current_price <= avg_comp * 1.05:
+            verdict    = "real"
+            confidence = "medium"
+            reason     = f"Текущата цена ({current_price:.0f} лв.) съответства на пазарното ниво (средно {avg_comp:.0f} лв.). Намалението е реално спрямо конкурентите."
+        elif current_price <= min_comp * 1.10:
+            verdict    = "real"
+            confidence = "medium"
+            reason     = f"Цената е близо до най-евтиния конкурент ({min_comp:.0f} лв.)."
+        else:
+            verdict    = "unknown"
+            confidence = "low"
+            reason     = f"Конкурентните цени варират ({min_comp:.0f}–{max_comp:.0f} лв.). Не може да се прецени еднозначно."
+
+    elif len(prices_all) >= 2:
+        # Same store, multiple history entries
+        avg_all = round(sum(prices_all) / len(prices_all), 2)
+        verdict    = "unknown"
+        confidence = "low"
+        reason     = f"Само един магазин — не може да се сравни с конкуренти."
+
+    return {
+        "verdict":        verdict,       # real | suspicious | unknown | no_discount
+        "confidence":     confidence,    # high | medium | low
+        "reason":         reason,
+        "claimed_pct":    claimed_pct,
+        "current_price":  current_price,
+        "old_price":      old_price,
+        "competitors":    sorted(competitors, key=lambda c: c["price"]),
+        "avg_30d":        avg_30d,
+        "history_points": history_points,
+    }
+
+
 @router.post("/alex/run-alerts")
 async def run_alerts(secret: str = Query("")):
     """
