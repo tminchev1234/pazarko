@@ -1,12 +1,13 @@
 """
 Email alert sender — Gmail SMTP (stdlib only, no extra deps).
-Switch to Resend later by replacing send_alert() body.
 """
 from __future__ import annotations
 import logging
 import smtplib
+from email.header import Header
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import formataddr
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ def send_price_alert(
         logger.warning("[email] SMTP credentials not configured — skipping alert")
         return False
 
-    subject = f"💰 Alex: {product_name[:50]} вече е €{current_price:.0f}"
+    subject_text = f"Alex: {product_name[:50]} вече е {current_price:.0f} лв."
 
     img_html = (
         f'<img src="{image_url}" alt="" style="max-width:160px;border-radius:8px;margin-bottom:12px">'
@@ -56,18 +57,18 @@ def send_price_alert(
       <div style="display:flex;gap:16px;margin-bottom:20px">
         <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:12px 20px;text-align:center">
           <div style="font-size:11px;color:#16a34a;text-transform:uppercase;font-weight:600">Текуща цена</div>
-          <div style="font-size:28px;font-weight:700;color:#16a34a">€{current_price:.0f}</div>
+          <div style="font-size:28px;font-weight:700;color:#16a34a">{current_price:.0f} лв.</div>
         </div>
         <div style="background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:12px 20px;text-align:center">
           <div style="font-size:11px;color:#6b7280;text-transform:uppercase;font-weight:600">Твоята цел</div>
-          <div style="font-size:28px;font-weight:700;color:#374151">€{target_price:.0f}</div>
+          <div style="font-size:28px;font-weight:700;color:#374151">{target_price:.0f} лв.</div>
         </div>
       </div>
       <p style="margin:0 0 20px;color:#555;font-size:14px">
         Магазин: <strong>{store}</strong>
       </p>
       <a href="{product_url}" style="display:inline-block;background:#6366f1;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:15px">
-        Виж в магазина →
+        Виж в магазина
       </a>
     </div>
     <div style="padding:16px 24px;border-top:1px solid #f0f0f0;font-size:12px;color:#9ca3af">
@@ -79,19 +80,61 @@ def send_price_alert(
 </html>"""
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"]    = f"{from_name} <{smtp_user}>"
+    msg["Subject"] = Header(subject_text, "utf-8")
+    msg["From"]    = formataddr((from_name, smtp_user))
     msg["To"]      = to_email
     msg.attach(MIMEText(html, "html", "utf-8"))
 
     try:
-        with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as srv:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as srv:
             srv.ehlo()
             srv.starttls()
+            srv.ehlo()
             srv.login(smtp_user, smtp_pass)
-            srv.sendmail(smtp_user, [to_email], msg.as_bytes())
+            srv.sendmail(smtp_user, [to_email], msg.as_string().encode("utf-8"))
         logger.info("[email] alert sent to %s for %s", to_email, product_name[:40])
         return True
-    except Exception as exc:
-        logger.error("[email] failed to send alert to %s: %s", to_email, exc)
+    except smtplib.SMTPAuthenticationError as exc:
+        logger.error("[email] SMTP authentication failed — check App Password: %s", exc)
         return False
+    except smtplib.SMTPException as exc:
+        logger.error("[email] SMTP error sending to %s: %s", to_email, exc)
+        return False
+    except Exception as exc:
+        logger.error("[email] unexpected error sending to %s: %s", to_email, exc)
+        return False
+
+
+def send_test_email(*, smtp_user: str, smtp_pass: str, smtp_host: str = "smtp.gmail.com", smtp_port: int = 587) -> tuple[bool, str]:
+    """Send a test email to verify SMTP setup. Returns (ok, message)."""
+    if not smtp_user or not smtp_pass:
+        return False, "SMTP_USER или SMTP_PASS не са зададени"
+
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as srv:
+            srv.ehlo()
+            srv.starttls()
+            srv.ehlo()
+            srv.login(smtp_user, smtp_pass)
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = Header("Alex: тест имейл", "utf-8")
+        msg["From"]    = formataddr(("Alex AI", smtp_user))
+        msg["To"]      = smtp_user
+        html = "<html><body><p>SMTP работи правилно!</p></body></html>"
+        msg.attach(MIMEText(html, "html", "utf-8"))
+
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as srv:
+            srv.ehlo()
+            srv.starttls()
+            srv.ehlo()
+            srv.login(smtp_user, smtp_pass)
+            srv.sendmail(smtp_user, [smtp_user], msg.as_string().encode("utf-8"))
+
+        return True, f"Тест имейл изпратен към {smtp_user}"
+    except smtplib.SMTPAuthenticationError:
+        return False, "Грешка в автентикацията — провери App Password"
+    except smtplib.SMTPConnectError as exc:
+        return False, f"Не може да се свърже с {smtp_host}:{smtp_port} — {exc}"
+    except Exception as exc:
+        return False, str(exc)

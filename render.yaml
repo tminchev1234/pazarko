@@ -17,3 +17,13 @@ services:
         value: production
       - key: SECRET_KEY
         generateValue: true
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: ALERT_FROM_NAME
+        value: "Alex — AI Съветник"

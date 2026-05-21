@@ -78,7 +78,42 @@ def main():
 
     logger.info("Done. Total: %d", total)
 
-    # 3. Check watchlist alerts
+    # 3. Check watchlist alerts via API (preferred) or direct SMTP fallback
+    _trigger_alerts(url, key, smtp_user, smtp_pass)
+
+
+def _trigger_alerts(supabase_url: str, supabase_key: str, smtp_user: str, smtp_pass: str):
+    """
+    Trigger alert check via the API endpoint /api/alex/run-alerts.
+    Falls back to direct SMTP if the API call fails.
+    """
+    import urllib.request
+    import urllib.parse
+
+    # Derive API base URL from Supabase URL pattern, or use env var
+    api_base = os.getenv("API_BASE_URL", "")
+    if not api_base:
+        logger.info("[alerts] API_BASE_URL not set — falling back to direct check")
+        _check_alerts_direct(supabase_url, supabase_key, smtp_user, smtp_pass)
+        return
+
+    secret = os.getenv("SECRET_KEY", "")
+    endpoint = f"{api_base.rstrip('/')}/api/alex/run-alerts?secret={urllib.parse.quote(secret)}"
+    try:
+        req = urllib.request.Request(endpoint, method="POST")
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            body = json.loads(resp.read())
+            logger.info("[alerts] API result: sent=%s skipped=%s errors=%s",
+                        body.get("sent"), body.get("skipped"), body.get("errors"))
+    except Exception as exc:
+        logger.warning("[alerts] API call failed (%s) — falling back to direct check", exc)
+        _check_alerts_direct(supabase_url, supabase_key, smtp_user, smtp_pass)
+
+
+def _check_alerts_direct(supabase_url: str, supabase_key: str, smtp_user: str, smtp_pass: str):
+    """Direct SMTP fallback — used when API is not reachable."""
+    from supabase import create_client
+    sb = create_client(supabase_url, supabase_key)
     _check_alerts(sb, smtp_user, smtp_pass)
 
 

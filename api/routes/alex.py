@@ -1887,6 +1887,115 @@ async def watchlist_remove(item_id: int, user_id: str = Query(...)):
         raise HTTPException(status_code=500, detail="Грешка при изтриване")
 
 
+@router.post("/alex/run-alerts")
+async def run_alerts(secret: str = Query("")):
+    """
+    Check all watchlist items and send email alerts when target price is hit.
+    Call this after every scrape (push_direct.py) or via a cron job.
+    Pass ?secret=<SECRET_KEY> to prevent unauthorized triggers.
+    """
+    settings = get_settings()
+    if settings.secret_key and secret != settings.secret_key:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    smtp_user = settings.smtp_user
+    smtp_pass = settings.smtp_pass
+    if not smtp_user or not smtp_pass:
+        return {"ok": False, "error": "SMTP credentials not configured", "sent": 0}
+
+    try:
+        sb = get_supabase()
+        resp = sb.table("watchlists").select("*").execute()
+        items = resp.data or []
+    except Exception as exc:
+        logger.error("[alerts] Failed to load watchlists: %s", exc)
+        raise HTTPException(status_code=500, detail="DB error")
+
+    from api.email_utils import send_price_alert
+    from datetime import timezone, timedelta
+
+    sent = 0
+    skipped = 0
+    errors = 0
+
+    for item in items:
+        try:
+            cur = (
+                sb.table("electronics_offers")
+                .select("price, url, raw_name, store, image_url")
+                .eq("url", item["product_url"])
+                .limit(1)
+                .execute()
+            )
+            if not cur.data:
+                skipped += 1
+                continue
+
+            prod = cur.data[0]
+            current_price = float(prod["price"])
+            target_price  = float(item["target_price"])
+
+            if current_price > target_price:
+                sb.table("watchlists").update({"last_known_price": current_price}).eq("id", item["id"]).execute()
+                skipped += 1
+                continue
+
+            # 24-hour cooldown
+            alerted_at = item.get("alerted_at")
+            if alerted_at:
+                last = datetime.fromisoformat(alerted_at.replace("Z", "+00:00"))
+                if datetime.now(timezone.utc) - last < timedelta(hours=24):
+                    skipped += 1
+                    continue
+
+            ok = send_price_alert(
+                to_email=item["email"],
+                product_name=item["raw_name"],
+                current_price=current_price,
+                target_price=target_price,
+                store=prod["store"],
+                product_url=prod["url"],
+                image_url=item.get("image_url"),
+                smtp_user=smtp_user,
+                smtp_pass=smtp_pass,
+                smtp_host=settings.smtp_host,
+                smtp_port=settings.smtp_port,
+                from_name=settings.alert_from_name,
+            )
+            if ok:
+                sb.table("watchlists").update({
+                    "alerted_at":       datetime.now(timezone.utc).isoformat(),
+                    "last_known_price": current_price,
+                }).eq("id", item["id"]).execute()
+                sent += 1
+            else:
+                errors += 1
+
+        except Exception as exc:
+            logger.error("[alerts] Error on item %s: %s", item.get("id"), exc)
+            errors += 1
+
+    logger.info("[alerts] done — sent=%d skipped=%d errors=%d", sent, skipped, errors)
+    return {"ok": True, "sent": sent, "skipped": skipped, "errors": errors}
+
+
+@router.post("/alex/test-email")
+async def test_email(secret: str = Query("")):
+    """Send a test email to verify SMTP config. Returns {ok, message}."""
+    settings = get_settings()
+    if settings.secret_key and secret != settings.secret_key:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    from api.email_utils import send_test_email
+    ok, msg = send_test_email(
+        smtp_user=settings.smtp_user,
+        smtp_pass=settings.smtp_pass,
+        smtp_host=settings.smtp_host,
+        smtp_port=settings.smtp_port,
+    )
+    return {"ok": ok, "message": msg}
+
+
 @router.get("/alex/stats")
 async def alex_stats():
     """Quick stats for the Alex homepage."""
