@@ -1211,34 +1211,57 @@ def _generate_picks(category: str) -> dict | None:
 
     # Slot definitions: (slot_key, tier_key, label, icon)
     # budget→best_budget, mid→best_value, mid→mid_range (2nd choice), premium→overall_best
-    SLOTS = [
-        ("best_budget",  "budget",  "Най-добър бюджет",   "🎯"),
-        ("best_value",   "mid",     "Най-добра стойност",  "💰"),
-        ("mid_range",    "mid",     "Среден клас",          "⚡"),
-        ("overall_best", "premium", "Без компромис",        "👑"),
+    # Split mid tier by median price so best_value ≠ mid_range in cost
+    mid_prods = tier_prods.get("mid", [])
+    if mid_prods:
+        mid_prices = sorted(p["price"] for p in mid_prods)
+        mid_split  = mid_prices[len(mid_prices) // 2]          # median
+        mid_low    = [p for p in mid_prods if p["price"] <= mid_split]
+        mid_high   = [p for p in mid_prods if p["price"] >  mid_split]
+        if not mid_low:  mid_low  = mid_prods[:5]
+        if not mid_high: mid_high = mid_prods[-5:]
+    else:
+        mid_low = mid_high = []
+
+    # Slot → candidate pool
+    SLOTS: list[tuple[str, list[dict], str, str]] = [
+        ("best_budget",  tier_prods.get("budget",  []), "Най-добър бюджет",   "🎯"),
+        ("best_value",   mid_low,                        "Най-добра стойност",  "💰"),
+        ("mid_range",    mid_high,                       "Среден клас",          "⚡"),
+        ("overall_best", tier_prods.get("premium", []), "Без компромис",        "👑"),
     ]
 
-    # Pick one product per slot; never reuse the same URL
-    used_urls: set[str] = set()
-    selected: list[tuple[str, str, str, dict]] = []  # (slot_key, label, icon, prod)
+    # Pick one product per slot — deduplicate by URL *and* brand
+    used_urls:   set[str] = set()
+    used_brands: set[str] = set()
+    selected: list[tuple[str, str, str, dict]] = []
 
-    def _pick_from(tier_key: str, exclude_urls: set[str]) -> dict | None:
-        for p in tier_prods.get(tier_key, []):
-            if p.get("url") not in exclude_urls:
-                return p
+    def _brand(p: dict) -> str:
+        return (p.get("brand") or p.get("raw_name", "").split()[0]).strip().lower()
+
+    def _pick_from(candidates: list[dict], strict_brand: bool = True) -> dict | None:
+        for p in candidates:
+            if p.get("url") in used_urls:
+                continue
+            if strict_brand and _brand(p) in used_brands:
+                continue
+            return p
+        if strict_brand:
+            return _pick_from(candidates, strict_brand=False)  # relax brand on retry
         return None
 
-    for slot_key, tier_key, label, icon in SLOTS:
-        prod = _pick_from(tier_key, used_urls)
+    for slot_key, candidates, label, icon in SLOTS:
+        prod = _pick_from(candidates)
         if prod is None:
-            # Fallback: try adjacent tiers in order
+            # Fallback: try all tiers
             for seg in segs:
-                prod = _pick_from(seg["key"], used_urls)
+                prod = _pick_from(tier_prods.get(seg["key"], []))
                 if prod:
                     break
         if prod:
             selected.append((slot_key, label, icon, prod))
             used_urls.add(prod.get("url", f"__no_url_{slot_key}"))
+            used_brands.add(_brand(prod))
 
     if len(selected) < 2:
         return None
