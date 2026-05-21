@@ -423,6 +423,42 @@ def _exec_get_prices(args: dict) -> list[dict]:
     return _local_prices(product_name=product_name, category=args.get("category"))
 
 
+_DEAL_COLOR_WORDS = re.compile(
+    r"\b(black|white|blue|red|grey|gray|silver|gold|green|pink|purple|"
+    r"midnight|starlight|coral|lavender|graphite|rose|тъмен|черен|бял|сив)\b",
+    re.IGNORECASE,
+)
+
+
+def _dedup_deals(deals: list[dict], limit: int) -> list[dict]:
+    """Deduplicate color/storage variants and enforce max 2 per category."""
+    seen_model: dict[str, float] = {}   # model_key → best discount
+    cat_count:  dict[str, int]  = {}
+    result: list[dict] = []
+
+    for d in sorted(deals, key=lambda x: -(x.get("discount_pct") or 0)):
+        if not d.get("image_url"):
+            continue
+        # Strip color words + trailing model numbers to get canonical model key
+        name = d.get("raw_name", "")
+        key  = _DEAL_COLOR_WORDS.sub("", name).strip().lower()
+        key  = re.sub(r"\s{2,}", " ", key)
+
+        cat = d.get("category", "other")
+        if key in seen_model:
+            continue  # same model already included
+        if cat_count.get(cat, 0) >= 2:
+            continue  # max 2 per category
+
+        seen_model[key] = d.get("discount_pct", 0)
+        cat_count[cat]  = cat_count.get(cat, 0) + 1
+        result.append(d)
+        if len(result) >= limit:
+            break
+
+    return result
+
+
 def _exec_get_top_deals(args: dict) -> list[dict]:
     limit = min(int(args.get("limit", 8)), 20)
 
@@ -436,13 +472,13 @@ def _exec_get_top_deals(args: dict) -> list[dict]:
         )
         if args.get("category"):
             q = q.eq("category", args["category"])
-        resp = q.order("discount_pct", desc=True).limit(limit).execute()
+        resp = q.order("discount_pct", desc=True).limit(60).execute()
         if resp.data:
-            return [r for r in resp.data if r.get("image_url")]
+            return _dedup_deals(resp.data, limit)
     except Exception as exc:
         logger.warning("[alex] Supabase get_top_deals failed, using local JSON: %s", exc)
 
-    return _local_deals(category=args.get("category"), limit=limit)
+    return _dedup_deals(_local_deals(category=args.get("category"), limit=60), limit)
 
 
 def _run_tool(tool_name: str, tool_input: dict) -> Any:
