@@ -898,7 +898,7 @@ function buildProdCard(p) {
         <span class="prod-score ${scc(p.alex_score)}">${p.alex_score}</span>
       </div>
       <div class="prod-img">
-        ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`: '📦'}
+        ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.closest('.prod-card').style.display='none'">`: ''}
       </div>
       <div class="prod-body">
         <div class="prod-name">${eh(p.raw_name)}</div>

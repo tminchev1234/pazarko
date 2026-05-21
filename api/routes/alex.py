@@ -1136,30 +1136,64 @@ def _picks_candidates(category: str) -> list[dict]:
 
 def _generate_picks(category: str) -> dict | None:
     settings = get_settings()
-    products = _picks_candidates(category)
-    if len(products) < 4:
+    all_prods = _picks_candidates(category)
+    if len(all_prods) < 4:
         return None
 
-    product_list = "\n".join(
-        f"- {p['raw_name']} | €{p['price']:.2f} | {p['store']}"
-        + (f" | -{p['discount_pct']}%" if p.get("discount_pct") else "")
-        for p in products[:20]
-    )
+    # Group candidates by SEGMENT tier so Claude sees budget / mid / premium separately.
+    # Sorting ALL by Alex Score first would push every cheap product to the top
+    # (they get price-below-median bonus) and Claude would never see mid/premium.
+    segs = SEGMENT_CONFIG.get(category)
+    if segs:
+        tier_blocks: list[str] = []
+        for seg in segs:
+            lo, hi = seg["min_price"], seg["max_price"]
+            tier_prods = [
+                p for p in all_prods
+                if p["price"] >= lo and (hi is None or p["price"] <= hi)
+            ]
+            tier_prods.sort(key=lambda x: alex_score(x), reverse=True)
+            if tier_prods:
+                lines = "\n".join(
+                    f"  - {p['raw_name']} | €{p['price']:.0f}"
+                    + (f" | -{p['discount_pct']}%" if p.get("discount_pct") else "")
+                    for p in tier_prods[:7]
+                )
+                tier_blocks.append(f"[{seg['label']}]\n{lines}")
+        product_list = "\n\n".join(tier_blocks) if tier_blocks else ""
+    else:
+        product_list = "\n".join(
+            f"- {p['raw_name']} | €{p['price']:.0f}" for p in all_prods[:20]
+        )
 
-    prompt = f"""Анализирай тези реални продукти от категория "{category}" и избери 4 по различни критерии.
+    if not product_list:
+        return None
+
+    prompt = f"""Ти си независим AI съветник за електроника в България.
+Избери 4 продукта от категория "{category}" — ЗАДЪЛЖИТЕЛНО от РАЗЛИЧНИ ценови нива.
 
 {product_list}
 
-Отговори САМО с JSON (без обяснения):
-{{
-  "best_value":   {{"name": "...", "reason": "до 25 думи защо"}},
-  "best_budget":  {{"name": "...", "reason": "до 25 думи защо"}},
-  "mid_range":    {{"name": "...", "reason": "до 25 думи защо"}},
-  "overall_best": {{"name": "...", "reason": "до 25 думи защо"}},
-  "verdict": "2-3 изречения: текущото състояние на пазара в тази категория в България"
-}}
+ДЕФИНИЦИИ (спазвай ги стриктно):
+• best_value   = НАЙ-ДОБРО съотношение цена-качество — НЕ задължително най-евтин.
+                 Търси продукт от СРЕДЕН клас, при когото за малко повече пари получаваш значително повече функции.
+• best_budget  = Най-добрият избор от НАЙ-НИСКИЯ ценови клас.
+• mid_range    = Препоръка от СРЕДНИЯ ценови клас.
+• overall_best = Топ продукт без компромис — от НАЙ-ГОРНИЯ клас.
 
-Използвай ТОЧНИ имена от списъка."""
+ПРАВИЛА:
+- best_value и best_budget НЕ могат да са с близки цени (разликата трябва да е поне 40%).
+- overall_best трябва да е от най-горния ценови клас.
+- Пиши ТОЧНИ имена от списъка.
+
+Отговори САМО с валиден JSON (без обяснения, без markdown):
+{{
+  "best_value":   {{"name": "ТОЧНО ИМЕ", "reason": "до 15 думи — конкретни предимства"}},
+  "best_budget":  {{"name": "ТОЧНО ИМЕ", "reason": "до 15 думи"}},
+  "mid_range":    {{"name": "ТОЧНО ИМЕ", "reason": "до 15 думи"}},
+  "overall_best": {{"name": "ТОЧНО ИМЕ", "reason": "до 15 думи"}},
+  "verdict": "2-3 изречения за текущото състояние на пазара в тази категория"
+}}"""
 
     try:
         client   = anthropic.Anthropic(api_key=settings.anthropic_api_key)
