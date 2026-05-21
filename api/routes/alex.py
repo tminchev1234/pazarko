@@ -1581,7 +1581,7 @@ async def watchlist_add(req: WatchlistAddRequest):
     """Add a product to the user's watchlist."""
     try:
         sb = get_supabase()
-        sb.table("watchlists").upsert({
+        row = {
             "user_id":          req.user_id,
             "email":            req.email,
             "product_url":      req.product_url,
@@ -1591,7 +1591,20 @@ async def watchlist_add(req: WatchlistAddRequest):
             "image_url":        req.image_url,
             "target_price":     req.target_price,
             "last_known_price": req.current_price,
-        }, on_conflict="user_id,product_url").execute()
+        }
+        # Check if already tracked — update target price; otherwise insert
+        existing = (
+            sb.table("watchlists")
+            .select("id")
+            .eq("user_id", req.user_id)
+            .eq("product_url", req.product_url)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            sb.table("watchlists").update({"target_price": req.target_price, "email": req.email}).eq("id", existing.data[0]["id"]).execute()
+        else:
+            sb.table("watchlists").insert(row).execute()
         return {"ok": True}
     except Exception as exc:
         logger.error("[alex/watchlist] add failed: %s", exc)
