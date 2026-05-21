@@ -759,7 +759,8 @@ async function loadHomePicks() {
         data-url="${ea(p.url||'')}" data-score="${p.alex_score||''}"
         onclick="showVerdictFromCard(this)" style="cursor:pointer">
         <div class="home-pick-img">
-          ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.closest('.home-pick-card').style.display='none'">`: ''}
+          ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="imgErr(this,'${catIcon(p.category)}')">`:
+          `<span style="font-size:40px">${catIcon(p.category)}</span>`}
           ${p.discount_pct?`<span class="home-pick-disc">-${p.discount_pct}%</span>`:''}
         </div>
         <div class="home-pick-body">
@@ -886,7 +887,8 @@ async function loadPicks(slug) {
         onclick="showVerdictFromCard(this)" style="cursor:pointer">
         <div class="pick-hd"><span>${item.icon}</span><span>${eh(item.label)}</span></div>
         <div class="pick-img">
-          ${item.image_url?`<img src="${ea(item.image_url)}" alt="${ea(item.raw_name)}" loading="lazy" onerror="this.closest('.pick-card').style.display='none'">`: ''}
+          ${item.image_url?`<img src="${ea(item.image_url)}" alt="${ea(item.raw_name)}" loading="lazy" onerror="imgErr(this,'${catIcon(item.category)}')">`:
+          `<span style="font-size:40px">${catIcon(item.category)}</span>`}
         </div>
         <div class="pick-body">
           <div class="pick-name">${eh(item.raw_name)}</div>
@@ -1039,7 +1041,7 @@ async function loadProds(slug) {
       </div>`;
       return;
     }
-    grid.innerHTML = d.results.filter(p => p.image_url).map(buildProdCard).join('');
+    grid.innerHTML = d.results.map(buildProdCard).join('');
   } catch {
     grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-ico">⚠️</div><h3>Грешка при зареждане</h3></div>`;
   }
@@ -1068,7 +1070,8 @@ function buildProdCard(p) {
         <span class="prod-score ${scc(p.alex_score)}">${p.alex_score}</span>
       </div>
       <div class="prod-img">
-        ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.closest('.prod-card').style.display='none'">`: ''}
+        ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="imgErr(this,'${catIcon(p.category)}')">`:
+        `<span style="font-size:34px">${catIcon(p.category)}</span>`}
       </div>
       <div class="prod-body">
         <div class="prod-name">${eh(p.raw_name)}</div>
@@ -1129,7 +1132,8 @@ function buildSegCard(p) {
           ${p.discount_pct?`<span class="seg-disc">-${p.discount_pct}%</span>`:'<span></span>'}
           <span class="seg-score ${scc(p.alex_score)}">${p.alex_score}</span>
         </div>
-        ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.closest('.seg-card').style.display='none'">`: ''}
+        ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="imgErr(this,'${catIcon(p.category)}')">`:
+        `<span style="font-size:34px">${catIcon(p.category)}</span>`}
       </div>
       <div class="seg-body">
         <div class="seg-name">${eh(p.raw_name)}</div>
@@ -1839,6 +1843,13 @@ function showWhyPopup(event, el) {
 function eh(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+function imgErr(el, fb) {
+  el.style.display = 'none';
+  const s = document.createElement('span');
+  s.textContent = fb || '📦';
+  el.parentNode.insertBefore(s, el);
+}
+function catIcon(cat) { return (CATS[cat]||{}).icon || '📦'; }
 function ea(s) { return String(s).replace(/"/g,'&quot;'); }
 function fmt(n) { if(n==null)return'—'; return Number(n).toFixed(2).replace('.',',')+' €'; }
 function sl(s) { return {technopolis:'Technopolis',emag:'eMAG',ardes:'Ардес',technomarket:'Техномаркет'}[s]||s; }
