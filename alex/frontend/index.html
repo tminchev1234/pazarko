@@ -761,7 +761,11 @@ async function renderCategory(slug) {
       </div>
       <div class="prod-grid" id="prodGrid">${skRow(12,'prod-card',135)}</div>
     </div>`;
-  _catF = {brand:'',min:'',max:'',sort:'price_asc'};
+  // Default min_price per category — hides junk/feature-phone tier
+  const _CAT_DEF_MIN = {phones:120, laptops:350, tvs:200, tablets:100, gaming:30};
+  const defMin = _CAT_DEF_MIN[slug] || '';
+  _catF = {brand:'', min: defMin ? String(defMin) : '', max:'', sort:'price_asc'};
+  if (defMin) { const f = document.getElementById('fMin'); if (f) f.value = defMin; }
   loadPicks(slug);
   loadBrands(slug);
   loadProds(slug);

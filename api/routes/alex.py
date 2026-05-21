@@ -729,10 +729,29 @@ async def alex_deals(
 
 # ── Alex Score ────────────────────────────────────────────────────────────────
 
-_CATEGORY_MEDIANS: dict[str, float] = {}
+# Pre-populated approximate medians — keeps alex_score fast on cold start
+# (no full Supabase load needed).  _compute_medians() can refine them later.
+_CATEGORY_MEDIANS: dict[str, float] = {
+    "phones":     280.0,
+    "laptops":    800.0,
+    "tvs":        650.0,
+    "headphones":  90.0,
+    "tablets":    380.0,
+    "gaming":     200.0,
+    "fridges":    580.0,
+    "washing":    560.0,
+    "ac":         850.0,
+    "vacuum":     180.0,
+    "cooking":    450.0,
+    "dishwasher": 600.0,
+    "cameras":    620.0,
+    "appliances": 360.0,
+    "accessories": 45.0,
+}
 
 
 def _compute_medians() -> None:
+    """Refine medians from actual data (called lazily, not on every request)."""
     offers = _load_local()
     from collections import defaultdict
     by_cat: dict[str, list[float]] = defaultdict(list)
@@ -740,7 +759,6 @@ def _compute_medians() -> None:
         p = o.get("price")
         if p and o.get("category"):
             by_cat[o["category"]].append(p)
-    global _CATEGORY_MEDIANS
     for cat, prices in by_cat.items():
         prices.sort()
         _CATEGORY_MEDIANS[cat] = prices[len(prices) // 2]
@@ -748,8 +766,6 @@ def _compute_medians() -> None:
 
 def alex_score(product: dict) -> float:
     """Score a product 4.0–9.8 based on discount, price vs median, brand."""
-    if not _CATEGORY_MEDIANS:
-        _compute_medians()
 
     score = 6.0
     discount = product.get("discount_pct") or 0
@@ -903,6 +919,9 @@ SEGMENT_CONFIG: dict[str, list[dict]] = {
 
 # Keyword blocklist — products whose names contain these are excluded from candidates
 _CAT_BLOCKLIST = {
+    # Feature phones are named "Мобилен телефон GSM ..." in BG stores;
+    # real smartphones are always "Смартфон GSM ..."  — this one filter is enough.
+    "phones":     ["мобилен телефон"],
     "tablets":    ["рисуване", "drawing", "natec", "графичен", "wacom"],
     "gaming":     ["калъф", "case", "протектор", "стъкло", "кабел", "слушалк"],
     "headphones": ["калъф", "case", "кабел"],
@@ -1057,37 +1076,45 @@ def _match_product(name: str, products: list[dict]) -> dict | None:
 
 
 def _picks_candidates(category: str) -> list[dict]:
-    """Fetch pick candidates via direct Supabase query, filtered by quality_min."""
+    """Stratified fetch: 20 products from each price tier so picks cover budget+mid+premium."""
     min_price = _CAT_MIN_PRICE.get(category, 0)
     blocklist = [w.lower() for w in _CAT_BLOCKLIST.get(category, [])]
 
-    # Try Supabase first (fast path — no bulk load)
+    # Build tier ranges from SEGMENT_CONFIG; fall back to two broad buckets
+    segs = SEGMENT_CONFIG.get(category, [])
+    tiers: list[tuple[float, float | None]] = (
+        [(s["min_price"], s["max_price"]) for s in segs]
+        if segs else
+        [(min_price, min_price * 4), (min_price * 4, None)]
+    )
+
+    all_prods: list[dict] = []
     try:
         sb = get_supabase()
-        q = (
-            sb.table("electronics_offers")
-            .select("raw_name, brand, category, price, old_price, discount_pct, store, image_url, url")
-            .eq("category", category)
-            .not_.is_("image_url", "null")
-            .neq("image_url", "")
-        )
-        if min_price:
-            q = q.gte("price", min_price)
-        resp = q.order("price", desc=False).limit(60).execute()
-        prods = resp.data or []
+        for lo, hi in tiers:
+            q = (
+                sb.table("electronics_offers")
+                .select("raw_name, brand, category, price, old_price, discount_pct, store, image_url, url")
+                .eq("category", category)
+                .not_.is_("image_url", "null")
+                .neq("image_url", "")
+                .gte("price", lo)
+            )
+            if hi is not None:
+                q = q.lte("price", hi)
+            resp = q.order("price", desc=False).limit(20).execute()
+            all_prods.extend(resp.data or [])
     except Exception as exc:
         logger.warning("[alex/picks_candidates] Supabase failed for %s: %s", category, exc)
-        # Fall back to in-memory cache (works locally where JSON files exist)
-        prods = [
+        all_prods = [
             o for o in _load_local()
             if o.get("category") == category
             and o.get("image_url")
             and (o.get("price") or 0) >= min_price
         ]
 
-    # Apply blocklist and score
     candidates = []
-    for p in prods:
+    for p in all_prods:
         name_lower = (p.get("raw_name") or "").lower()
         if any(bl in name_lower for bl in blocklist):
             continue
@@ -1103,7 +1130,6 @@ def _picks_candidates(category: str) -> list[dict]:
             "url":         p.get("url", ""),
         })
 
-    # Sort by Alex Score descending so Claude sees the best candidates first
     candidates.sort(key=lambda x: alex_score(x), reverse=True)
     return candidates[:25]
 
