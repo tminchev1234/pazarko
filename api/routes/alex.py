@@ -600,9 +600,22 @@ async def _stream_alex(
             msg_dicts.append({"role": "assistant", "content": _blocks_to_dicts(full_content)})
             msg_dicts.append({"role": "user",      "content": tool_results})
 
+    except anthropic.APIStatusError as exc:
+        logger.error("[alex] stream error: %s", exc)
+        status = exc.status_code
+        body   = str(exc).lower()
+        if "credit balance" in body or "billing" in body:
+            msg = "Няма достатъчно API кредити. Моля, свържете се с администратора."
+        elif status == 429:
+            msg = "Твърде много заявки. Изчакайте малко и опитайте отново."
+        elif status == 401:
+            msg = "Невалиден API ключ. Моля, свържете се с администратора."
+        else:
+            msg = "Грешка при свързване с AI. Опитайте отново след малко."
+        yield f"data: {json.dumps({'error': msg})}\n\n"
     except Exception as exc:
         logger.error("[alex] stream error: %s", exc)
-        yield f"data: {json.dumps({'error': str(exc)})}\n\n"
+        yield f"data: {json.dumps({'error': 'Грешка при обработка на заявката. Опитайте отново.'})}\n\n"
 
     if user_id:
         _update_alex_dna(user_id, category, collected_max_prices, user_dna)
