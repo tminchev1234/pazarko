@@ -379,19 +379,27 @@ def _exec_search_products(args: dict) -> list[dict]:
             q = q.gte("price", args["min_price"])
         resp = q.order("price", desc=False).limit(limit).execute()
         if resp.data:
-            return resp.data
+            return _apply_blocklist(resp.data, args.get("category", ""))
     except Exception as exc:
         logger.warning("[alex] Supabase search_products failed, using local JSON: %s", exc)
 
     # Fallback: local JSON
-    return _local_search(
+    return _apply_blocklist(_local_search(
         query=query,
         category=args.get("category"),
         store=args.get("store"),
         min_price=args.get("min_price"),
         max_price=args.get("max_price"),
         limit=limit,
-    )
+    ), args.get("category", ""))
+
+
+def _apply_blocklist(products: list[dict], category: str) -> list[dict]:
+    """Filter out category-specific blocked product types (e.g. feature phones)."""
+    words = [w.lower() for w in _CAT_BLOCKLIST.get(category, [])]
+    if not words:
+        return products
+    return [p for p in products if not any(w in p.get("raw_name", "").lower() for w in words)]
 
 
 def _exec_get_prices(args: dict) -> list[dict]:

@@ -258,6 +258,20 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .nudge-btn-prim:hover{opacity:.88}
 .nudge-btn-sec{background:none;border:1px solid #cbd5e1;border-radius:7px;padding:6px 12px;font-size:12px;color:var(--muted);cursor:pointer}
 
+/* Side products panel */
+.chat-prods-panel{width:300px;border-left:1px solid var(--border);overflow-y:auto;flex-shrink:0;background:#fafafa;display:none;flex-direction:column}
+.chat-prods-panel.has-prods{display:flex}
+.cpp-hd{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding:12px 14px 8px;border-bottom:1px solid var(--border);background:#fff;position:sticky;top:0;z-index:1}
+.cpp-card{display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
+.cpp-card:hover{background:#eef2ff}
+.cpp-img{width:52px;height:52px;flex-shrink:0;border-radius:6px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.cpp-img img{width:100%;height:100%;object-fit:contain;padding:4px}
+.cpp-info{flex:1;min-width:0}
+.cpp-name{font-size:11px;line-height:1.35;font-weight:500;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;color:var(--text)}
+.cpp-price{font-size:13px;font-weight:700;color:var(--text);margin-top:3px}
+.cpp-store{font-size:10px;color:var(--muted);margin-top:1px}
+@media(max-width:900px){.chat-prods-panel{display:none!important}}
+
 /* Product grid inside chat — 3 columns */
 .chat-prod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:10px}
 .chat-prod{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;transition:all .15s}
@@ -481,6 +495,10 @@ details[open] .how-alex summary::before{transform:rotate(90deg)}
           <button class="chat-qbtn" onclick="chatQuick(this)">📺 Кой 55" телевизор предлага най-много за парите?</button>
         </div>
       </div>
+    </div>
+    <div class="chat-prods-panel" id="chatProdsPanel">
+      <div class="cpp-hd">📦 <span id="cppCount">Продукти</span></div>
+      <div id="cppList"></div>
     </div>
   </div>
   <div class="chat-ib">
@@ -1366,7 +1384,7 @@ function sendChat() {
 async function sendChatText(txt) {
   if (!txt || _chatBusy) return;
   document.getElementById('chatWelcome')?.remove();
-  if (_chatMsgs.length === 0) _cardsShown = false;
+  if (_chatMsgs.length === 0) { _cardsShown = false; _clearSidePanel(); }
   addChatMsg('user', txt);
   _chatMsgs.push({role:'user', content:txt});
   const id = 'cm' + Date.now();
@@ -1501,14 +1519,20 @@ function showChatProds(id, products, tool, input) {
       box.appendChild(row);
     });
   } else {
+    const filtered = products.filter(p => p.image_url).slice(0, 9);
+
+    // Side panel (desktop) — compact list cards
+    _addToSidePanel(filtered);
+
+    // In-bubble grid (mobile only, hidden on desktop via CSS)
     box.className = 'chat-prod-grid';
-    products.filter(p => p.image_url).slice(0,9).forEach(p => {
+    filtered.forEach(p => {
       const card = document.createElement('div');
       card.className = 'chat-prod';
       const disc = p.discount_pct ? `<span style="position:absolute;top:6px;left:6px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px">-${p.discount_pct}%</span>` : '';
       card.innerHTML = `
         <div class="chat-prod-img" style="position:relative">
-          ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.closest('.chat-prod-card').style.display='none'">`: ''}
+          ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.closest('.chat-prod').style.display='none'">`: ''}
           ${disc}
         </div>
         <div class="chat-prod-body">
@@ -1548,9 +1572,55 @@ function showChatProds(id, products, tool, input) {
   scrollChat();
 }
 
+let _cppTotal = 0;
+
+function _addToSidePanel(products) {
+  const panel = document.getElementById('chatProdsPanel');
+  const list  = document.getElementById('cppList');
+  const count = document.getElementById('cppCount');
+  if (!panel || !list) return;
+  products.forEach(p => {
+    _cppTotal++;
+    const c = document.createElement('div');
+    c.className = 'cpp-card';
+    c.innerHTML = `
+      <div class="cpp-img">
+        ${p.image_url ? `<img src="${ea(p.image_url)}" alt="" loading="lazy" onerror="this.closest('.cpp-card').style.display='none'">` : ''}
+      </div>
+      <div class="cpp-info">
+        <div class="cpp-name">${eh(p.raw_name)}</div>
+        <div class="cpp-price">${fmt(p.price)}${p.old_price?` <span style="font-size:10px;color:var(--muted);text-decoration:line-through;font-weight:400">${fmt(p.old_price)}</span>`:''}</div>
+        <div class="cpp-store"><span class="store-badge ${sc(p.store)}">${sl(p.store)}</span></div>
+      </div>`;
+    c.onclick = () => {
+      showVerdict({
+        raw_name: p.raw_name, price: p.price, old_price: p.old_price,
+        discount_pct: p.discount_pct, store: p.store,
+        image_url: p.image_url, url: p.url, alex_score: p.alex_score,
+      });
+    };
+    list.appendChild(c);
+  });
+  if (count) count.textContent = `${_cppTotal} продукт${_cppTotal === 1 ? 'а' : 'а'}`;
+  panel.classList.add('has-prods');
+}
+
+function _clearSidePanel() {
+  const list  = document.getElementById('cppList');
+  const panel = document.getElementById('chatProdsPanel');
+  const count = document.getElementById('cppCount');
+  if (list)  list.innerHTML = '';
+  if (panel) panel.classList.remove('has-prods');
+  if (count) count.textContent = 'Продукти';
+  _cppTotal = 0;
+}
+
 function scrollChat() {
   const m = document.getElementById('chatMsgs');
-  if (m) requestAnimationFrame(() => { m.scrollTop = m.scrollHeight; });
+  if (!m) return;
+  // Only auto-scroll if user is already near the bottom — don't interrupt manual scrolling
+  const nearBottom = m.scrollHeight - m.scrollTop - m.clientHeight < 140;
+  if (nearBottom) requestAnimationFrame(() => { m.scrollTop = m.scrollHeight; });
 }
 
 function showAccountNudge() {
