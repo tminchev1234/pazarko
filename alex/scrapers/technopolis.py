@@ -92,6 +92,20 @@ return JSON.stringify(products);
 """
 
 
+# Technopolis placeholder image — served when product has no real photo
+_TP_PLACEHOLDER_PATTERNS = ("NI-Listing", "/NI.", "-NI-", "noimage", "no-image", "placeholder")
+
+
+def _clean_img(url: str) -> str:
+    """Return None if url is a Technopolis generic placeholder, else the url."""
+    if not url:
+        return ""
+    low = url.lower()
+    if any(p.lower() in low for p in _TP_PLACEHOLDER_PATTERNS):
+        return ""
+    return url
+
+
 def _parse_price(text: Optional[str]) -> Optional[float]:
     if not text:
         return None
@@ -211,7 +225,7 @@ def scrape_technopolis(headless: bool = True, max_categories: int = 99,
                             "price":        price,
                             "old_price":    old_price,
                             "discount_pct": _discount(price, old_price),
-                            "image_url":    p.get("img", ""),
+                            "image_url":    _clean_img(p.get("img", "")),
                             "url":          p.get("link", url),
                             "in_stock":     True,
                             "scraped_at":   scraped_at,

@@ -43,6 +43,12 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .nav-cat{white-space:nowrap;padding:6px 12px;border-radius:6px;font-size:13px;color:#9ca3af;transition:all .15s;flex-shrink:0}
 .nav-cat:hover{color:#fff;background:rgba(255,255,255,.1)}
 .nav-cat.active{color:#fff;background:rgba(99,102,241,.3)}
+.nav-search{display:flex;align-items:center;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:8px;overflow:hidden;flex:1;max-width:360px;transition:border-color .15s}
+.nav-search:focus-within{border-color:rgba(99,102,241,.6);background:rgba(255,255,255,.11)}
+.nav-search input{background:none;border:none;outline:none;color:#fff;font-size:13px;padding:7px 10px;width:100%;font-family:inherit}
+.nav-search input::placeholder{color:#6b7280}
+.nav-search button{background:none;border:none;padding:7px 10px;color:#9ca3af;font-size:15px;cursor:pointer;flex-shrink:0;transition:color .15s}
+.nav-search button:hover{color:#fff}
 .nav-ask{flex-shrink:0;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;white-space:nowrap;transition:opacity .15s}
 .nav-ask:hover{opacity:.9}
 
@@ -436,10 +442,13 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
   .prod-grid{grid-template-columns:repeat(2,1fr)}
   .chat-drawer{width:100vw;border-radius:16px 16px 0 0}
   .nav-cats{display:none}
+  .nav-search{max-width:none;flex:1}
 }
 @media(max-width:480px){
   .cat-grid{grid-template-columns:repeat(3,1fr)}
   .picks-row{grid-template-columns:1fr 1fr}
+  .nav-ask{display:none}
+  .nav-search{max-width:none}
 }
 
 /* ── Trends section ──────────────────────────── */
@@ -480,6 +489,10 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
       <small>Независим AI съветник</small>
     </a>
     <div class="nav-cats" id="navCats"></div>
+    <form class="nav-search" onsubmit="navSearch(event)">
+      <input id="navSearchInput" type="search" placeholder="Търси продукт..." autocomplete="off" aria-label="Търсене">
+      <button type="submit" title="Търси">🔍</button>
+    </form>
     <button class="nav-ask" onclick="openChat()">💬 Попитай Alex</button>
   </div>
 </nav>
@@ -1444,6 +1457,19 @@ let _alexAskCount = parseInt(localStorage.getItem('alex_ask_count') || '0');
 let _nudgeShown   = localStorage.getItem('alex_nudge_shown') === '1';
 
 function toggleChat() { _chatOpen ? closeChat() : openChat(); }
+
+function navSearch(e) {
+  e.preventDefault();
+  const q = (document.getElementById('navSearchInput').value || '').trim();
+  if (!q) return;
+  document.getElementById('navSearchInput').value = '';
+  // Suppress category auto-seed so only the search query gets sent
+  const savedCat = _chatCat;
+  _chatCat = null;
+  openChat();
+  _chatCat = savedCat;
+  setTimeout(() => sendChatText(`Намери ми "${q}" — в кой магазин е най-евтино и има ли по-добра алтернатива за тези пари?`), 350);
+}
 
 function resetChat() {
   _chatMsgs = [];
