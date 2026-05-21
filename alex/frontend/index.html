@@ -351,6 +351,22 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .chat-pr-price{font-weight:700;font-size:15px;white-space:nowrap}
 .chat-best-b{background:var(--green);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;white-space:nowrap}
 
+/* Second-hand listings (OLX / Bazar) */
+.chat-used{margin-top:14px}
+.chat-used-hdr{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.chat-used-hdr span{background:var(--border);color:var(--muted);font-size:10px;padding:1px 6px;border-radius:20px;font-weight:600}
+.chat-used-list{display:flex;flex-direction:column;gap:5px}
+.chat-used-item{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:9px 12px;cursor:pointer;transition:background .15s;text-decoration:none;color:inherit}
+.chat-used-item:hover{background:#f3f4f6;border-color:#d1d5db}
+.chat-used-src{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;white-space:nowrap;flex-shrink:0}
+.chat-used-src.olx{background:#3dbc9a;color:#fff}
+.chat-used-src.bazar{background:#e67e22;color:#fff}
+.chat-used-title{flex:1;font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.chat-used-price{font-size:14px;font-weight:700;color:#16a34a;white-space:nowrap;flex-shrink:0}
+.chat-used-loc{font-size:11px;color:var(--muted);white-space:nowrap;flex-shrink:0;max-width:90px;overflow:hidden;text-overflow:ellipsis}
+.chat-used-arrow{font-size:12px;color:var(--blue);flex-shrink:0}
+@media(max-width:480px){.chat-used-loc{display:none}}
+
 .chat-ib{display:flex;gap:10px;padding:14px 20px;border-top:1px solid var(--border);flex-shrink:0;background:#fafafa}
 .chat-ib textarea{flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14px;font-family:inherit;resize:none;min-height:42px;max-height:110px;background:#fff;color:var(--text);outline:none;line-height:1.5}
 .chat-ib textarea:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
@@ -1690,6 +1706,9 @@ async function streamChat(id) {
       if (data.products?.length) {
         showChatProds(id, data.products, data.tool, data.input);
       }
+      if (data.secondhand?.length) {
+        showSecondhand(id, data.secondhand);
+      }
     }
   }
   if (full) _chatMsgs.push({role:'assistant', content:full});
@@ -1789,6 +1808,51 @@ function showChatProds(id, products, tool, input) {
     });
   }
   el.appendChild(box);
+
+  scrollChat();
+}
+
+function showSecondhand(id, listings) {
+  const el = document.getElementById(id);
+  if (!el || !listings?.length) return;
+  el.querySelector('.chat-used')?.remove();
+
+  const wrap = document.createElement('div');
+  wrap.className = 'chat-used';
+
+  const olxN   = listings.filter(l => l.source === 'olx').length;
+  const bazarN = listings.filter(l => l.source === 'bazar').length;
+  const parts  = [];
+  if (olxN)   parts.push(`${olxN} OLX`);
+  if (bazarN) parts.push(`${bazarN} Bazar`);
+
+  wrap.innerHTML = `
+    <div class="chat-used-hdr">
+      Втора ръка
+      <span>${parts.join(' · ')}</span>
+    </div>
+    <div class="chat-used-list" id="${id}-used"></div>`;
+  el.appendChild(wrap);
+
+  const list = wrap.querySelector('.chat-used-list');
+  listings.forEach(item => {
+    const a = document.createElement('a');
+    a.className   = 'chat-used-item';
+    a.href        = ea(item.url || '#');
+    a.target      = '_blank';
+    a.rel         = 'noopener noreferrer';
+    a.onclick     = e => e.stopPropagation();
+    const srcCls  = item.source === 'olx' ? 'olx' : 'bazar';
+    const srcLbl  = item.source === 'olx' ? 'OLX' : 'Bazar';
+    const loc     = (item.location || '').replace(/^гр\.\s*/i, '');
+    a.innerHTML   = `
+      <span class="chat-used-src ${srcCls}">${srcLbl}</span>
+      <span class="chat-used-title">${eh(item.title || '')}</span>
+      <span class="chat-used-price">${Math.round(item.price || 0)} лв.</span>
+      ${loc ? `<span class="chat-used-loc">${eh(loc)}</span>` : ''}
+      <span class="chat-used-arrow">→</span>`;
+    list.appendChild(a);
+  });
 
   scrollChat();
 }

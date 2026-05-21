@@ -404,6 +404,22 @@ FOLLOW-UP ПРАВИЛА
 - Ново търсене само при нова категория, нова марка или нов продукт
 - Помни бюджет, употреба и предпочитания, споменати по-рано
 
+════════════════════════════════════════
+ВТОРА РЪКА (search_secondhand)
+════════════════════════════════════════
+
+Викай search_secondhand САМО когато:
+1. Вече си показал нови цени от магазини (след search_products или get_prices)
+2. Продуктът е конкретен модел с ясно название (не "евтин лаптоп")
+3. Категорията е phones / laptops / tvs / tablets И цената е над 300 лв.
+   — ИЛИ потребителят изрично пита за "втора ръка", "употребявано", "second hand"
+
+❌ НЕ викай за: слушалки, аксесоари, малки уреди, неизвестен модел
+✅ ВИКАЙ за: "iPhone 13 Pro", "Samsung S23", "MacBook Air M2", "LG 55 OLED"
+
+При представяне — не разписвай всяка обява. Спомени броя и препоръчай да погледнат картите.
+Пример: "Намерих и 5 обяви втора ръка (3 в OLX, 2 в Bazar) — виж картите по-долу."
+
 **Магазини:** eMAG · Технополис · Ардес · Техномаркет
 **Категории:** phones · laptops · tvs · headphones · tablets · gaming · cameras · accessories · cooking (печки/котлони/фурни) · washing (перални/сушилни) · fridges (хладилници) · vacuum (прахосмукачки) · ac (климатици) · dishwasher (съдомиялни) · appliances (др. уреди)
 **Бюджет в лв.:** раздели на 1.96 → "200 лв." = max_price=102
@@ -511,6 +527,32 @@ ALEX_TOOLS = [
                 }
             },
             "required": []
+        }
+    },
+    {
+        "name": "search_secondhand",
+        "description": (
+            "Търси обяви за употребявани продукти в OLX.bg и Bazar.bg. "
+            "Използвай СЛЕД като вече си показал цени от магазини, когато: "
+            "(1) продуктът е конкретен модел (напр. 'iPhone 13 Pro', 'Samsung S22'), "
+            "(2) категорията е phones/laptops/tvs/tablets и цената е над 300 лв., "
+            "(3) или потребителят изрично пита за втора ръка / употребявано / second hand. "
+            "НЕ използвай за аксесоари, малки уреди или при неизвестен точен модел."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Конкретен модел за търсене (напр. 'iPhone 13 Pro', 'Samsung Galaxy S22', 'MacBook Air M2')"
+                },
+                "max_per_source": {
+                    "type": "integer",
+                    "description": "Брой резултати от всеки сайт (по подразбиране 4, макс 8)",
+                    "default": 4
+                }
+            },
+            "required": ["query"]
         }
     }
 ]
@@ -657,6 +699,43 @@ def _exec_get_top_deals(args: dict) -> list[dict]:
     return _dedup_deals(_local_deals(category=args.get("category"), limit=60), limit)
 
 
+def _exec_search_secondhand(args: dict) -> dict:
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from alex.scrapers.olx   import search_olx
+    from alex.scrapers.bazar import search_bazar
+
+    query      = (args.get("query") or "").strip()
+    max_each   = min(int(args.get("max_per_source", 4)), 8)
+
+    if not query:
+        return {"secondhand": [], "message": "Няма зададена заявка"}
+
+    olx_res, bazar_res = [], []
+    with ThreadPoolExecutor(max_workers=2) as ex:
+        futs = {
+            ex.submit(search_olx,   query, max_each): "olx",
+            ex.submit(search_bazar, query, max_each): "bazar",
+        }
+        for fut in as_completed(futs):
+            src = futs[fut]
+            try:
+                data = fut.result()
+            except Exception as exc:
+                logger.warning("[secondhand] %s failed: %s", src, exc)
+                data = []
+            if src == "olx":
+                olx_res = data
+            else:
+                bazar_res = data
+
+    combined = olx_res + bazar_res
+    return {
+        "secondhand":  combined,
+        "olx_count":   len(olx_res),
+        "bazar_count": len(bazar_res),
+    }
+
+
 def _run_tool(tool_name: str, tool_input: dict) -> Any:
     if tool_name == "search_products":
         return _exec_search_products(tool_input)
@@ -664,6 +743,8 @@ def _run_tool(tool_name: str, tool_input: dict) -> Any:
         return _exec_get_prices(tool_input)
     if tool_name == "get_top_deals":
         return _exec_get_top_deals(tool_input)
+    if tool_name == "search_secondhand":
+        return _exec_search_secondhand(tool_input)
     return {"error": f"Unknown tool: {tool_name}"}
 
 
@@ -815,7 +896,11 @@ async def _stream_alex(
 
             for tc, tr in zip(tool_calls, tool_results):
                 raw = json.loads(tr["content"])
-                if isinstance(raw, list) and raw:
+                if tc["name"] == "search_secondhand":
+                    listings = raw.get("secondhand", []) if isinstance(raw, dict) else []
+                    if listings:
+                        yield f"data: {json.dumps({'secondhand': listings})}\n\n"
+                elif isinstance(raw, list) and raw:
                     yield f"data: {json.dumps({'products': raw, 'tool': tc['name'], 'input': tc.get('input', {})})}\n\n"
 
             msg_dicts.append({"role": "assistant", "content": _blocks_to_dicts(full_content)})
