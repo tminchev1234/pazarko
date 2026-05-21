@@ -235,8 +235,10 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .chat-msg.assistant .chat-bubble{background:#f3f4f6;color:var(--text);border-radius:14px 14px 14px 3px;max-width:90%}
 
 /* Rich content inside bubbles */
-.chat-bubble table{border-collapse:collapse;font-size:13px;margin:12px 0;width:100%;border-radius:10px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.08)}
-.chat-bubble th,.chat-bubble td{border:none;border-bottom:1px solid #e5e7eb;padding:9px 13px;text-align:left;vertical-align:top}
+.chat-tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:12px 0;border-radius:10px;box-shadow:0 1px 6px rgba(0,0,0,.08)}
+.chat-bubble table{border-collapse:collapse;font-size:13px;width:100%;border-radius:10px;overflow:hidden}
+.chat-bubble th,.chat-bubble td{border:none;border-bottom:1px solid #e5e7eb;padding:8px 11px;text-align:left;vertical-align:top}
+.chat-tbl-wrap .chat-bubble table,.chat-bubble .chat-tbl-wrap table{box-shadow:none}
 .chat-bubble th{background:#1e3a5f;color:#fff;font-weight:600;white-space:nowrap;font-size:12px;text-transform:uppercase;letter-spacing:.3px}
 .chat-bubble tr:last-child td{border-bottom:none}
 .chat-bubble tr:nth-child(even) td{background:#f8faff}
@@ -1827,14 +1829,16 @@ function buildMdTable(lines) {
   const modelIdx = headerCells.findIndex(h => h.includes('модел') || h === 'model');
   const whyIdx   = headerCells.findIndex(h => h.includes('защо') || h.includes('why') || h.includes('причина'));
 
-  let html = '<table>';
+  let html = '<div class="chat-tbl-wrap"><table>';
   dataLines.forEach((line, idx) => {
     const cells = line.split('|').filter((_,j,arr) => j>0 && j<arr.length-1);
     if (idx === 0) {
-      html += `<tr>${cells.map(c => `<th>${mdLinks(c.trim())}</th>`).join('')}</tr>`;
+      // Hide "Защо?" column — its content surfaces via the ℹ️ popup on the model cell
+      html += `<tr>${cells.map((c, ci) => ci === whyIdx ? '' : `<th>${mdLinks(c.trim())}</th>`).join('')}</tr>`;
     } else {
       const whyRaw = (whyIdx >= 0 && cells[whyIdx]) ? stripMd(cells[whyIdx]) : '';
       html += `<tr>${cells.map((c, ci) => {
+        if (ci === whyIdx) return '';
         const content = mdLinks(c.trim());
         if (ci === modelIdx && whyRaw && c.trim() && c.trim() !== '—') {
           return `<td><span class="why-btn" data-why="${eh(whyRaw)}" onclick="showWhyPopup(event,this)">ℹ️ ${content}</span></td>`;
@@ -1843,7 +1847,7 @@ function buildMdTable(lines) {
       }).join('')}</tr>`;
     }
   });
-  html += '</table>';
+  html += '</table></div>';
   return html;
 }
 
