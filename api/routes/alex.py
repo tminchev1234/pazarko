@@ -150,6 +150,19 @@ def _local_prices(product_name: str, category: str | None = None) -> list[dict]:
     return _local_search(query=product_name, category=category, limit=20)
 
 
+# Non-electronics keywords that slip through scraper categorisation
+_NON_ELECTRONICS = [
+    "кафе", "nescafe", "lavazza", "dolce gusto", "espresso capsul",
+    "капсул", "прах за", "перил", "препарат", "сапун", "дезодорант",
+    "шоколад", "бисквит", "чай", "вода", "сок", "бира", "вино",
+]
+
+
+def _is_electronics(raw_name: str) -> bool:
+    name = (raw_name or "").lower()
+    return not any(kw in name for kw in _NON_ELECTRONICS)
+
+
 def _local_deals(category: str | None = None, limit: int = 8) -> list[dict]:
     offers = _load_local()
     results = []
@@ -160,6 +173,8 @@ def _local_deals(category: str | None = None, limit: int = 8) -> list[dict]:
         if not o.get("image_url"):
             continue
         if category and o.get("category") != category:
+            continue
+        if not _is_electronics(o.get("raw_name", "")):
             continue
         results.append({
             "raw_name":    o.get("raw_name", ""),
@@ -390,7 +405,7 @@ FOLLOW-UP ПРАВИЛА
 - Помни бюджет, употреба и предпочитания, споменати по-рано
 
 **Магазини:** eMAG · Технополис · Ардес · Техномаркет
-**Категории:** headphones, phones, laptops, tvs, tablets, gaming, cameras, appliances, accessories
+**Категории:** phones · laptops · tvs · headphones · tablets · gaming · cameras · accessories · cooking (печки/котлони/фурни) · washing (перални/сушилни) · fridges (хладилници) · vacuum (прахосмукачки) · ac (климатици) · dishwasher (съдомиялни) · appliances (др. уреди)
 **Бюджет в лв.:** раздели на 1.96 → "200 лв." = max_price=102
 """
 
@@ -413,8 +428,21 @@ ALEX_TOOLS = [
                 },
                 "category": {
                     "type": "string",
-                    "description": "Категория (незадължително): headphones, phones, laptops, tvs, tablets, gaming, cameras, appliances, accessories",
-                    "enum": ["headphones", "phones", "laptops", "tvs", "tablets", "gaming", "cameras", "appliances", "accessories"]
+                    "description": (
+                        "Категория (незадължително). Използвай точния slug: "
+                        "phones=смартфони, laptops=лаптопи, tvs=телевизори, headphones=слушалки, "
+                        "tablets=таблети, gaming=геймърско, cameras=фотоапарати, "
+                        "cooking=печки/котлони/фурни, washing=перални/сушилни, "
+                        "fridges=хладилници/фризери, vacuum=прахосмукачки/роботи, "
+                        "ac=климатици, dishwasher=съдомиялни, "
+                        "appliances=други домакински уреди, accessories=аксесоари"
+                    ),
+                    "enum": [
+                        "headphones", "phones", "laptops", "tvs", "tablets",
+                        "gaming", "cameras", "accessories",
+                        "cooking", "washing", "fridges", "vacuum", "ac", "dishwasher",
+                        "appliances"
+                    ]
                 },
                 "max_price": {
                     "type": "number",
@@ -471,7 +499,10 @@ ALEX_TOOLS = [
             "properties": {
                 "category": {
                     "type": "string",
-                    "description": "Категория: headphones, phones, laptops, tvs, tablets, gaming, cameras, appliances, accessories"
+                    "description": (
+                        "Категория: phones, laptops, tvs, headphones, tablets, gaming, cameras, accessories, "
+                        "cooking, washing, fridges, vacuum, ac, dishwasher, appliances"
+                    )
                 },
                 "limit": {
                     "type": "integer",
@@ -603,7 +634,8 @@ def _exec_get_top_deals(args: dict) -> list[dict]:
             q = q.eq("category", args["category"])
         resp = q.order("discount_pct", desc=True).limit(60).execute()
         if resp.data:
-            return _dedup_deals(resp.data, limit)
+            clean = [r for r in resp.data if _is_electronics(r.get("raw_name", ""))]
+            return _dedup_deals(clean, limit)
     except Exception as exc:
         logger.warning("[alex] Supabase get_top_deals failed, using local JSON: %s", exc)
 
