@@ -270,8 +270,7 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .nudge-btn-sec{background:none;border:1px solid #cbd5e1;border-radius:7px;padding:6px 12px;font-size:12px;color:var(--muted);cursor:pointer}
 
 /* Side products panel */
-.chat-prods-panel{width:300px;border-left:1px solid var(--border);overflow-y:auto;flex-shrink:0;background:#fafafa;display:none;flex-direction:column}
-.chat-prods-panel.has-prods{display:flex}
+.chat-prods-panel{display:none!important}
 .cpp-hd{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;padding:12px 14px 8px;border-bottom:1px solid var(--border);background:#fff;position:sticky;top:0;z-index:1}
 .cpp-card{display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s}
 .cpp-card:hover{background:#eef2ff}
@@ -281,11 +280,8 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .cpp-name{font-size:11px;line-height:1.35;font-weight:500;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;color:var(--text)}
 .cpp-price{font-size:13px;font-weight:700;color:var(--text);margin-top:3px}
 .cpp-store{font-size:10px;color:var(--muted);margin-top:1px}
-@media(max-width:900px){.chat-prods-panel{display:none!important}}
-@media(min-width:901px){.chat-prod-grid{display:none!important}}
-
-/* Product grid inside chat — 3 columns (mobile only) */
-.chat-prod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:10px}
+/* Product grid inside chat bubble */
+.chat-prod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-top:10px}
 .chat-prod{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;transition:all .15s}
 .chat-prod:hover{border-color:var(--blue);transform:translateY(-1px);box-shadow:var(--sh)}
 .chat-prod-img{height:110px;background:#f9fafb;display:flex;align-items:center;justify-content:center;font-size:32px}
@@ -1506,8 +1502,6 @@ function openChat() {
   document.getElementById('chatOv').classList.add('open');
   document.getElementById('chatFab').style.display = 'none';
   setTimeout(() => document.getElementById('chatInput')?.focus(), 300);
-  // Load diverse products in side panel on first open
-  _loadInitialSidePanel();
   // Pre-seed with category context if fresh
   if (_chatCat && _chatMsgs.length === 0) {
     const lbl = CATS[_chatCat]?.label?.toLowerCase() || _chatCat;
@@ -1682,11 +1676,7 @@ function showChatProds(id, products, tool, input) {
   } else {
     const filtered = products.filter(p => p.image_url).slice(0, 9);
 
-    // Side panel (desktop) — replace with latest search results
-    _clearSidePanel();
-    _addToSidePanel(filtered);
-
-    // In-bubble grid (mobile only, hidden on desktop via CSS)
+    // In-bubble grid — shown on all screen sizes
     // Remove any previous grid in this message bubble before adding new one
     el.querySelector('.chat-prod-grid')?.remove();
     box.className = 'chat-prod-grid';
