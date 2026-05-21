@@ -1137,23 +1137,31 @@ def _match_product(name: str, products: list[dict]) -> dict | None:
     return best if best_hits >= 2 else None
 
 
-def _picks_candidates(category: str) -> list[dict]:
-    """Stratified fetch: 20 products from each price tier so picks cover budget+mid+premium."""
-    min_price = _CAT_MIN_PRICE.get(category, 0)
+def _picks_candidates_by_tier(category: str) -> dict[str, list[dict]]:
+    """Fetch top-scored products per price tier. Returns {tier_key: [products]}."""
+    segs = SEGMENT_CONFIG.get(category, [])
+    if not segs:
+        return {}
     blocklist = [w.lower() for w in _CAT_BLOCKLIST.get(category, [])]
 
-    # Build tier ranges from SEGMENT_CONFIG; fall back to two broad buckets
-    segs = SEGMENT_CONFIG.get(category, [])
-    tiers: list[tuple[float, float | None]] = (
-        [(s["min_price"], s["max_price"]) for s in segs]
-        if segs else
-        [(min_price, min_price * 4), (min_price * 4, None)]
-    )
+    def _clean(p: dict) -> dict:
+        return {
+            "raw_name":    p.get("raw_name", ""),
+            "brand":       p.get("brand", ""),
+            "category":    category,
+            "price":       p.get("price") or 0,
+            "old_price":   p.get("old_price"),
+            "discount_pct": p.get("discount_pct"),
+            "store":       p.get("store", ""),
+            "image_url":   p.get("image_url", ""),
+            "url":         p.get("url", ""),
+        }
 
-    all_prods: list[dict] = []
+    result: dict[str, list[dict]] = {}
     try:
         sb = get_supabase()
-        for lo, hi in tiers:
+        for seg in segs:
+            lo, hi = seg["min_price"], seg["max_price"]
             q = (
                 sb.table("electronics_offers")
                 .select("raw_name, brand, category, price, old_price, discount_pct, store, image_url, url")
@@ -1164,143 +1172,128 @@ def _picks_candidates(category: str) -> list[dict]:
             )
             if hi is not None:
                 q = q.lte("price", hi)
-            resp = q.order("price", desc=False).limit(20).execute()
-            all_prods.extend(resp.data or [])
+            resp = q.order("price", desc=False).limit(30).execute()
+            prods = [
+                _clean(p) for p in (resp.data or [])
+                if not any(bl in (p.get("raw_name") or "").lower() for bl in blocklist)
+            ]
+            prods.sort(key=lambda x: alex_score(x), reverse=True)
+            result[seg["key"]] = prods
     except Exception as exc:
         logger.warning("[alex/picks_candidates] Supabase failed for %s: %s", category, exc)
-        all_prods = [
-            o for o in _load_local()
+        # local fallback — bucket by price range
+        local_all = [
+            _clean(o) for o in _load_local()
             if o.get("category") == category
             and o.get("image_url")
-            and (o.get("price") or 0) >= min_price
+            and not any(bl in (o.get("raw_name") or "").lower() for bl in blocklist)
         ]
+        for seg in segs:
+            lo, hi = seg["min_price"], seg["max_price"]
+            bucket = [p for p in local_all if p["price"] >= lo and (hi is None or p["price"] <= hi)]
+            bucket.sort(key=lambda x: alex_score(x), reverse=True)
+            result[seg["key"]] = bucket
 
-    candidates = []
-    for p in all_prods:
-        name_lower = (p.get("raw_name") or "").lower()
-        if any(bl in name_lower for bl in blocklist):
-            continue
-        candidates.append({
-            "raw_name":    p.get("raw_name", ""),
-            "brand":       p.get("brand", ""),
-            "category":    category,
-            "price":       p.get("price") or 0,
-            "old_price":   p.get("old_price"),
-            "discount_pct": p.get("discount_pct"),
-            "store":       p.get("store", ""),
-            "image_url":   p.get("image_url", ""),
-            "url":         p.get("url", ""),
-        })
-
-    candidates.sort(key=lambda x: alex_score(x), reverse=True)
-    return candidates[:25]
+    return result
 
 
 def _generate_picks(category: str) -> dict | None:
+    """
+    Python selects one product strictly from each price tier (no duplicates).
+    Claude only writes short reason text + verdict — it cannot change which product is shown.
+    """
     settings = get_settings()
-    all_prods = _picks_candidates(category)
-    if len(all_prods) < 4:
-        return None
-
-    # Group candidates by SEGMENT tier so Claude sees budget / mid / premium separately.
-    # Sorting ALL by Alex Score first would push every cheap product to the top
-    # (they get price-below-median bonus) and Claude would never see mid/premium.
     segs = SEGMENT_CONFIG.get(category)
-    if segs:
-        tier_blocks: list[str] = []
-        for seg in segs:
-            lo, hi = seg["min_price"], seg["max_price"]
-            tier_prods = [
-                p for p in all_prods
-                if p["price"] >= lo and (hi is None or p["price"] <= hi)
-            ]
-            tier_prods.sort(key=lambda x: alex_score(x), reverse=True)
-            if tier_prods:
-                lines = "\n".join(
-                    f"  - {p['raw_name']} | €{p['price']:.0f}"
-                    + (f" | -{p['discount_pct']}%" if p.get("discount_pct") else "")
-                    for p in tier_prods[:7]
-                )
-                tier_blocks.append(f"[{seg['label']}]\n{lines}")
-        product_list = "\n\n".join(tier_blocks) if tier_blocks else ""
-    else:
-        product_list = "\n".join(
-            f"- {p['raw_name']} | €{p['price']:.0f}" for p in all_prods[:20]
-        )
-
-    if not product_list:
+    if not segs:
         return None
 
-    prompt = f"""Ти си независим AI съветник за електроника в България.
-Избери 4 продукта от категория "{category}" — ЗАДЪЛЖИТЕЛНО от РАЗЛИЧНИ ценови нива.
+    tier_prods = _picks_candidates_by_tier(category)
 
-{product_list}
+    # Slot definitions: (slot_key, tier_key, label, icon)
+    # budget→best_budget, mid→best_value, mid→mid_range (2nd choice), premium→overall_best
+    SLOTS = [
+        ("best_budget",  "budget",  "Най-добър бюджет",   "🎯"),
+        ("best_value",   "mid",     "Най-добра стойност",  "💰"),
+        ("mid_range",    "mid",     "Среден клас",          "⚡"),
+        ("overall_best", "premium", "Без компромис",        "👑"),
+    ]
 
-ДЕФИНИЦИИ (спазвай ги стриктно):
-• best_value   = НАЙ-ДОБРО съотношение цена-качество — НЕ задължително най-евтин.
-                 Търси продукт от СРЕДЕН клас, при когото за малко повече пари получаваш значително повече функции.
-• best_budget  = Най-добрият избор от НАЙ-НИСКИЯ ценови клас.
-• mid_range    = Препоръка от СРЕДНИЯ ценови клас.
-• overall_best = Топ продукт без компромис — от НАЙ-ГОРНИЯ клас.
+    # Pick one product per slot; never reuse the same URL
+    used_urls: set[str] = set()
+    selected: list[tuple[str, str, str, dict]] = []  # (slot_key, label, icon, prod)
 
-ПРАВИЛА:
-- best_value и best_budget НЕ могат да са с близки цени (разликата трябва да е поне 40%).
-- overall_best трябва да е от най-горния ценови клас.
-- Пиши ТОЧНИ имена от списъка.
+    def _pick_from(tier_key: str, exclude_urls: set[str]) -> dict | None:
+        for p in tier_prods.get(tier_key, []):
+            if p.get("url") not in exclude_urls:
+                return p
+        return None
 
-Отговори САМО с валиден JSON (без обяснения, без markdown):
+    for slot_key, tier_key, label, icon in SLOTS:
+        prod = _pick_from(tier_key, used_urls)
+        if prod is None:
+            # Fallback: try adjacent tiers in order
+            for seg in segs:
+                prod = _pick_from(seg["key"], used_urls)
+                if prod:
+                    break
+        if prod:
+            selected.append((slot_key, label, icon, prod))
+            used_urls.add(prod.get("url", f"__no_url_{slot_key}"))
+
+    if len(selected) < 2:
+        return None
+
+    # Ask Claude only for reason text + verdict (not product selection)
+    prod_lines = "\n".join(
+        f'{slot_key}: {prod["raw_name"]} | €{prod["price"]:.0f} | {prod["store"]}'
+        for slot_key, _, _, prod in selected
+    )
+    prompt = f"""Ти си AI съветник за електроника. Тези продукти са избрани за категория "{category}".
+Напиши за всеки кратка причина (до 12 думи) — конкретни предимства, НЕ повтаряй цената.
+Добави и verdict: 2 изречения за пазара в тази категория.
+
+{prod_lines}
+
+Отговори САМО с JSON (без markdown):
 {{
-  "best_value":   {{"name": "ТОЧНО ИМЕ", "reason": "до 15 думи — конкретни предимства"}},
-  "best_budget":  {{"name": "ТОЧНО ИМЕ", "reason": "до 15 думи"}},
-  "mid_range":    {{"name": "ТОЧНО ИМЕ", "reason": "до 15 думи"}},
-  "overall_best": {{"name": "ТОЧНО ИМЕ", "reason": "до 15 думи"}},
-  "verdict": "2-3 изречения за текущото състояние на пазара в тази категория"
+  "best_budget": "причина",
+  "best_value": "причина",
+  "mid_range": "причина",
+  "overall_best": "причина",
+  "verdict": "2 изречения"
 }}"""
 
     try:
-        client   = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
         response = client.messages.create(
             model="claude-haiku-4-5-20251001",
-            max_tokens=600,
+            max_tokens=400,
             messages=[{"role": "user", "content": prompt}],
         )
-        text  = response.content[0].text.strip()
+        text = response.content[0].text.strip()
         match = re.search(r"\{.*\}", text, re.DOTALL)
-        if not match:
-            return None
-        data = json.loads(match.group())
-
-        # Enrich picks with real product data
-        labels = {
-            "best_value":   {"label": "Най-добра стойност", "icon": "💰"},
-            "best_budget":  {"label": "Най-добър бюджет",   "icon": "🎯"},
-            "mid_range":    {"label": "Среден клас",         "icon": "⚡"},
-            "overall_best": {"label": "Без компромис",       "icon": "👑"},
-        }
-        picks = {"verdict": data.get("verdict", ""), "items": []}
-        for key, meta in labels.items():
-            entry = data.get(key, {})
-            prod  = _match_product(entry.get("name", ""), all_prods)
-            if prod:
-                picks["items"].append({
-                    "key":       key,
-                    "label":     meta["label"],
-                    "icon":      meta["icon"],
-                    "reason":    entry.get("reason", ""),
-                    "raw_name":  prod["raw_name"],
-                    "price":     prod["price"],
-                    "old_price": prod.get("old_price"),
-                    "discount_pct": prod.get("discount_pct"),
-                    "store":     prod["store"],
-                    "image_url": prod.get("image_url", ""),
-                    "url":       prod.get("url", ""),
-                    "alex_score": alex_score(prod),
-                })
-        return picks
-
+        reasons: dict = json.loads(match.group()) if match else {}
     except Exception as exc:
-        logger.error("[alex/picks] %s: %s", category, exc)
-        return None
+        logger.error("[alex/picks] reason gen failed for %s: %s", category, exc)
+        reasons = {}
+
+    picks: dict = {"verdict": reasons.get("verdict", ""), "items": []}
+    for slot_key, label, icon, prod in selected:
+        picks["items"].append({
+            "key":          slot_key,
+            "label":        label,
+            "icon":         icon,
+            "reason":       reasons.get(slot_key, ""),
+            "raw_name":     prod["raw_name"],
+            "price":        prod["price"],
+            "old_price":    prod.get("old_price"),
+            "discount_pct": prod.get("discount_pct"),
+            "store":        prod["store"],
+            "image_url":    prod.get("image_url", ""),
+            "url":          prod.get("url", ""),
+            "alex_score":   alex_score(prod),
+        })
+    return picks
 
 
 @router.get("/alex/category/{category}")
