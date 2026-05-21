@@ -355,6 +355,49 @@ details[open] .how-alex summary::before{transform:rotate(90deg)}
 .how-step{display:flex;gap:8px;align-items:flex-start;margin-bottom:4px}
 .how-step-ico{flex-shrink:0;color:var(--blue)}
 
+/* ── SEGMENT ROWS ── */
+.seg-section{margin-bottom:24px}
+.seg-row{margin-bottom:20px}
+.seg-hd{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.seg-tag{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:5px 14px;font-size:13px;font-weight:600;box-shadow:var(--sh)}
+.seg-scroll{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;scrollbar-width:thin}
+.seg-scroll::-webkit-scrollbar{height:4px}
+.seg-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.seg-card{flex-shrink:0;width:158px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:all .15s;box-shadow:var(--sh);display:flex;flex-direction:column}
+.seg-card:hover{transform:translateY(-2px);box-shadow:var(--sh-md);border-color:var(--blue)}
+.seg-img{width:100%;height:110px;background:#f9fafb;display:flex;align-items:center;justify-content:center;font-size:34px;position:relative;overflow:hidden}
+.seg-img img{width:100%;height:100%;object-fit:contain;padding:8px}
+.seg-badges{position:absolute;top:6px;left:6px;right:6px;display:flex;justify-content:space-between;align-items:flex-start;pointer-events:none}
+.seg-disc{background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px}
+.seg-score{font-size:10px;font-weight:700;padding:2px 6px;border-radius:5px;color:#fff}
+.seg-body{padding:10px;flex:1}
+.seg-name{font-size:11px;font-weight:500;line-height:1.3;margin-bottom:5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.seg-price-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.seg-price{font-size:14px;font-weight:700}
+.seg-old{font-size:10px;color:var(--muted);text-decoration:line-through}
+.seg-store{font-size:10px;color:var(--muted);margin-top:3px}
+
+/* ── VERDICT MODAL ── */
+.vrd-ov{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:600;display:none;align-items:flex-end;justify-content:center}
+.vrd-modal{background:var(--surface);border-radius:20px 20px 0 0;width:min(520px,100%);padding:24px;padding-bottom:max(24px,env(safe-area-inset-bottom));box-shadow:var(--sh-lg);animation:slideUp .3s ease}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.vrd-head{display:flex;align-items:flex-start;gap:14px;margin-bottom:16px}
+.vrd-img{width:72px;height:72px;background:#f9fafb;border-radius:10px;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:28px}
+.vrd-img img{width:100%;height:100%;object-fit:contain;padding:6px}
+.vrd-info{flex:1;min-width:0}
+.vrd-name{font-size:14px;font-weight:700;line-height:1.35;margin-bottom:6px}
+.vrd-price-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.vrd-price{font-size:20px;font-weight:800}
+.vrd-old{font-size:12px;color:var(--muted);text-decoration:line-through}
+.vrd-body{background:linear-gradient(135deg,#eff6ff,#f5f3ff);border:1px solid #bfdbfe;border-radius:12px;padding:14px 16px;margin-bottom:16px;min-height:58px}
+.vrd-ai-tag{font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.vrd-text{font-size:14px;color:var(--text2);line-height:1.6}
+.vrd-actions{display:flex;gap:10px}
+.vrd-go{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;font-size:14px;font-weight:700;padding:12px;border-radius:10px;transition:opacity .15s;text-align:center}
+.vrd-go:hover{opacity:.9}
+.vrd-close-btn{padding:12px 18px;border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--muted);transition:background .15s}
+.vrd-close-btn:hover{background:#f3f4f6}
+
 /* ── RESPONSIVE ── */
 @media(max-width:768px){
   .hero{padding:40px 20px;margin:0 -20px 22px}
@@ -429,6 +472,30 @@ details[open] .how-alex summary::before{transform:rotate(90deg)}
     <textarea id="chatInput" placeholder="Питай Alex за техника, цени, препоръки..." rows="1"
       onkeydown="chatKey(event)" oninput="chatResize(this)"></textarea>
     <button class="chat-send" id="chatSend" onclick="sendChat()">➤</button>
+  </div>
+</div>
+
+<div class="vrd-ov" id="vrdOv" onclick="if(event.target===this)closeVerdict()">
+  <div class="vrd-modal">
+    <div class="vrd-head">
+      <div class="vrd-img" id="vrdImgEl">📦</div>
+      <div class="vrd-info">
+        <div class="vrd-name" id="vrdNameEl"></div>
+        <div class="vrd-price-row">
+          <span class="vrd-price" id="vrdPriceEl"></span>
+          <span class="vrd-old" id="vrdOldEl"></span>
+        </div>
+        <div id="vrdStoreBadge"></div>
+      </div>
+    </div>
+    <div class="vrd-body">
+      <div class="vrd-ai-tag">💬 Alex казва:</div>
+      <div class="vrd-text" id="vrdAiText"><span style="color:var(--muted);font-size:13px">Анализирам...</span></div>
+    </div>
+    <div class="vrd-actions">
+      <a class="vrd-go" id="vrdGoBtn" href="#" target="_blank" rel="noopener">Виж в магазина →</a>
+      <button class="vrd-close-btn" onclick="closeVerdict()">Затвори</button>
+    </div>
   </div>
 </div>
 
@@ -667,6 +734,7 @@ async function renderCategory(slug) {
       <div id="verdictEl"></div>
       <div class="sec-head"><h2>⭐ Изборът на Alex</h2></div>
       <div class="picks-row" id="picksEl">${skRow(4,'pick-card',120)}</div>
+      <div id="segSection"></div>
       <div class="filters" id="filtersEl">
         <div class="fl-group">
           <span class="fl-label">Марка:</span>
@@ -697,6 +765,7 @@ async function renderCategory(slug) {
   loadPicks(slug);
   loadBrands(slug);
   loadProds(slug);
+  loadSegments(slug);
 }
 
 function skRow(n, cls, h) {
@@ -814,12 +883,17 @@ function clearF() {
 function buildProdCard(p) {
   const inCmp = _cmpList.some(c => c.n===p.raw_name && c.s===p.store);
   return `
-    <div class="prod-card">
+    <div class="prod-card"
+      data-name="${ea(p.raw_name)}" data-price="${p.price}"
+      data-oldprice="${p.old_price||''}" data-disc="${p.discount_pct||''}"
+      data-store="${ea(p.store)}" data-img="${ea(p.image_url||'')}"
+      data-url="${ea(p.url||'')}" data-score="${p.alex_score}"
+      onclick="showVerdictFromCard(this)" style="cursor:pointer">
       <div class="prod-badges">
         ${p.discount_pct?`<span class="prod-disc">-${p.discount_pct}%</span>`:'<span></span>'}
         <span class="prod-score ${scc(p.alex_score)}">${p.alex_score}</span>
       </div>
-      <div class="prod-img" onclick="${p.url?`window.open('${ea(p.url)}','_blank')`:''}">
+      <div class="prod-img">
         ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`: '📦'}
       </div>
       <div class="prod-body">
@@ -839,6 +913,116 @@ function buildProdCard(p) {
           title="${inCmp?'Премахни':'Добави за сравнение'}">${inCmp?'✓':'+'}</button>
       </div>
     </div>`;
+}
+
+// ═══════════════════════════════════════
+// SEGMENTS
+// ═══════════════════════════════════════
+async function loadSegments(slug) {
+  const sec = document.getElementById('segSection');
+  if (!sec) return;
+  try {
+    const d = await apiFetch(`/alex/segments/${slug}`);
+    const nonempty = (d.segments || []).filter(s => s.products?.length >= 1);
+    if (!nonempty.length) { sec.innerHTML = ''; return; }
+    sec.innerHTML = `
+      <div class="sec-head" style="margin-top:4px"><h2>По ценови клас</h2></div>
+      <div class="seg-section">
+        ${nonempty.map(seg => `
+          <div class="seg-row">
+            <div class="seg-hd">
+              <span class="seg-tag">${seg.emoji} ${eh(seg.label)}</span>
+            </div>
+            <div class="seg-scroll">
+              ${seg.products.map(p => buildSegCard(p)).join('')}
+            </div>
+          </div>`).join('')}
+      </div>`;
+  } catch(e) { console.error('[segments]', e); sec.innerHTML = ''; }
+}
+
+function buildSegCard(p) {
+  return `
+    <div class="seg-card"
+      data-name="${ea(p.raw_name)}" data-price="${p.price}"
+      data-oldprice="${p.old_price||''}" data-disc="${p.discount_pct||''}"
+      data-store="${ea(p.store)}" data-img="${ea(p.image_url||'')}"
+      data-url="${ea(p.url||'')}" data-score="${p.alex_score}"
+      onclick="showVerdictFromCard(this)">
+      <div class="seg-img">
+        <div class="seg-badges">
+          ${p.discount_pct?`<span class="seg-disc">-${p.discount_pct}%</span>`:'<span></span>'}
+          <span class="seg-score ${scc(p.alex_score)}">${p.alex_score}</span>
+        </div>
+        ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`: '📦'}
+      </div>
+      <div class="seg-body">
+        <div class="seg-name">${eh(p.raw_name)}</div>
+        <div class="seg-price-row">
+          <span class="seg-price">${fmt(p.price)}</span>
+          ${p.old_price?`<span class="seg-old">${fmt(p.old_price)}</span>`:''}
+        </div>
+        <div class="seg-store">${sl(p.store)}</div>
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════
+// VERDICT MODAL
+// ═══════════════════════════════════════
+function showVerdictFromCard(el) {
+  showVerdict({
+    raw_name:    el.dataset.name,
+    price:       parseFloat(el.dataset.price),
+    old_price:   el.dataset.oldprice ? parseFloat(el.dataset.oldprice) : null,
+    discount_pct: el.dataset.disc    ? parseInt(el.dataset.disc)       : null,
+    store:       el.dataset.store,
+    image_url:   el.dataset.img,
+    url:         el.dataset.url,
+    alex_score:  el.dataset.score,
+  });
+}
+
+function showVerdict(prod) {
+  const ov = document.getElementById('vrdOv');
+  if (!ov) return;
+
+  document.getElementById('vrdImgEl').innerHTML = prod.image_url
+    ? `<img src="${ea(prod.image_url)}" alt="${ea(prod.raw_name)}" onerror="this.parentElement.innerHTML='📦'">`
+    : '📦';
+  document.getElementById('vrdNameEl').textContent = prod.raw_name;
+  document.getElementById('vrdPriceEl').textContent = fmt(prod.price);
+  const oldEl = document.getElementById('vrdOldEl');
+  oldEl.textContent = prod.old_price ? fmt(prod.old_price) : '';
+  document.getElementById('vrdStoreBadge').innerHTML =
+    `<span class="store-badge ${sc(prod.store)}">${sl(prod.store)}</span>`;
+  document.getElementById('vrdAiText').innerHTML =
+    '<span style="color:var(--muted);font-size:13px">Alex анализира...</span>';
+  const goBtn = document.getElementById('vrdGoBtn');
+  goBtn.href = prod.url || '#';
+  goBtn.textContent = `Виж в ${sl(prod.store)} →`;
+
+  ov.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+
+  // Fetch verdict async — non-blocking
+  (async () => {
+    try {
+      const params = new URLSearchParams({
+        name: prod.raw_name, price: prod.price, store: prod.store,
+        category: _catSlug || '',
+      });
+      const d = await apiFetch(`/alex/verdict?${params}`);
+      const el = document.getElementById('vrdAiText');
+      if (el && d.verdict) el.textContent = d.verdict;
+    } catch {}
+  })();
+}
+
+function closeVerdict() {
+  const ov = document.getElementById('vrdOv');
+  if (ov) ov.style.display = 'none';
+  document.body.style.overflow = '';
 }
 
 // ═══════════════════════════════════════
@@ -1280,6 +1464,12 @@ async function apiFetch(path) {
 // ═══════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const vrd = document.getElementById('vrdOv');
+    if (vrd && vrd.style.display !== 'none') { closeVerdict(); return; }
+  }
+});
 buildNav();
 render();
 </script>

@@ -793,6 +793,9 @@ def alex_score(product: dict) -> float:
 _PICKS_CACHE: dict[str, dict] = {}
 _PICKS_TTL   = 6 * 3600  # 6 hours
 
+_VERDICT_CACHE: dict[str, dict] = {}
+_VERDICT_TTL   = 12 * 3600  # 12 hours
+
 # ── Homepage Picks cache ───────────────────────────────────────────────────────
 
 _HOME_PICKS_CACHE: dict | None = None
@@ -823,6 +826,80 @@ _CAT_MIN_PRICE = {
     "vacuum":      60.0,
     "cooking":    150.0,
     "dishwasher": 250.0,
+}
+
+# ── Segment config: 3 price tiers per category ────────────────────────────────
+SEGMENT_CONFIG: dict[str, list[dict]] = {
+    "phones":     [
+        {"key": "budget",  "label": "До 350€ — Добра стойност",         "emoji": "💰", "min_price": 120,  "max_price": 350},
+        {"key": "mid",     "label": "350–700€ — Среден клас",           "emoji": "⚡", "min_price": 350,  "max_price": 700},
+        {"key": "premium", "label": "700€+ — Без компромис",            "emoji": "👑", "min_price": 700,  "max_price": None},
+    ],
+    "laptops":    [
+        {"key": "budget",  "label": "До 700€ — За работа",              "emoji": "💰", "min_price": 400,  "max_price": 700},
+        {"key": "mid",     "label": "700–1200€ — Бизнес клас",          "emoji": "⚡", "min_price": 700,  "max_price": 1200},
+        {"key": "premium", "label": "1200€+ — Топ производителност",    "emoji": "👑", "min_price": 1200, "max_price": None},
+    ],
+    "tvs":        [
+        {"key": "budget",  "label": "До 500€ — Smart TV",               "emoji": "💰", "min_price": 250,  "max_price": 500},
+        {"key": "mid",     "label": "500–1000€ — 4K QLED",              "emoji": "⚡", "min_price": 500,  "max_price": 1000},
+        {"key": "premium", "label": "1000€+ — OLED & Голям екран",      "emoji": "👑", "min_price": 1000, "max_price": None},
+    ],
+    "headphones": [
+        {"key": "budget",  "label": "До 80€ — Стойностни",              "emoji": "💰", "min_price": 20,   "max_price": 80},
+        {"key": "mid",     "label": "80–200€ — С ANC",                  "emoji": "⚡", "min_price": 80,   "max_price": 200},
+        {"key": "premium", "label": "200€+ — Премиум звук",             "emoji": "👑", "min_price": 200,  "max_price": None},
+    ],
+    "tablets":    [
+        {"key": "budget",  "label": "До 300€ — За всеки",               "emoji": "💰", "min_price": 150,  "max_price": 300},
+        {"key": "mid",     "label": "300–600€ — Производителност",       "emoji": "⚡", "min_price": 300,  "max_price": 600},
+        {"key": "premium", "label": "600€+ — iPad Pro клас",             "emoji": "👑", "min_price": 600,  "max_price": None},
+    ],
+    "gaming":     [
+        {"key": "budget",  "label": "До 150€ — Аксесоари & Игри",       "emoji": "💰", "min_price": 40,   "max_price": 150},
+        {"key": "mid",     "label": "150–400€ — Конзоли",               "emoji": "⚡", "min_price": 150,  "max_price": 400},
+        {"key": "premium", "label": "400€+ — Топ гейминг",              "emoji": "👑", "min_price": 400,  "max_price": None},
+    ],
+    "cameras":    [
+        {"key": "budget",  "label": "До 500€ — Компактни",              "emoji": "💰", "min_price": 150,  "max_price": 500},
+        {"key": "mid",     "label": "500–1000€ — Беззеркални",          "emoji": "⚡", "min_price": 500,  "max_price": 1000},
+        {"key": "premium", "label": "1000€+ — Професионални",           "emoji": "👑", "min_price": 1000, "max_price": None},
+    ],
+    "appliances": [
+        {"key": "budget",  "label": "До 300€ — Основни уреди",          "emoji": "💰", "min_price": 80,   "max_price": 300},
+        {"key": "mid",     "label": "300–600€ — Smart уреди",           "emoji": "⚡", "min_price": 300,  "max_price": 600},
+        {"key": "premium", "label": "600€+ — Топ клас",                 "emoji": "👑", "min_price": 600,  "max_price": None},
+    ],
+    "fridges":    [
+        {"key": "budget",  "label": "До 500€ — Надеждни",               "emoji": "💰", "min_price": 200,  "max_price": 500},
+        {"key": "mid",     "label": "500–900€ — No Frost",              "emoji": "⚡", "min_price": 500,  "max_price": 900},
+        {"key": "premium", "label": "900€+ — Side-by-Side",             "emoji": "👑", "min_price": 900,  "max_price": None},
+    ],
+    "washing":    [
+        {"key": "budget",  "label": "До 500€ — Достъпни",               "emoji": "💰", "min_price": 250,  "max_price": 500},
+        {"key": "mid",     "label": "500–800€ — А клас",                "emoji": "⚡", "min_price": 500,  "max_price": 800},
+        {"key": "premium", "label": "800€+ — Тихи & Smart",             "emoji": "👑", "min_price": 800,  "max_price": None},
+    ],
+    "ac":         [
+        {"key": "budget",  "label": "До 700€ — Стандартни",             "emoji": "💰", "min_price": 400,  "max_price": 700},
+        {"key": "mid",     "label": "700–1200€ — Инверторни",           "emoji": "⚡", "min_price": 700,  "max_price": 1200},
+        {"key": "premium", "label": "1200€+ — Multi Split",             "emoji": "👑", "min_price": 1200, "max_price": None},
+    ],
+    "vacuum":     [
+        {"key": "budget",  "label": "До 150€ — Традиционни",            "emoji": "💰", "min_price": 60,   "max_price": 150},
+        {"key": "mid",     "label": "150–350€ — Безкабелни",            "emoji": "⚡", "min_price": 150,  "max_price": 350},
+        {"key": "premium", "label": "350€+ — Роботи & Dyson",           "emoji": "👑", "min_price": 350,  "max_price": None},
+    ],
+    "cooking":    [
+        {"key": "budget",  "label": "До 400€ — Стандартни",             "emoji": "💰", "min_price": 150,  "max_price": 400},
+        {"key": "mid",     "label": "400–800€ — С конвекция",           "emoji": "⚡", "min_price": 400,  "max_price": 800},
+        {"key": "premium", "label": "800€+ — Индукция & Smart",         "emoji": "👑", "min_price": 800,  "max_price": None},
+    ],
+    "dishwasher": [
+        {"key": "budget",  "label": "До 500€ — Базови",                 "emoji": "💰", "min_price": 250,  "max_price": 500},
+        {"key": "mid",     "label": "500–800€ — Тихи",                  "emoji": "⚡", "min_price": 500,  "max_price": 800},
+        {"key": "premium", "label": "800€+ — Вградени & Smart",         "emoji": "👑", "min_price": 800,  "max_price": None},
+    ],
 }
 
 # Keyword blocklist — products whose names contain these are excluded from candidates
@@ -1186,6 +1263,99 @@ async def alex_picks_endpoint(category: str):
 
     _PICKS_CACHE[category] = {**picks, "_ts": now}
     return picks
+
+
+@router.get("/alex/segments/{category}")
+async def alex_segments(category: str):
+    """3 price-segment rows for the category page — top 6 products per tier."""
+    segs = SEGMENT_CONFIG.get(category)
+    if not segs:
+        raise HTTPException(status_code=404, detail=f"No segment config for {category}")
+
+    result: list[dict] = []
+    for seg in segs:
+        prods: list[dict] = []
+        try:
+            sb = get_supabase()
+            q = (
+                sb.table("electronics_offers")
+                .select("raw_name, brand, category, price, old_price, discount_pct, store, image_url, url")
+                .eq("category", category)
+                .not_.is_("image_url", "null")
+                .neq("image_url", "")
+                .gte("price", seg["min_price"])
+            )
+            if seg["max_price"] is not None:
+                q = q.lte("price", seg["max_price"])
+            resp = q.order("price", desc=False).limit(40).execute()
+            prods = resp.data or []
+        except Exception as exc:
+            logger.warning("[alex/segments] Supabase failed for %s/%s: %s", category, seg["key"], exc)
+            for o in _load_local():
+                if o.get("category") != category or not o.get("image_url"):
+                    continue
+                price = o.get("price") or 0
+                if price < seg["min_price"]:
+                    continue
+                if seg["max_price"] is not None and price > seg["max_price"]:
+                    continue
+                prods.append(o)
+
+        top6 = sorted(
+            [{**p, "alex_score": alex_score(p)} for p in prods],
+            key=lambda x: x["alex_score"],
+            reverse=True,
+        )[:6]
+
+        result.append({
+            "key":      seg["key"],
+            "label":    seg["label"],
+            "emoji":    seg["emoji"],
+            "products": top6,
+        })
+
+    return {"segments": result}
+
+
+@router.get("/alex/verdict")
+async def alex_verdict_endpoint(
+    name:     str            = Query(...),
+    price:    float          = Query(...),
+    store:    str            = Query(...),
+    category: Optional[str] = Query(""),
+):
+    """Short Claude Haiku verdict for a specific product (cached 12 h)."""
+    cache_key = f"{name}|{store}"
+    cached = _VERDICT_CACHE.get(cache_key)
+    if cached and _time.time() - cached["ts"] < _VERDICT_TTL:
+        return {"verdict": cached["verdict"]}
+
+    settings = get_settings()
+    if not settings.anthropic_api_key:
+        return {"verdict": ""}
+
+    prompt = (
+        f"Ти си Alex — независим AI съветник за електроника в България.\n"
+        f"Дай кратко мнение (2-3 изречения, максимум 60 думи) за:\n\n"
+        f"Продукт: {name}\nЦена: €{price:.2f}\nМагазин: {store}\n"
+        + (f"Категория: {category}\n" if category else "")
+        + "\nБъди директен. Кажи дали си заслужава, за кого е подходящ, и ключовото предимство. "
+          "НЕ повтаряй цената или магазина в отговора."
+    )
+
+    try:
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        resp = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=150,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        verdict = resp.content[0].text.strip()
+        _VERDICT_CACHE[cache_key] = {"verdict": verdict, "ts": _time.time()}
+        return {"verdict": verdict}
+    except Exception as exc:
+        logger.warning("[alex/verdict] %s", exc)
+        return {"verdict": ""}
 
 
 @router.get("/alex/stats")
