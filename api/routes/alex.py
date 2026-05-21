@@ -549,22 +549,23 @@ async def _stream_alex(
         yield "data: [DONE]\n\n"
         return
 
-    sync_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    # Use the async client so we never block the event loop
+    async_client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     msg_dicts   = [{"role": m.role, "content": m.content} for m in messages]
     collected_max_prices: list[float] = []
 
     try:
         for _round in range(5):
-            with sync_client.messages.stream(
+            async with async_client.messages.stream(
                 model      = "claude-sonnet-4-6",
                 max_tokens = 2048,
                 system     = system,
                 tools      = ALEX_TOOLS,
                 messages   = msg_dicts,
             ) as stream:
-                for text_chunk in stream.text_stream:
+                async for text_chunk in stream.text_stream:
                     yield f"data: {json.dumps({'text': text_chunk})}\n\n"
-                final_msg = stream.get_final_message()
+                final_msg = await stream.get_final_message()
 
             full_content = final_msg.content
             stop_reason  = final_msg.stop_reason
@@ -582,7 +583,6 @@ async def _stream_alex(
             for tc in tool_calls:
                 inp = tc.get("input", {})
                 yield f"data: {json.dumps({'tool': tc['name'], 'input': inp})}\n\n"
-                # Collect max_price for profile inference
                 if inp.get("max_price"):
                     collected_max_prices.append(float(inp["max_price"]))
                 result = _run_tool(tc["name"], inp)
@@ -604,7 +604,6 @@ async def _stream_alex(
         logger.error("[alex] stream error: %s", exc)
         yield f"data: {json.dumps({'error': str(exc)})}\n\n"
 
-    # Persist DNA update before signalling done
     if user_id:
         _update_alex_dna(user_id, category, collected_max_prices, user_dna)
 
