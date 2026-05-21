@@ -84,8 +84,7 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .home-pick-disc{position:absolute;top:8px;left:8px;background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:2px 7px;border-radius:5px}
 .home-pick-body{padding:12px 14px;display:flex;flex-direction:column;flex:1;gap:4px}
 .home-pick-cat{font-size:10px;font-weight:700;color:var(--blue);text-transform:uppercase;letter-spacing:.5px}
-.home-pick-name{font-size:13px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.home-pick-reason{font-size:12px;color:var(--muted);line-height:1.5;font-style:italic;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex:1}
+.home-pick-name{font-size:13px;font-weight:600;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;flex:1}
 .home-pick-foot{display:flex;align-items:center;justify-content:space-between;margin-top:6px;flex-wrap:wrap;gap:4px}
 .home-pick-price{font-size:15px;font-weight:800;color:var(--text)}
 .home-pick-old{font-size:11px;color:var(--muted);text-decoration:line-through;margin-left:4px}
@@ -753,7 +752,12 @@ async function loadHomePicks() {
     const d = await apiFetch('/alex/homepage-picks');
     if (!d.picks?.length) { el.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-ico">📭</div><p>Зарежда се...</p></div>'; return; }
     el.innerHTML = d.picks.filter(p => p.image_url).map(p => `
-      <div class="home-pick-card" onclick="${p.url?`window.open('${ea(p.url)}','_blank')`:''}">
+      <div class="home-pick-card"
+        data-name="${ea(p.raw_name)}" data-price="${p.price}"
+        data-oldprice="${p.old_price||''}" data-disc="${p.discount_pct||''}"
+        data-store="${ea(p.store)}" data-img="${ea(p.image_url||'')}"
+        data-url="${ea(p.url||'')}" data-score="${p.alex_score||''}"
+        onclick="showVerdictFromCard(this)" style="cursor:pointer">
         <div class="home-pick-img">
           ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.closest('.home-pick-card').style.display='none'">`: ''}
           ${p.discount_pct?`<span class="home-pick-disc">-${p.discount_pct}%</span>`:''}
@@ -761,7 +765,6 @@ async function loadHomePicks() {
         <div class="home-pick-body">
           <div class="home-pick-cat">${eh(p.cat_label)}</div>
           <div class="home-pick-name">${eh(p.raw_name)}</div>
-          <div class="home-pick-reason">${eh(p.reason)}</div>
           <div class="home-pick-foot">
             <div>
               <span class="home-pick-price">${fmt(p.price)}</span>
@@ -875,7 +878,12 @@ async function loadPicks(slug) {
     const pe = document.getElementById('picksEl');
     if (!pe || !d.items?.length) return;
     pe.innerHTML = d.items.map(item => `
-      <div class="pick-card" onclick="${item.url?`window.open('${ea(item.url)}','_blank')`:''}">
+      <div class="pick-card"
+        data-name="${ea(item.raw_name)}" data-price="${item.price}"
+        data-oldprice="${item.old_price||''}" data-disc="${item.discount_pct||''}"
+        data-store="${ea(item.store)}" data-img="${ea(item.image_url||'')}"
+        data-url="${ea(item.url||'')}" data-score="${item.alex_score||''}"
+        onclick="showVerdictFromCard(this)" style="cursor:pointer">
         <div class="pick-hd"><span>${item.icon}</span><span>${eh(item.label)}</span></div>
         <div class="pick-img">
           ${item.image_url?`<img src="${ea(item.image_url)}" alt="${ea(item.raw_name)}" loading="lazy" onerror="this.closest('.pick-card').style.display='none'">`: ''}
@@ -883,7 +891,6 @@ async function loadPicks(slug) {
         <div class="pick-body">
           <div class="pick-name">${eh(item.raw_name)}</div>
           <div class="pick-price">${fmt(item.price)}</div>
-          <div class="pick-reason">${eh(item.reason)}</div>
         </div>
         <div class="pick-ft">
           <span class="store-badge ${sc(item.store)}">${sl(item.store)}</span>
