@@ -13,7 +13,7 @@ import json
 import logging
 import re
 import time as _time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import AsyncIterator, List, Optional, Any
 
@@ -1480,6 +1480,123 @@ async def alex_verdict_endpoint(
     except Exception as exc:
         logger.warning("[alex/verdict] %s", exc)
         return {"verdict": ""}
+
+
+@router.get("/alex/price-history")
+async def price_history(url: str = Query(..., description="Product URL")):
+    """Return 30-day price history for a product + deal authenticity score."""
+    cutoff = (datetime.now() - timedelta(days=30)).isoformat()
+    try:
+        sb = get_supabase()
+        resp = (
+            sb.table("price_history")
+            .select("price, old_price, scraped_at")
+            .eq("product_url", url)
+            .gte("scraped_at", cutoff)
+            .order("scraped_at", desc=False)
+            .limit(60)
+            .execute()
+        )
+        rows = resp.data or []
+    except Exception as exc:
+        logger.warning("[alex/price-history] %s", exc)
+        rows = []
+
+    deal_score = "unknown"
+    if rows:
+        prices = [r["price"] for r in rows]
+        max_real = max(prices)
+        # Check the most recent old_price claim
+        latest_old = next(
+            (r["old_price"] for r in reversed(rows) if r.get("old_price")), None
+        )
+        if latest_old:
+            deal_score = "real" if max_real >= latest_old * 0.88 else "suspicious"
+
+    return {
+        "history": rows,
+        "deal_score": deal_score,  # "real" | "suspicious" | "unknown"
+        "data_points": len(rows),
+    }
+
+
+class WatchlistAddRequest(BaseModel):
+    user_id: str
+    email: str
+    product_url: str
+    store: str
+    raw_name: str
+    category: Optional[str] = None
+    image_url: Optional[str] = None
+    target_price: float
+    current_price: float
+
+
+@router.post("/alex/watchlist")
+async def watchlist_add(req: WatchlistAddRequest):
+    """Add a product to the user's watchlist."""
+    try:
+        sb = get_supabase()
+        sb.table("watchlists").upsert({
+            "user_id":          req.user_id,
+            "email":            req.email,
+            "product_url":      req.product_url,
+            "store":            req.store,
+            "raw_name":         req.raw_name,
+            "category":         req.category,
+            "image_url":        req.image_url,
+            "target_price":     req.target_price,
+            "last_known_price": req.current_price,
+        }, on_conflict="user_id,product_url").execute()
+        return {"ok": True}
+    except Exception as exc:
+        logger.error("[alex/watchlist] add failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Грешка при запис")
+
+
+@router.get("/alex/watchlist/{user_id}")
+async def watchlist_get(user_id: str):
+    """Return all watchlist items for a user."""
+    try:
+        sb = get_supabase()
+        resp = (
+            sb.table("watchlists")
+            .select("*")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        items = []
+        for row in (resp.data or []):
+            # Enrich with current price from electronics_offers
+            try:
+                cur = (
+                    sb.table("electronics_offers")
+                    .select("price")
+                    .eq("url", row["product_url"])
+                    .limit(1)
+                    .execute()
+                )
+                row["current_price"] = cur.data[0]["price"] if cur.data else row.get("last_known_price")
+            except Exception:
+                row["current_price"] = row.get("last_known_price")
+            items.append(row)
+        return {"items": items}
+    except Exception as exc:
+        logger.error("[alex/watchlist] get failed: %s", exc)
+        return {"items": []}
+
+
+@router.delete("/alex/watchlist/{item_id}")
+async def watchlist_remove(item_id: int, user_id: str = Query(...)):
+    """Remove a watchlist item (user must own it)."""
+    try:
+        sb = get_supabase()
+        sb.table("watchlists").delete().eq("id", item_id).eq("user_id", user_id).execute()
+        return {"ok": True}
+    except Exception as exc:
+        logger.error("[alex/watchlist] remove failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Грешка при изтриване")
 
 
 @router.get("/alex/stats")

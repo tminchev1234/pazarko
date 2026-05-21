@@ -397,6 +397,19 @@ details[open] .how-alex summary::before{transform:rotate(90deg)}
 .vrd-go:hover{opacity:.9}
 .vrd-close-btn{padding:12px 18px;border:1px solid var(--border);border-radius:10px;font-size:13px;color:var(--muted);transition:background .15s}
 .vrd-close-btn:hover{background:#f3f4f6}
+.vrd-deal-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:8px;vertical-align:middle}
+.vrd-deal-real{background:#dcfce7;color:#16a34a}
+.vrd-deal-fake{background:#fef3c7;color:#d97706}
+.vrd-history{margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.vrd-history-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.vrd-watch-row{margin:14px 0 10px}
+.vrd-watch-btn{width:100%;padding:10px;border:1.5px dashed var(--border);border-radius:10px;font-size:13px;color:var(--muted);transition:all .15s;cursor:pointer}
+.vrd-watch-btn:hover{border-color:#6366f1;color:#6366f1;background:#f5f3ff}
+.vrd-watch-form{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.vrd-watch-input{padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;width:100%;box-sizing:border-box}
+.vrd-watch-input:focus{outline:none;border-color:#6366f1}
+.vrd-watch-save{padding:10px;background:#6366f1;color:#fff;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s}
+.vrd-watch-save:hover{opacity:.88}
 
 /* ── RESPONSIVE ── */
 @media(max-width:768px){
@@ -484,6 +497,7 @@ details[open] .how-alex summary::before{transform:rotate(90deg)}
         <div class="vrd-price-row">
           <span class="vrd-price" id="vrdPriceEl"></span>
           <span class="vrd-old" id="vrdOldEl"></span>
+          <span class="vrd-deal-badge" id="vrdDealBadge"></span>
         </div>
         <div id="vrdStoreBadge"></div>
       </div>
@@ -491,6 +505,21 @@ details[open] .how-alex summary::before{transform:rotate(90deg)}
     <div class="vrd-body">
       <div class="vrd-ai-tag">💬 Alex казва:</div>
       <div class="vrd-text" id="vrdAiText"><span style="color:var(--muted);font-size:13px">Анализирам...</span></div>
+      <div class="vrd-history" id="vrdHistory" style="display:none">
+        <div class="vrd-history-title">📈 Ценова история (30 дни)</div>
+        <div id="vrdSparkline"></div>
+      </div>
+    </div>
+    <div class="vrd-watch-row" id="vrdWatchRow">
+      <button class="vrd-watch-btn" id="vrdWatchBtn" onclick="toggleWatchForm()">🔔 Проследи цената</button>
+      <div class="vrd-watch-form" id="vrdWatchForm" style="display:none">
+        <input class="vrd-watch-input" id="wfEmail" type="email" placeholder="твоят@имейл.com">
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-size:13px;color:var(--muted);white-space:nowrap">Уведоми ме под €</span>
+          <input class="vrd-watch-input" id="wfTarget" type="number" step="1" min="1" style="width:90px">
+        </div>
+        <button class="vrd-watch-save" onclick="saveWatch()">Запази</button>
+      </div>
     </div>
     <div class="vrd-actions">
       <a class="vrd-go" id="vrdGoBtn" href="#" target="_blank" rel="noopener">Виж в магазина →</a>
@@ -987,21 +1016,34 @@ function showVerdictFromCard(el) {
   });
 }
 
+let _vrdProd = null;
+
 function showVerdict(prod) {
   const ov = document.getElementById('vrdOv');
   if (!ov) return;
+  _vrdProd = prod;
 
   document.getElementById('vrdImgEl').innerHTML = prod.image_url
-    ? `<img src="${ea(prod.image_url)}" alt="${ea(prod.raw_name)}" onerror="this.parentElement.innerHTML='📦'">`
-    : '📦';
+    ? `<img src="${ea(prod.image_url)}" alt="${ea(prod.raw_name)}" onerror="this.parentElement.innerHTML=''">`
+    : '';
   document.getElementById('vrdNameEl').textContent = prod.raw_name;
   document.getElementById('vrdPriceEl').textContent = fmt(prod.price);
-  const oldEl = document.getElementById('vrdOldEl');
-  oldEl.textContent = prod.old_price ? fmt(prod.old_price) : '';
+  document.getElementById('vrdOldEl').textContent = prod.old_price ? fmt(prod.old_price) : '';
+  document.getElementById('vrdDealBadge').textContent = '';
+  document.getElementById('vrdDealBadge').className = 'vrd-deal-badge';
   document.getElementById('vrdStoreBadge').innerHTML =
     `<span class="store-badge ${sc(prod.store)}">${sl(prod.store)}</span>`;
   document.getElementById('vrdAiText').innerHTML =
     '<span style="color:var(--muted);font-size:13px">Alex анализира...</span>';
+  document.getElementById('vrdHistory').style.display = 'none';
+  document.getElementById('vrdSparkline').innerHTML = '';
+  document.getElementById('vrdWatchForm').style.display = 'none';
+  document.getElementById('vrdWatchBtn').textContent = '🔔 Проследи цената';
+
+  // Pre-fill target price at 5% below current
+  const wfTarget = document.getElementById('wfTarget');
+  if (wfTarget) wfTarget.value = Math.floor(prod.price * 0.95);
+
   const goBtn = document.getElementById('vrdGoBtn');
   goBtn.href = prod.url || '#';
   goBtn.textContent = `Виж в ${sl(prod.store)} →`;
@@ -1009,7 +1051,7 @@ function showVerdict(prod) {
   ov.style.display = 'flex';
   document.body.style.overflow = 'hidden';
 
-  // Fetch verdict async — non-blocking
+  // Load verdict + price history in parallel
   (async () => {
     try {
       const params = new URLSearchParams({
@@ -1021,12 +1063,131 @@ function showVerdict(prod) {
       if (el && d.verdict) el.textContent = d.verdict;
     } catch {}
   })();
+
+  if (prod.url) {
+    (async () => {
+      try {
+        const d = await apiFetch(`/alex/price-history?url=${encodeURIComponent(prod.url)}`);
+        _renderDealBadge(d.deal_score, prod.old_price);
+        _renderSparkline(d.history, prod.price);
+      } catch {}
+    })();
+  }
+}
+
+function _renderDealBadge(score, oldPrice) {
+  if (!oldPrice || score === 'unknown') return;
+  const el = document.getElementById('vrdDealBadge');
+  if (!el) return;
+  if (score === 'real') {
+    el.textContent = '✅ Реална сделка';
+    el.className = 'vrd-deal-badge vrd-deal-real';
+  } else if (score === 'suspicious') {
+    el.textContent = '⚠️ Съмнително намаление';
+    el.className = 'vrd-deal-badge vrd-deal-fake';
+  }
+}
+
+function _renderSparkline(history, currentPrice) {
+  if (!history || history.length < 2) return;
+  const wrap = document.getElementById('vrdHistory');
+  const cont = document.getElementById('vrdSparkline');
+  if (!wrap || !cont) return;
+
+  const prices = history.map(h => h.price);
+  const minP = Math.min(...prices);
+  const maxP = Math.max(...prices);
+  const range = maxP - minP || 1;
+  const W = 260, H = 48, pad = 4;
+
+  const pts = prices.map((p, i) => {
+    const x = pad + (i / (prices.length - 1)) * (W - pad * 2);
+    const y = pad + (1 - (p - minP) / range) * (H - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+
+  const lastY = (pad + (1 - (currentPrice - minP) / range) * (H - pad * 2)).toFixed(1);
+
+  cont.innerHTML = `
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:${H}px">
+      <polyline points="${pts}" fill="none" stroke="#6366f1" stroke-width="2" stroke-linejoin="round"/>
+      <line x1="${W - pad}" y1="${lastY}" x2="${W}" y2="${lastY}"
+            stroke="#16a34a" stroke-width="1.5" stroke-dasharray="3,2"/>
+    </svg>
+    <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:2px">
+      <span>мин €${minP.toFixed(0)}</span>
+      <span style="color:#16a34a;font-weight:600">сега €${currentPrice.toFixed(0)}</span>
+      <span>макс €${maxP.toFixed(0)}</span>
+    </div>`;
+  wrap.style.display = 'block';
+}
+
+function toggleWatchForm() {
+  const form = document.getElementById('vrdWatchForm');
+  const btn  = document.getElementById('vrdWatchBtn');
+  if (!form) return;
+  const open = form.style.display === 'none';
+  form.style.display = open ? 'flex' : 'none';
+  btn.textContent = open ? '✕ Скрий' : '🔔 Проследи цената';
+  if (open) {
+    const saved = localStorage.getItem('alexEmail');
+    const emailEl = document.getElementById('wfEmail');
+    if (saved && !emailEl.value) emailEl.value = saved;
+    emailEl.focus();
+  }
+}
+
+async function saveWatch() {
+  const email  = (document.getElementById('wfEmail').value || '').trim();
+  const target = parseFloat(document.getElementById('wfTarget').value);
+  const prod   = _vrdProd;
+
+  if (!email || !email.includes('@')) { alert('Въведи валиден имейл'); return; }
+  if (!target || target <= 0)         { alert('Въведи целева цена'); return; }
+  if (!prod)                          return;
+
+  const userId = _uid();
+  const btn = document.querySelector('.vrd-watch-save');
+  btn.textContent = 'Запазване...'; btn.disabled = true;
+
+  try {
+    await apiFetch('/alex/watchlist', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        user_id:       userId,
+        email:         email,
+        product_url:   prod.url,
+        store:         prod.store,
+        raw_name:      prod.raw_name,
+        category:      _catSlug || null,
+        image_url:     prod.image_url || null,
+        target_price:  target,
+        current_price: prod.price,
+      }),
+    });
+    document.getElementById('vrdWatchForm').style.display = 'none';
+    document.getElementById('vrdWatchBtn').textContent = '✅ Следенето е активно';
+    document.getElementById('vrdWatchBtn').disabled = true;
+    localStorage.setItem('alexEmail', email);
+  } catch {
+    alert('Грешка при запис. Опитай отново.');
+  } finally {
+    btn.textContent = 'Запази'; btn.disabled = false;
+  }
+}
+
+function _uid() {
+  let id = localStorage.getItem('alexUid');
+  if (!id) { id = crypto.randomUUID(); localStorage.setItem('alexUid', id); }
+  return id;
 }
 
 function closeVerdict() {
   const ov = document.getElementById('vrdOv');
   if (ov) ov.style.display = 'none';
   document.body.style.overflow = '';
+  _vrdProd = null;
 }
 
 // ═══════════════════════════════════════
@@ -1459,8 +1620,8 @@ function fmt(n) { if(n==null)return'—'; return Number(n).toFixed(2).replace('.
 function sl(s) { return {technopolis:'Technopolis',emag:'eMAG',ardes:'Ардес',technomarket:'Техномаркет'}[s]||s; }
 function sc(s) { return {technopolis:'s-technopolis',emag:'s-emag',ardes:'s-ardes',technomarket:'s-technomarket'}[s]||''; }
 function scc(v) { return v>=8?'sc-green':v>=6.5?'sc-blue':v>=5?'sc-amber':'sc-gray'; }
-async function apiFetch(path) {
-  const r = await fetch(`${API}${path}`);
+async function apiFetch(path, opts = {}) {
+  const r = await fetch(`${API}${path}`, opts);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
 }

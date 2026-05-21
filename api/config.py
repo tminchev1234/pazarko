@@ -27,6 +27,13 @@ class Settings(BaseSettings):
     environment: str = os.getenv("ENVIRONMENT", "development")
     secret_key: str = os.getenv("SECRET_KEY", "dev-secret-change-me")
 
+    # Email (Gmail SMTP)
+    smtp_user: str = os.getenv("SMTP_USER", "")
+    smtp_pass: str = os.getenv("SMTP_PASS", "")
+    smtp_host: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_port: int = int(os.getenv("SMTP_PORT", "587"))
+    alert_from_name: str = os.getenv("ALERT_FROM_NAME", "Alex — AI Съветник")
+
     # Scraping
     scrape_timeout_seconds: int = 30
     scrape_user_agent: str = (
