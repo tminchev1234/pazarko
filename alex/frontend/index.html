@@ -441,6 +441,31 @@ details[open] .how-alex summary::before{transform:rotate(90deg)}
   .cat-grid{grid-template-columns:repeat(3,1fr)}
   .picks-row{grid-template-columns:1fr 1fr}
 }
+
+/* ── Trends section ──────────────────────────── */
+.trends-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:20px}
+.trends-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.trends-title{font-size:15px;font-weight:700;margin:0;color:var(--text)}
+.trends-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.trend-chip{background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;font-size:12px;padding:3px 10px;border-radius:20px;white-space:nowrap}
+.trend-chip strong{font-weight:800}
+.sparkline-wrap{padding:2px 0 4px}
+.sparkline-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px}
+.sparkline-minmax{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:3px}
+.trends-nodata{color:var(--muted);font-size:12px;padding:16px 0;text-align:center;font-style:italic}
+
+/* ── Top drops cards ────────────────────────── */
+.drops-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:12px;margin-bottom:24px}
+.drop-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:all .15s;position:relative}
+.drop-card:hover{border-color:var(--blue);transform:translateY(-2px);box-shadow:var(--sh)}
+.drop-img{height:120px;background:#f9fafb;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.drop-img img{max-height:100%;max-width:100%;object-fit:contain;padding:8px}
+.drop-badge{position:absolute;top:8px;right:8px;background:#dc2626;color:#fff;font-size:12px;font-weight:800;padding:3px 8px;border-radius:20px}
+.drop-body{padding:10px 12px}
+.drop-name{font-size:12px;color:var(--text);font-weight:600;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:6px}
+.drop-prices{display:flex;align-items:baseline;gap:7px;margin-bottom:6px}
+.drop-now{font-size:15px;font-weight:800;color:var(--text)}
+.drop-was{font-size:12px;color:var(--muted);text-decoration:line-through;font-weight:400}
 </style>
 </head>
 <body>
@@ -776,14 +801,15 @@ async function renderCategory(slug) {
         </div>
         <div class="cat-hd-desc">${c.desc}</div>
       </div>
+      <div class="sec-head"><h2>⭐ Изборът на Alex</h2></div>
+      <div class="picks-row" id="picksEl">${skRow(4,'pick-card',120)}</div>
+      <div id="trendsSection"></div>
       <div id="catStats" class="cat-stat-strip">
         <div class="cat-stat"><span class="cat-stat-n" id="statProds">…</span><span class="cat-stat-l">продукта</span></div>
         <div class="cat-stat"><span class="cat-stat-n" id="statBrands">…</span><span class="cat-stat-l">марки</span></div>
         <div class="cat-stat"><span class="cat-stat-n" id="statDeals">…</span><span class="cat-stat-l">намаления</span></div>
       </div>
       <div id="verdictEl"></div>
-      <div class="sec-head"><h2>⭐ Изборът на Alex</h2></div>
-      <div class="picks-row" id="picksEl">${skRow(4,'pick-card',120)}</div>
       <div id="segSection"></div>
       <div class="filters" id="filtersEl">
         <div class="fl-group">
@@ -820,6 +846,7 @@ async function renderCategory(slug) {
   loadBrands(slug);
   loadProds(slug);
   loadSegments(slug);
+  loadTrends(slug);
 }
 
 function skRow(n, cls, h) {
@@ -866,6 +893,91 @@ async function loadPicks(slug) {
     const pe = document.getElementById('picksEl');
     if (pe) pe.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:12px">Изборът на Alex се зарежда...</p>';
   }
+}
+
+function buildSparkline(dailyAvg) {
+  const W = 600, H = 70, PAD = 8;
+  const prices = dailyAvg.map(d => d.avg);
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const range = max - min || 1;
+  const n = prices.length;
+  const px = i => PAD + (i / (n - 1)) * (W - PAD * 2);
+  const py = v => H - PAD - ((v - min) / range) * (H - PAD * 2);
+  const pts = prices.map((v, i) => `${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(' ');
+  const areaPath = `M ${px(0).toFixed(1)},${py(prices[0]).toFixed(1)} ` +
+    prices.map((v, i) => `L ${px(i).toFixed(1)},${py(v).toFixed(1)}`).join(' ') +
+    ` L ${px(n-1).toFixed(1)},${H-PAD} L ${px(0).toFixed(1)},${H-PAD} Z`;
+  const last = prices[n-1], first = prices[0];
+  const trend = last < first ? '↓' : last > first ? '↑' : '→';
+  const trendColor = last < first ? '#16a34a' : last > first ? '#dc2626' : '#6b7280';
+  return `
+    <div class="sparkline-wrap">
+      <div class="sparkline-labels">
+        <span>${dailyAvg[0].date.slice(5)}</span>
+        <span style="color:${trendColor};font-weight:700">${trend} ${fmt(last)}</span>
+        <span>${dailyAvg[n-1].date.slice(5)}</span>
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:70px;display:block">
+        <defs><linearGradient id="sgrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.18"/>
+          <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+        </linearGradient></defs>
+        <path d="${areaPath}" fill="url(#sgrad)"/>
+        <polyline points="${pts}" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="${px(n-1).toFixed(1)}" cy="${py(last).toFixed(1)}" r="4" fill="#3b82f6"/>
+      </svg>
+      <div class="sparkline-minmax">
+        <span>мин. ${fmt(min)}</span><span>макс. ${fmt(max)}</span>
+      </div>
+    </div>`;
+}
+
+async function loadTrends(slug) {
+  try {
+    const d = await apiFetch(`/alex/trends/${slug}`);
+    const el = document.getElementById('trendsSection');
+    if (!el) return;
+
+    const sparkHtml = d.daily_avg?.length >= 2
+      ? buildSparkline(d.daily_avg)
+      : `<div class="trends-nodata">📈 Графиката ще се попълни след 7–14 дни събиране на данни</div>`;
+
+    const chips = [
+      d.avg_price     ? `<span class="trend-chip">Средна цена: <strong>${fmt(d.avg_price)}</strong></span>` : '',
+      d.on_sale_count ? `<span class="trend-chip">🏷️ ${d.on_sale_count} на промоция</span>` : '',
+      d.avg_discount  ? `<span class="trend-chip">Средно намаление: <strong>-${d.avg_discount}%</strong></span>` : '',
+      d.data_days     ? `<span class="trend-chip">${d.data_days} ${d.data_days===1?'ден':'дни'} данни</span>` : '',
+    ].filter(Boolean).join('');
+
+    const dropsHtml = d.top_drops?.length ? `
+      <div class="sec-head" style="margin-top:4px"><h2>🔥 Най-паднали цени</h2></div>
+      <div class="drops-row">${d.top_drops.map(p => `
+        <div class="drop-card" onclick="${p.url ? `window.open('${ea(p.url)}','_blank')` : ''}">
+          <div class="drop-img">${p.image_url ? `<img src="${ea(p.image_url)}" alt="" loading="lazy" onerror="this.closest('.drop-card').style.display='none'">` : ''}</div>
+          <div class="drop-badge">-${p.drop_pct}%</div>
+          <div class="drop-body">
+            <div class="drop-name">${eh(p.raw_name)}</div>
+            <div class="drop-prices">
+              <span class="drop-now">${fmt(p.price_now)}</span>
+              <span class="drop-was">${fmt(p.price_was)}</span>
+            </div>
+            <span class="store-badge ${sc(p.store)}">${sl(p.store)}</span>
+          </div>
+        </div>`).join('')}
+      </div>` : '';
+
+    el.innerHTML = `
+      <div class="trends-box">
+        <div class="trends-hd">
+          <div>
+            <div class="trends-title">📊 Пазарни тенденции</div>
+            <div class="trends-chips">${chips}</div>
+          </div>
+        </div>
+        ${sparkHtml}
+      </div>
+      ${dropsHtml}`;
+  } catch { /* silent — trends are supplementary */ }
 }
 
 async function loadBrands(slug) {

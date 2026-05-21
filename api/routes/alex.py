@@ -1456,6 +1456,89 @@ async def alex_picks_endpoint(category: str):
     return picks
 
 
+@router.get("/alex/trends/{category}")
+async def alex_trends(category: str):
+    """Daily avg price sparkline + top price-drop products for the last 30 days."""
+    from collections import defaultdict
+    try:
+        sb = get_supabase()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+
+        hist = (
+            sb.table("price_history")
+            .select("price, scraped_at, raw_name, product_url, store, image_url")
+            .eq("category", category)
+            .gte("scraped_at", cutoff)
+            .execute()
+        )
+        rows = hist.data or []
+
+        # Daily average prices
+        daily: dict = defaultdict(list)
+        for r in rows:
+            if r.get("price"):
+                daily[r["scraped_at"][:10]].append(float(r["price"]))
+        daily_avg = sorted(
+            [{"date": d, "avg": round(sum(v) / len(v), 2)} for d, v in daily.items()],
+            key=lambda x: x["date"],
+        )
+
+        # Top price drops: earliest vs latest price per URL
+        url_rows: dict = defaultdict(list)
+        for r in rows:
+            if r.get("product_url") and r.get("price"):
+                url_rows[r["product_url"]].append(r)
+
+        drops = []
+        for url, pr in url_rows.items():
+            pr.sort(key=lambda r: r["scraped_at"])
+            if len(pr) < 2:
+                continue
+            p_old = float(pr[0]["price"])
+            p_new = float(pr[-1]["price"])
+            if p_old <= p_new:
+                continue
+            drop_pct = round((p_old - p_new) / p_old * 100, 1)
+            if drop_pct < 2:
+                continue
+            lr = pr[-1]
+            drops.append({
+                "raw_name":  lr.get("raw_name", ""),
+                "url":       url,
+                "store":     lr.get("store", ""),
+                "image_url": lr.get("image_url"),
+                "price_now": p_new,
+                "price_was": p_old,
+                "drop_pct":  drop_pct,
+            })
+        drops.sort(key=lambda x: -x["drop_pct"])
+
+        # Current market stats
+        offers = (
+            sb.table("electronics_offers")
+            .select("price, discount_pct")
+            .eq("category", category)
+            .execute()
+        )
+        all_offers = offers.data or []
+        prices  = [float(o["price"]) for o in all_offers if o.get("price")]
+        on_sale = [o for o in all_offers if (o.get("discount_pct") or 0) > 0]
+        avg_disc = round(sum(o["discount_pct"] for o in on_sale) / len(on_sale), 1) if on_sale else 0
+
+        return {
+            "daily_avg":     daily_avg,
+            "top_drops":     drops[:4],
+            "avg_price":     round(sum(prices) / len(prices), 2) if prices else 0,
+            "on_sale_count": len(on_sale),
+            "total_count":   len(all_offers),
+            "avg_discount":  avg_disc,
+            "data_days":     len(daily_avg),
+        }
+    except Exception as exc:
+        logger.error("[alex/trends] %s: %s", category, exc)
+        raise HTTPException(status_code=500, detail="Грешка при зареждане")
+
+
 @router.get("/alex/segments/{category}")
 async def alex_segments(category: str):
     """3 price-segment rows for the category page — top 6 products per tier."""
