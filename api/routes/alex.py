@@ -519,6 +519,7 @@ ALEX_TOOLS = [
 
 def _exec_search_products(args: dict) -> list[dict]:
     query = args.get("query", "").strip()
+    _log_search(query, args.get("category"))
     limit = min(int(args.get("limit", 10)), 30)
 
     # Try Supabase first
@@ -560,6 +561,20 @@ def _apply_blocklist(products: list[dict], category: str) -> list[dict]:
     if not words:
         return products
     return [p for p in products if not any(w in p.get("raw_name", "").lower() for w in words)]
+
+
+def _log_search(query: str, category: str | None = None) -> None:
+    """Fire-and-forget: log search query for trending analytics."""
+    if not query or len(query.strip()) < 2:
+        return
+    try:
+        sb = get_supabase()
+        sb.table("search_queries").insert({
+            "query":    query.lower().strip()[:120],
+            "category": category or None,
+        }).execute()
+    except Exception:
+        pass
 
 
 def _exec_get_prices(args: dict) -> list[dict]:
@@ -2145,6 +2160,70 @@ async def test_email(secret: str = Query("")):
         smtp_port=settings.smtp_port,
     )
     return {"ok": ok, "message": msg}
+
+
+@router.get("/alex/related")
+async def related_products(
+    category:    str   = Query(""),
+    price:       float = Query(0),
+    exclude_url: str   = Query(""),
+    limit:       int   = Query(6),
+):
+    """Return related products: same category, price ±40%, different URL."""
+    limit = min(limit, 12)
+    try:
+        sb = get_supabase()
+        q = (
+            sb.table("electronics_offers")
+            .select("raw_name, brand, category, price, old_price, discount_pct, store, image_url, url, alex_score")
+            .eq("category", category)
+            .order("alex_score", desc=True)
+            .limit(40)
+        )
+        if price:
+            q = q.gte("price", price * 0.6).lte("price", price * 1.4)
+        resp = q.execute()
+        results = [r for r in (resp.data or []) if r.get("url") != exclude_url]
+        return {"results": results[:limit]}
+    except Exception as exc:
+        logger.warning("[related] DB failed, using local: %s", exc)
+        offers = _load_local()
+        results = [
+            o for o in offers
+            if o.get("category") == category
+            and o.get("url") != exclude_url
+            and (not price or abs(float(o.get("price", 0)) - price) / max(price, 1) <= 0.4)
+        ]
+        results.sort(key=lambda x: x.get("alex_score", 0) or 0, reverse=True)
+        return {"results": results[:limit]}
+
+
+@router.get("/alex/trending")
+async def trending_searches(
+    category: str = Query(""),
+    limit:    int = Query(8),
+    days:     int = Query(7),
+):
+    """Return top searched queries in the last N days."""
+    limit = min(limit, 20)
+    try:
+        from datetime import timezone, timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        sb = get_supabase()
+        q = sb.table("search_queries").select("query").gte("searched_at", cutoff)
+        if category:
+            q = q.eq("category", category)
+        resp = q.execute()
+        counts: dict[str, int] = {}
+        for row in (resp.data or []):
+            w = (row.get("query") or "").strip()
+            if w and len(w) >= 2:
+                counts[w] = counts.get(w, 0) + 1
+        top = sorted(counts.items(), key=lambda x: -x[1])[:limit]
+        return {"trending": [{"query": q, "count": c} for q, c in top]}
+    except Exception as exc:
+        logger.warning("[trending] failed: %s", exc)
+        return {"trending": []}
 
 
 @router.get("/alex/stats")
