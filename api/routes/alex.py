@@ -1057,9 +1057,61 @@ def _match_product(name: str, products: list[dict]) -> dict | None:
     return best if best_hits >= 2 else None
 
 
+def _picks_candidates(category: str) -> list[dict]:
+    """Fetch pick candidates via direct Supabase query, filtered by quality_min."""
+    min_price = _CAT_MIN_PRICE.get(category, 0)
+    blocklist = [w.lower() for w in _CAT_BLOCKLIST.get(category, [])]
+
+    # Try Supabase first (fast path — no bulk load)
+    try:
+        sb = get_supabase()
+        q = (
+            sb.table("electronics_offers")
+            .select("raw_name, brand, category, price, old_price, discount_pct, store, image_url, url")
+            .eq("category", category)
+            .not_.is_("image_url", "null")
+            .neq("image_url", "")
+        )
+        if min_price:
+            q = q.gte("price", min_price)
+        resp = q.order("price", desc=False).limit(60).execute()
+        prods = resp.data or []
+    except Exception as exc:
+        logger.warning("[alex/picks_candidates] Supabase failed for %s: %s", category, exc)
+        # Fall back to in-memory cache (works locally where JSON files exist)
+        prods = [
+            o for o in _load_local()
+            if o.get("category") == category
+            and o.get("image_url")
+            and (o.get("price") or 0) >= min_price
+        ]
+
+    # Apply blocklist and score
+    candidates = []
+    for p in prods:
+        name_lower = (p.get("raw_name") or "").lower()
+        if any(bl in name_lower for bl in blocklist):
+            continue
+        candidates.append({
+            "raw_name":    p.get("raw_name", ""),
+            "brand":       p.get("brand", ""),
+            "category":    category,
+            "price":       p.get("price") or 0,
+            "old_price":   p.get("old_price"),
+            "discount_pct": p.get("discount_pct"),
+            "store":       p.get("store", ""),
+            "image_url":   p.get("image_url", ""),
+            "url":         p.get("url", ""),
+        })
+
+    # Sort by Alex Score descending so Claude sees the best candidates first
+    candidates.sort(key=lambda x: alex_score(x), reverse=True)
+    return candidates[:25]
+
+
 def _generate_picks(category: str) -> dict | None:
     settings = get_settings()
-    products = _local_search(query="", category=category, limit=25)
+    products = _picks_candidates(category)
     if len(products) < 4:
         return None
 
