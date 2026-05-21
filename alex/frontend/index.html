@@ -271,8 +271,9 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .cpp-price{font-size:13px;font-weight:700;color:var(--text);margin-top:3px}
 .cpp-store{font-size:10px;color:var(--muted);margin-top:1px}
 @media(max-width:900px){.chat-prods-panel{display:none!important}}
+@media(min-width:901px){.chat-prod-grid{display:none!important}}
 
-/* Product grid inside chat — 3 columns */
+/* Product grid inside chat — 3 columns (mobile only) */
 .chat-prod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:10px}
 .chat-prod{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;transition:all .15s}
 .chat-prod:hover{border-color:var(--blue);transform:translateY(-1px);box-shadow:var(--sh)}
@@ -1384,7 +1385,7 @@ function sendChat() {
 async function sendChatText(txt) {
   if (!txt || _chatBusy) return;
   document.getElementById('chatWelcome')?.remove();
-  if (_chatMsgs.length === 0) { _cardsShown = false; _clearSidePanel(); }
+  _clearSidePanel();
   addChatMsg('user', txt);
   _chatMsgs.push({role:'user', content:txt});
   const id = 'cm' + Date.now();
@@ -1441,11 +1442,7 @@ async function streamChat(id) {
       if (data.text)  { full += data.text; updBubble(id, full); }
       if (data.tool)  { showTool(id, data.tool, data.input); }
       if (data.products?.length) {
-        const isPrice = data.tool === 'get_prices';
-        if (isPrice || !_cardsShown) {
-          if (!isPrice) _cardsShown = true;
-          showChatProds(id, data.products, data.tool, data.input);
-        }
+        showChatProds(id, data.products, data.tool, data.input);
       }
     }
   }
@@ -1521,10 +1518,13 @@ function showChatProds(id, products, tool, input) {
   } else {
     const filtered = products.filter(p => p.image_url).slice(0, 9);
 
-    // Side panel (desktop) — compact list cards
+    // Side panel (desktop) — replace with latest search results
+    _clearSidePanel();
     _addToSidePanel(filtered);
 
     // In-bubble grid (mobile only, hidden on desktop via CSS)
+    // Remove any previous grid in this message bubble before adding new one
+    el.querySelector('.chat-prod-grid')?.remove();
     box.className = 'chat-prod-grid';
     filtered.forEach(p => {
       const card = document.createElement('div');
@@ -1591,6 +1591,7 @@ function _addToSidePanel(products) {
         <div class="cpp-name">${eh(p.raw_name)}</div>
         <div class="cpp-price">${fmt(p.price)}${p.old_price?` <span style="font-size:10px;color:var(--muted);text-decoration:line-through;font-weight:400">${fmt(p.old_price)}</span>`:''}</div>
         <div class="cpp-store"><span class="store-badge ${sc(p.store)}">${sl(p.store)}</span></div>
+        ${p.url ? `<a href="${ea(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:11px;color:var(--blue);font-weight:600;text-decoration:none;margin-top:3px;display:inline-block">Виж в магазина →</a>` : ''}
       </div>`;
     c.onclick = () => {
       showVerdict({
@@ -1663,6 +1664,7 @@ function mdRender(escapedHtml) {
     l = l.replace(/\*(.+?)\*/g, '<em>$1</em>');
     l = l.replace(/^### (.+)$/, '<h3>$1</h3>');
     l = l.replace(/^## (.+)$/, '<h2>$1</h2>');
+    l = l.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--blue);font-weight:600;text-decoration:none">$1</a>');
     out += l + '<br>';
     i++;
   }
@@ -1673,10 +1675,12 @@ function buildMdTable(lines) {
   const dataLines = lines.filter(l => !/^\|[\s\-\|:]+\|$/.test(l));
   if (!dataLines.length) return lines.join('<br>');
   let html = '<table>';
+  const mdLinks = s => s.replace(/\[([^\]]+)\]\(([^)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--blue);font-weight:600;text-decoration:none">$1</a>');
   dataLines.forEach((line, idx) => {
     const cells = line.split('|').filter((_,j,arr) => j>0 && j<arr.length-1);
     const tag = idx===0 ? 'th' : 'td';
-    html += `<tr>${cells.map(c=>`<${tag}>${c.trim()}</${tag}>`).join('')}</tr>`;
+    html += `<tr>${cells.map(c=>`<${tag}>${mdLinks(c.trim())}</${tag}>`).join('')}</tr>`;
   });
   html += '</table>';
   return html;
