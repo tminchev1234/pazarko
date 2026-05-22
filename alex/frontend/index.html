@@ -185,6 +185,26 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .pick-reason{font-size:11px;color:var(--muted);line-height:1.4}
 .pick-ft{display:flex;align-items:center;justify-content:space-between;padding:7px 11px;border-top:1px solid var(--border);background:#f9fafb}
 
+/* ── TOP DEAL CARD ── */
+.top-deal-wrap{margin-bottom:24px}
+.top-deal-lbl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px}
+.top-deal-card{background:var(--surface);border:2px solid var(--blue);border-radius:var(--radius);box-shadow:0 2px 16px rgba(59,130,246,.13);display:flex;overflow:hidden;cursor:pointer;transition:all .18s}
+.top-deal-card:hover{transform:translateY(-2px);box-shadow:0 6px 24px rgba(59,130,246,.22)}
+.td-img-col{width:210px;min-width:170px;flex-shrink:0;background:#f9fafb;position:relative;display:flex;align-items:center;justify-content:center}
+.td-img-col img{width:100%;height:100%;min-height:180px;max-height:220px;object-fit:contain;padding:14px}
+.td-disc-badge{position:absolute;top:10px;left:10px;background:var(--red);color:#fff;font-size:11px;font-weight:700;padding:3px 8px;border-radius:5px}
+.td-body-col{padding:20px 24px;flex:1;display:flex;flex-direction:column;justify-content:center;gap:9px}
+.td-badge-pill{display:inline-flex;align-items:center;gap:5px;background:rgba(59,130,246,.1);color:var(--blue);font-size:11px;font-weight:700;padding:4px 11px;border-radius:20px;border:1px solid rgba(59,130,246,.25);width:fit-content}
+.td-name{font-size:15px;font-weight:700;line-height:1.35;color:var(--text)}
+.td-why{font-size:12px;color:var(--muted);line-height:1.45}
+.td-price-row{display:flex;align-items:baseline;gap:10px}
+.td-price{font-size:26px;font-weight:800;color:var(--text)}
+.td-old-price{font-size:13px;color:var(--muted);text-decoration:line-through}
+.td-foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.td-btn{background:var(--blue);color:#fff;font-size:13px;font-weight:600;padding:9px 20px;border-radius:8px;text-decoration:none;transition:background .15s;white-space:nowrap}
+.td-btn:hover{background:#2563eb}
+@media(max-width:600px){.top-deal-card{flex-direction:column}.td-img-col{width:100%;min-height:160px}.td-body-col{padding:14px 16px}}
+
 /* ── FILTERS ── */
 .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:18px;box-shadow:var(--sh)}
 .fl-group{display:flex;align-items:center;gap:7px}
@@ -929,6 +949,7 @@ async function renderCategory(slug) {
         </div>
         <div class="cat-hd-desc">${c.desc}</div>
       </div>
+      <div id="topDealEl"></div>
       <div class="sec-head"><h2>⭐ Изборът на Alex</h2></div>
       <div class="picks-row" id="picksEl">${skRow(4,'pick-card',120)}</div>
       <div id="trendsSection"></div>
@@ -970,6 +991,7 @@ async function renderCategory(slug) {
   const defMin = _CAT_DEF_MIN[slug] || '';
   _catF = {brand:'', min: defMin ? String(defMin) : '', max:'', sort:'price_asc'};
   if (defMin) { const f = document.getElementById('fMin'); if (f) f.value = defMin; }
+  loadTopDeal(slug);
   loadPicks(slug);
   loadBrands(slug);
   loadProds(slug);
@@ -984,6 +1006,53 @@ function skRow(n, cls, h) {
       <div class="sk-img" style="height:${h}px"></div>
       <div class="sk-body"><div class="sk-ln w80"></div><div class="sk-ln w60"></div><div class="sk-ln w40"></div></div>
     </div>`).join('');
+}
+
+async function loadTopDeal(slug) {
+  const el = document.getElementById('topDealEl');
+  if (!el) return;
+  const _BADGE_ICO = {
+    'Историческо дъно': '📉',
+    'Под 30-дн. средна': '📊',
+    'Топ намаление': '🔥',
+    'Намалена цена': '🏷️',
+    'Добра цена': '✅',
+    'Най-добра стойност': '⭐',
+  };
+  try {
+    const d = await apiFetch(`/alex/category-top-deal?category=${slug}`);
+    if (!d.deal) { el.innerHTML = ''; return; }
+    const p = d.deal;
+    const ico = _BADGE_ICO[p.badge] || '⭐';
+    el.innerHTML = `
+      <div class="top-deal-wrap">
+        <div class="top-deal-lbl">🏆 Топ оферта в категорията</div>
+        <div class="top-deal-card"
+          data-name="${ea(p.raw_name)}" data-price="${p.price}"
+          data-oldprice="${p.old_price||''}" data-disc="${p.discount_pct||''}"
+          data-store="${ea(p.store)}" data-img="${ea(p.image_url||'')}"
+          data-url="${ea(p.url||'')}" data-score="${p.alex_score||''}"
+          onclick="showVerdictFromCard(this)">
+          <div class="td-img-col">
+            ${p.image_url ? `<img src="${ea(imgProxy(p.image_url))}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.closest('.td-img-col').innerHTML='<span style=font-size:52px>${catIcon(slug)}</span>'">` : `<span style="font-size:52px">${catIcon(slug)}</span>`}
+            ${p.discount_pct ? `<span class="td-disc-badge">-${p.discount_pct}%</span>` : ''}
+          </div>
+          <div class="td-body-col">
+            <div class="td-badge-pill">${ico} ${eh(p.badge)}</div>
+            <div class="td-name">${eh(p.raw_name)}</div>
+            ${p.why ? `<div class="td-why">${eh(p.why)}</div>` : ''}
+            <div class="td-price-row">
+              <span class="td-price">${fmt(p.price)}</span>
+              ${p.old_price ? `<span class="td-old-price">${fmt(p.old_price)}</span>` : ''}
+            </div>
+            <div class="td-foot">
+              ${storeBadge(p.store)}
+              <a href="${ea(p.url)}" target="_blank" rel="noopener" class="td-btn" onclick="event.stopPropagation()">Виж офертата →</a>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  } catch { el.innerHTML = ''; }
 }
 
 async function loadPicks(slug) {

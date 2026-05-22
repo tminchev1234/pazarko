@@ -14,7 +14,7 @@ import json
 import logging
 import re
 import time as _time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import AsyncIterator, List, Optional, Any
 from urllib.parse import urlparse
@@ -1403,6 +1403,9 @@ _PICKS_TTL   = 6 * 3600  # 6 hours
 _VERDICT_CACHE: dict[str, dict] = {}
 _VERDICT_TTL   = 12 * 3600  # 12 hours
 
+_TOP_DEAL_CACHE: dict[str, tuple[float, dict]] = {}  # category -> (ts, result)
+_TOP_DEAL_TTL   = 3 * 3600  # 3 hours
+
 # ── Homepage Picks cache ───────────────────────────────────────────────────────
 
 _HOME_PICKS_CACHE: dict | None = None
@@ -2603,6 +2606,139 @@ def _alex_score(p: dict) -> float:
     if 50 <= price <= 500: score += 0.5
 
     return round(min(score, 10.0), 1)
+
+
+@router.get("/alex/category-top-deal")
+async def category_top_deal(category: str = Query(...)):
+    """Best-value product in a category, scored by price history + discount."""
+    now = _time.time()
+    cached = _TOP_DEAL_CACHE.get(category)
+    if cached and now - cached[0] < _TOP_DEAL_TTL:
+        return cached[1]
+
+    # 1. Candidates from Supabase (or local fallback)
+    try:
+        sb = get_supabase()
+        resp = (
+            sb.table("electronics_offers")
+            .select("raw_name, brand, category, price, old_price, discount_pct, store, image_url, url")
+            .eq("category", category)
+            .not_.is_("image_url", "null")
+            .neq("image_url", "")
+            .not_.is_("price", "null")
+            .gt("price", 0)
+            .order("discount_pct", desc=True)
+            .limit(40)
+            .execute()
+        )
+        candidates = resp.data or []
+    except Exception:
+        candidates = [
+            p for p in _load_local()
+            if p.get("category") == category and p.get("image_url") and p.get("price", 0) > 0
+        ][:40]
+
+    if not candidates:
+        return {"deal": None}
+
+    # Filter blocklist + min price
+    blocklist = [w.lower() for w in _CAT_BLOCKLIST.get(category, [])]
+    min_price = _CAT_MIN_PRICE.get(category, 0)
+    candidates = [
+        p for p in candidates
+        if (p.get("price") or 0) >= min_price
+        and not any(bl in (p.get("raw_name") or "").lower() for bl in blocklist)
+    ]
+    if not candidates:
+        return {"deal": None}
+
+    # 2. Fetch 30-day price history for candidate URLs in one batch
+    urls = [p["url"] for p in candidates if p.get("url")][:30]
+    history_by_url: dict[str, list[float]] = {}
+    try:
+        sb = get_supabase()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        hist_resp = (
+            sb.table("price_history")
+            .select("product_url, price")
+            .in_("product_url", urls)
+            .gte("scraped_at", cutoff)
+            .execute()
+        )
+        for row in (hist_resp.data or []):
+            u = row.get("product_url")
+            v = row.get("price")
+            if u and v:
+                history_by_url.setdefault(u, []).append(float(v))
+    except Exception:
+        pass
+
+    # 3. Score each candidate
+    def _deal_score(p: dict) -> tuple[float, str, str]:
+        url     = p.get("url", "")
+        current = float(p.get("price") or 0)
+        disc    = float(p.get("discount_pct") or 0)
+        hist    = history_by_url.get(url, [])
+        score   = disc * 0.6
+        badge   = ""
+        why     = ""
+
+        if len(hist) >= 3:
+            avg30 = sum(hist) / len(hist)
+            min30 = min(hist)
+            pct_below = (avg30 - current) / avg30 * 100 if avg30 > 0 else 0
+            at_low = current <= min30 * 1.05
+
+            if at_low and pct_below >= 8:
+                score += 40 + pct_below
+                badge = "Историческо дъно"
+                why   = f"На {current:.0f}€ — {pct_below:.0f}% под средната за 30 дни"
+            elif pct_below >= 12:
+                score += 25 + pct_below
+                badge = "Под 30-дн. средна"
+                why   = f"{pct_below:.0f}% под средната за последния месец ({avg30:.0f}€)"
+            elif pct_below >= 5:
+                score += 10 + pct_below
+                badge = "Добра цена"
+                why   = f"{pct_below:.0f}% под средната за 30 дни"
+
+        if not badge:
+            if disc >= 25:
+                score += 20 + disc
+                badge = "Топ намаление"
+                old   = p.get("old_price") or 0
+                why   = f"Намалена с {disc:.0f}%" + (f" от {old:.0f}€" if old else "")
+            elif disc >= 10:
+                score += 10 + disc
+                badge = "Намалена цена"
+                old   = p.get("old_price") or 0
+                why   = f"Намалена с {disc:.0f}%" + (f" от {old:.0f}€" if old else "")
+            else:
+                badge = "Най-добра стойност"
+                why   = "Топ съотношение качество-цена в категорията"
+
+        score += (alex_score(p) - 6.0) * 2
+        return score, badge, why
+
+    best_p, best_s, best_badge, best_why = None, -999.0, "", ""
+    for p in candidates:
+        s, badge, why = _deal_score(p)
+        if s > best_s:
+            best_s, best_p, best_badge, best_why = s, p, badge, why
+
+    if not best_p:
+        return {"deal": None}
+
+    result = {
+        "deal": {
+            **best_p,
+            "badge":      best_badge,
+            "why":        best_why,
+            "alex_score": alex_score(best_p),
+        }
+    }
+    _TOP_DEAL_CACHE[category] = (now, result)
+    return result
 
 
 @router.get("/alex/homepage-picks")
