@@ -127,6 +127,8 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 /* ── DEALS SCROLL ── */
 /* ── HOME PICKS GRID ── */
 .home-picks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:8px}
+.home-picks-row2-head{display:flex;align-items:center;gap:10px;margin:20px 0 10px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+.home-picks-row2-head::before,.home-picks-row2-head::after{content:'';flex:1;height:1px;background:var(--border)}
 .home-pick-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:all .18s;box-shadow:var(--sh);display:flex;flex-direction:column}
 .home-pick-card:hover{transform:translateY(-3px);box-shadow:var(--sh-md);border-color:var(--blue)}
 .home-pick-img{width:100%;height:140px;background:#f9fafb;display:flex;align-items:center;justify-content:center;font-size:40px;position:relative;overflow:hidden}
@@ -889,7 +891,11 @@ async function renderHome() {
         <h2>⭐ Изборът на Alex</h2>
         <span style="font-size:12px;color:var(--muted)">Топ стойност тази седмица — от всички категории</span>
       </div>
-      <div class="home-picks-grid" id="homePicksGrid">${skRow(6,'home-pick-card',140)}</div>
+      <div class="home-picks-grid" id="homePicksRow1">${skRow(6,'home-pick-card',140)}</div>
+      <div id="homePicksRow2Wrap" style="display:none">
+        <div class="home-picks-row2-head">Още категории</div>
+        <div class="home-picks-grid" id="homePicksRow2"></div>
+      </div>
 
       <div style="background:linear-gradient(135deg,#1e1b4b,#1e3a5f);border-radius:var(--radius);padding:32px;text-align:center;margin-top:40px;color:#fff">
         <div style="font-size:32px;margin-bottom:12px">🤖</div>
@@ -983,38 +989,51 @@ async function loadDayPick() {
   } catch(e) { console.error(e); el.style.display='none'; }
 }
 
+function _pickCardHtml(p) {
+  return `<div class="home-pick-card"
+      data-name="${ea(p.raw_name)}" data-price="${p.price}"
+      data-oldprice="${p.old_price||''}" data-disc="${p.discount_pct||''}"
+      data-store="${ea(p.store)}" data-img="${ea(p.image_url||'')}"
+      data-url="${ea(p.url||'')}" data-score="${p.alex_score||''}"
+      onclick="showVerdictFromCard(this)" style="cursor:pointer">
+      <div class="home-pick-img">
+        ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="imgErr(this,'${catIcon(p.category)}')">`:
+        `<span style="font-size:40px">${catIcon(p.category)}</span>`}
+        ${p.discount_pct?`<span class="home-pick-disc">-${p.discount_pct}%</span>`:''}
+      </div>
+      <div class="home-pick-body">
+        <div class="home-pick-cat">${eh(p.cat_label)}</div>
+        <div class="home-pick-name">${eh(p.raw_name)}</div>
+        <div class="home-pick-foot">
+          <div>
+            <span class="home-pick-price">${fmt(p.price)}</span>
+            ${p.old_price?`<span class="home-pick-old">${fmt(p.old_price)}</span>`:''}
+          </div>
+          ${storeBadge(p.store)}
+        </div>
+        ${p.url?`<a class="home-pick-link" href="${ea(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Виж офертата →</a>`:''}
+      </div>
+    </div>`;
+}
+
 async function loadHomePicks() {
-  const el = document.getElementById('homePicksGrid');
-  if (!el) return;
+  const row1El = document.getElementById('homePicksRow1');
+  const row2El = document.getElementById('homePicksRow2');
+  const row2Wrap = document.getElementById('homePicksRow2Wrap');
+  if (!row1El) return;
   try {
     const d = await apiFetch('/alex/homepage-picks');
-    if (!d.picks?.length) { el.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-ico">📭</div><p>Зарежда се...</p></div>'; return; }
-    el.innerHTML = d.picks.filter(p => p.image_url).map(p => `
-      <div class="home-pick-card"
-        data-name="${ea(p.raw_name)}" data-price="${p.price}"
-        data-oldprice="${p.old_price||''}" data-disc="${p.discount_pct||''}"
-        data-store="${ea(p.store)}" data-img="${ea(p.image_url||'')}"
-        data-url="${ea(p.url||'')}" data-score="${p.alex_score||''}"
-        onclick="showVerdictFromCard(this)" style="cursor:pointer">
-        <div class="home-pick-img">
-          ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="imgErr(this,'${catIcon(p.category)}')">`:
-          `<span style="font-size:40px">${catIcon(p.category)}</span>`}
-          ${p.discount_pct?`<span class="home-pick-disc">-${p.discount_pct}%</span>`:''}
-        </div>
-        <div class="home-pick-body">
-          <div class="home-pick-cat">${eh(p.cat_label)}</div>
-          <div class="home-pick-name">${eh(p.raw_name)}</div>
-          <div class="home-pick-foot">
-            <div>
-              <span class="home-pick-price">${fmt(p.price)}</span>
-              ${p.old_price?`<span class="home-pick-old">${fmt(p.old_price)}</span>`:''}
-            </div>
-            ${storeBadge(p.store)}
-          </div>
-          ${p.url?`<a class="home-pick-link" href="${ea(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Виж офертата →</a>`:''}
-        </div>
-      </div>`).join('');
-  } catch(e) { console.error(e); el.innerHTML = ''; }
+    const all = (d.picks || []).filter(p => p.image_url);
+    if (!all.length) { row1El.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="empty-ico">📭</div><p>Зарежда се...</p></div>'; return; }
+    const split = d.row1_count || all.length;
+    const row1 = all.slice(0, split);
+    const row2 = all.slice(split);
+    row1El.innerHTML = row1.map(_pickCardHtml).join('');
+    if (row2.length && row2El && row2Wrap) {
+      row2El.innerHTML = row2.map(_pickCardHtml).join('');
+      row2Wrap.style.display = '';
+    }
+  } catch(e) { console.error(e); row1El.innerHTML = ''; }
 }
 
 // ═══════════════════════════════════════

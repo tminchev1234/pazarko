@@ -3049,21 +3049,56 @@ async def homepage_picks(limit: int = Query(12, le=24)):
         p["cat_label"]  = _CAT_LABELS.get(p.get("category", ""), p.get("category", ""))
     candidates.sort(key=lambda x: x["alex_score"], reverse=True)
 
-    # Best per category, max 2 per store — prevents one store dominating
-    by_cat: dict[str, dict] = {}
-    store_count: dict[str, int] = {}
+    selected: list[dict] = []
+    sel_cats:   set[str] = set()
+    sel_stores: set[str] = set()
+    sel_urls:   set[str] = set()
+
+    def _add(p: dict) -> None:
+        key = p.get("url") or p.get("raw_name", "")
+        if key in sel_urls:
+            return
+        selected.append(p)
+        sel_cats.add(p.get("category", "other"))
+        sel_stores.add(p.get("store", ""))
+        sel_urls.add(key)
+
+    # Pass 1: ideal — both category and store are new (max diversity)
+    for p in candidates:
+        if p.get("category", "other") not in sel_cats and p.get("store", "") not in sel_stores:
+            _add(p)
+
+    # Pass 2: ensure every store has at least one pick (row 1 guarantee)
+    for p in candidates:
+        if p.get("store", "") not in sel_stores:
+            _add(p)
+
+    row1_count = len(selected)  # everything so far = row 1 (one per store)
+
+    # Pass 3: fill row 2 with remaining categories (max 1 more per store)
+    store_cnt: dict[str, int] = {}
+    for p in selected:
+        store_cnt[p.get("store", "")] = store_cnt.get(p.get("store", ""), 0) + 1
+
     for p in candidates:
         cat   = p.get("category", "other")
         store = p.get("store", "")
-        if cat in by_cat:
+        if cat in sel_cats:
             continue
-        if store_count.get(store, 0) >= 2:
+        if store_cnt.get(store, 0) >= 2:
             continue
-        by_cat[cat] = p
-        store_count[store] = store_count.get(store, 0) + 1
+        key = p.get("url") or p.get("raw_name", "")
+        if key in sel_urls:
+            continue
+        selected.append(p)
+        sel_cats.add(cat)
+        store_cnt[store] = store_cnt.get(store, 0) + 1
 
-    picks = sorted(by_cat.values(), key=lambda x: x["alex_score"], reverse=True)[:limit]
-    return {"picks": picks, "count": len(picks)}
+    # Sort each row by score independently
+    row1 = sorted(selected[:row1_count], key=lambda x: x["alex_score"], reverse=True)
+    row2 = sorted(selected[row1_count:], key=lambda x: x["alex_score"], reverse=True)
+    picks = (row1 + row2)[:limit]
+    return {"picks": picks, "row1_count": row1_count, "count": len(picks)}
 
 
 @router.post("/alex/subscribe")
