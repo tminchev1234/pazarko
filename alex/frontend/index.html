@@ -994,7 +994,7 @@ async function loadDayPick() {
   } catch(e) { console.error(e); el.style.display='none'; }
 }
 
-function _pickCardHtml(p) {
+function _pickCardHtml(p, showDisc = true) {
   return `<div class="home-pick-card"
       data-name="${ea(p.raw_name)}" data-price="${p.price}"
       data-oldprice="${p.old_price||''}" data-disc="${p.discount_pct||''}"
@@ -1004,7 +1004,7 @@ function _pickCardHtml(p) {
       <div class="home-pick-img">
         ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="imgErr(this,'${catIcon(p.category)}')">`:
         `<span style="font-size:40px">${catIcon(p.category)}</span>`}
-        ${p.discount_pct?`<span class="home-pick-disc">-${p.discount_pct}%</span>`:''}
+        ${showDisc && p.discount_pct?`<span class="home-pick-disc">-${p.discount_pct}%</span>`:''}
       </div>
       <div class="home-pick-body">
         <div class="home-pick-cat">${eh(p.cat_label)}</div>
@@ -1012,7 +1012,7 @@ function _pickCardHtml(p) {
         <div class="home-pick-foot">
           <div>
             <span class="home-pick-price">${fmt(p.price)}</span>
-            ${p.old_price?`<span class="home-pick-old">${fmt(p.old_price)}</span>`:''}
+            ${showDisc && p.old_price?`<span class="home-pick-old">${fmt(p.old_price)}</span>`:''}
           </div>
           ${storeBadge(p.store)}
         </div>
@@ -1033,14 +1033,14 @@ async function loadHomePicks() {
     const r1 = (d.row1 || []).filter(p => p.image_url);
     const r2 = (d.row2 || []).filter(p => p.image_url);
     const r3 = (d.row3 || []).filter(p => p.image_url);
-    row1El.innerHTML = r1.length ? r1.map(_pickCardHtml).join('') :
+    row1El.innerHTML = r1.length ? r1.map(p => _pickCardHtml(p, false)).join('') :
       '<div class="empty" style="grid-column:1/-1"><div class="empty-ico">📭</div><p>Зарежда се...</p></div>';
     if (r2.length && row2El && row2Wrap) {
-      row2El.innerHTML = r2.map(_pickCardHtml).join('');
+      row2El.innerHTML = r2.map(p => _pickCardHtml(p, false)).join('');
       row2Wrap.style.display = '';
     }
     if (r3.length && row3El && row3Wrap) {
-      row3El.innerHTML = r3.map(_pickCardHtml).join('');
+      row3El.innerHTML = r3.map(p => _pickCardHtml(p, true)).join('');
       row3Wrap.style.display = '';
     }
   } catch(e) { console.error(e); row1El.innerHTML = ''; }

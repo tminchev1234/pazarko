@@ -3059,13 +3059,13 @@ async def homepage_picks():
     try:
         sb = get_supabase()
 
-        # Row 1 — tech (phones, laptops, tvs, tablets, headphones)
+        # Row 1 — tech picks (max 1 per store for diversity)
         tech_raw = _hp_fetch_cats(sb, _HP_ROW1_CATS)
-        row1 = _hp_score_and_pick(tech_raw, _HP_ROW1_CATS)
+        row1 = _hp_score_and_pick(tech_raw, _HP_ROW1_CATS, max_per_store=1)
 
-        # Row 2 — white goods (washing, vacuum, ac, fridges, cooking)
+        # Row 2 — white goods picks (max 1 per store for diversity)
         app_raw = _hp_fetch_cats(sb, _HP_ROW2_CATS)
-        row2 = _hp_score_and_pick(app_raw, _HP_ROW2_CATS)
+        row2 = _hp_score_and_pick(app_raw, _HP_ROW2_CATS, max_per_store=1)
 
         # Row 3 — top deals this week (≥10% discount, not already shown, max 1 per store)
         shown_urls = {p.get("url", "") for p in row1 + row2}
