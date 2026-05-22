@@ -17,9 +17,11 @@ import time as _time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import AsyncIterator, List, Optional, Any
+from urllib.parse import urlparse
 
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import StreamingResponse
+import httpx
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse, Response
 from pydantic import BaseModel
 import anthropic
 
@@ -28,6 +30,56 @@ from api.db import get_supabase
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["alex"])
+
+# ── Image proxy ────────────────────────────────────────────────────────────────
+# Bulgarian store CDNs block hotlinking. We proxy images server-side to avoid 403s.
+
+_ALLOWED_IMG_HOSTS = {
+    "cdn.emag.bg", "emag.bg",
+    "technopolis.bg", "www.technopolis.bg",
+    "technomarket.bg", "www.technomarket.bg",
+    "ardes.bg", "www.ardes.bg",
+    "technomix.bg", "www.technomix.bg",
+    "zorashop.bg", "www.zorashop.bg",
+    "frankfurt.apollo.olxcdn.com",
+    "bazar.bg", "www.bazar.bg",
+    "img.bazar.bg",
+}
+
+
+@router.get("/alex/img")
+async def img_proxy(url: str = Query(...)):
+    """Proxy product images to bypass store hotlink protection."""
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ("http", "https"):
+            raise HTTPException(400, "Invalid URL scheme")
+        host = parsed.netloc.lstrip("www.").lower()
+        # Allow if host or its parent is in whitelist
+        if not any(parsed.netloc.lower() == h or parsed.netloc.lower().endswith("." + h)
+                   for h in _ALLOWED_IMG_HOSTS):
+            raise HTTPException(403, "Host not allowed")
+
+        async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+            r = await client.get(url, headers={
+                "User-Agent": "Mozilla/5.0 (compatible; Pazarko/1.0)",
+                "Referer": parsed.scheme + "://" + parsed.netloc + "/",
+            })
+        if r.status_code != 200:
+            raise HTTPException(502, f"Upstream returned {r.status_code}")
+
+        ct = r.headers.get("content-type", "image/jpeg")
+        return Response(
+            content=r.content,
+            media_type=ct,
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.debug("[img-proxy] %s — %s", url[:80], exc)
+        raise HTTPException(502, "Could not fetch image")
+
 
 # ── Local JSON fallback ────────────────────────────────────────────────────────
 # When PostgREST schema cache is broken, we read from local JSON files.
