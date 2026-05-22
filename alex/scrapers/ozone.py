@@ -143,47 +143,42 @@ def _parse_page(soup: BeautifulSoup, cat_url: str) -> list[dict]:
     cards = soup.select('li.product-item, div.product-item')
 
     for card in cards:
-        # Name
-        name_el = card.select_one('.product-name a, .product-item-name a, h2.product-name a')
-        if not name_el:
-            continue
-        name = name_el.get_text(strip=True)
+        # Name + link — first text-bearing anchor in the card
+        name = ""
+        href = ""
+        for a in card.select('a[href]'):
+            text = a.get_text(strip=True)
+            if text and len(text) > 5:
+                name = text
+                href = a.get('href', '')
+                if href and not href.startswith('http'):
+                    href = BASE_URL + href
+                break
         if not name or len(name) < 4:
             continue
 
-        # Link
-        href = name_el.get('href', '')
-        if href and not href.startswith('http'):
-            href = BASE_URL + href
-
-        # Price — try sale price first, then regular price
+        # Price — Ozone uses .special-price for sale price, .pcd-price for old/RRP
+        # Non-sale items use a bare .price span
         price: Optional[float] = None
         old_price: Optional[float] = None
 
-        special_el = card.select_one('.special-price .price, .special-price')
-        regular_el = card.select_one('.regular-price .price, .regular-price')
-        old_el     = card.select_one('.old-price .price, .old-price')
+        special_el = card.select_one('.special-price')
+        pcd_el     = card.select_one('.pcd-price')
+        price_el   = card.select_one('.price')
 
         if special_el:
             price = _parse_price(special_el.get_text(strip=True))
-            if old_el:
-                old_price = _parse_price(old_el.get_text(strip=True))
-            elif regular_el:
-                old_price = _parse_price(regular_el.get_text(strip=True))
-        elif regular_el:
-            price = _parse_price(regular_el.get_text(strip=True))
-        else:
-            # Last-resort: any .price element
-            price_el = card.select_one('.price')
-            if price_el:
-                price = _parse_price(price_el.get_text(strip=True))
+            if pcd_el:
+                old_price = _parse_price(pcd_el.get_text(strip=True))
+        elif price_el:
+            price = _parse_price(price_el.get_text(strip=True))
 
         if not price:
             continue
 
-        # Image — prefer data-src (lazy load) over src
+        # Image
         img = ""
-        img_el = card.select_one('img.product-image, img.product-photo-image, .product-image img')
+        img_el = card.select_one('img')
         if img_el:
             img = img_el.get('data-src') or img_el.get('data-original') or img_el.get('src', '')
             if img and not img.startswith('http'):
