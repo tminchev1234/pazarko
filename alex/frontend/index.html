@@ -1081,17 +1081,6 @@ async function renderCategory(slug) {
         <span class="fl-count" id="fCount"></span>
       </div>
       <div class="prod-grid" id="prodGrid">${skRow(12,'prod-card',135)}</div>
-      <div class="sh-section" id="secondhandSection">
-        <div class="sec-head" style="margin-top:4px">
-          <h2>🔄 Втора употреба</h2>
-          <span style="font-size:12px;color:var(--muted)">Обяви в реално време от ОЛХ &amp; Базар.бг</span>
-        </div>
-        <div class="sh-bar">
-          <input class="sh-input" id="shInput" placeholder="Търси втора употреба...">
-          <button class="sh-btn" onclick="searchSH()">🔍 Търси</button>
-        </div>
-        <div id="shResults"><div style="color:var(--muted);font-size:13px;padding:8px 0">Зарежда се...</div></div>
-      </div>
     </div>`;
   // Default min_price per category — hides junk/feature-phone tier
   const _CAT_DEF_MIN = {phones:120, laptops:350, tvs:200, tablets:100, gaming:30};
@@ -1106,7 +1095,6 @@ async function renderCategory(slug) {
   loadSegments(slug);
   loadTrends(slug);
   _loadTrending(slug);
-  loadSecondhand(slug);
 }
 
 function skRow(n, cls, h) {
@@ -1484,7 +1472,6 @@ function buildProdCard(p) {
           ${p.old_price?`<span class="prod-old">${fmt(p.old_price)}</span>`:''}
         </div>
       </div>
-      <div class="prod-alex-tag">💬 Мнение на Alex</div>
       <div class="prod-ft">
         ${storeBadge(p.store)}
         ${p.url?`<a class="prod-link" href="${ea(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Виж →</a>`:''}
