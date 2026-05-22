@@ -217,47 +217,62 @@ def _normalize_for_match(name: str) -> str:
 def _patch_technomarket_images(products: list[dict], extra_pool: list[dict] | None = None) -> list[dict]:
     """
     Technomarket phone images are hotlink-blocked (403 from external domains).
-    For each Technomarket phone, substitute image_url with the same model's
-    image from Technopolis / eMAG / Ardes.
-
-    extra_pool: additional products (e.g. fetched separately from Supabase) used
-    purely for building the name→image map — gives a much wider matching surface
-    than just the 60 products on the current page.
+    Substitutes each Technomarket phone's image_url with the same model's image
+    from Technopolis / eMAG / Ardes found in extra_pool or the current result set.
     """
     phones = [p for p in products if p.get("category") == "phones"]
     if not any(p.get("store") == "technomarket" for p in phones):
-        return products  # nothing to do
-
-    # Build name-key → image from extra_pool first, then current list
-    other: dict[str, str] = {}
-    for p in (extra_pool or []) + phones:
-        if p.get("store") != "technomarket" and p.get("image_url"):
-            key = _normalize_for_match(p.get("raw_name", ""))
-            if key and key not in other:
-                other[key] = p["image_url"]
-
-    if not other:
         return products
 
-    def _best_image(name: str) -> str | None:
-        key = _normalize_for_match(name)
-        if key in other:
-            return other[key]
-        # Fuzzy: need ≥ 3 significant words in common
-        words = {w for w in key.split() if len(w) > 2}
-        best_img, best_n = None, 2
-        for ok, ov in other.items():
-            n = len(words & {w for w in ok.split() if len(w) > 2})
+    # Pool: extra_pool first (300 items), then non-TM phones in current results
+    pool: list[dict] = []
+    seen_keys: set[str] = set()
+    for p in (extra_pool or []) + phones:
+        if p.get("store") != "technomarket" and p.get("image_url"):
+            k = _normalize_for_match(p.get("raw_name", ""))
+            if k and k not in seen_keys:
+                seen_keys.add(k)
+                pool.append({"key": k, "img": p["image_url"],
+                             "brand": (p.get("brand") or "").lower()})
+
+    logger.debug("[patch_tm] pool=%d TM phones=%d",
+                 len(pool), sum(1 for p in phones if p.get("store") == "technomarket"))
+
+    if not pool:
+        return products
+
+    # Brand → first available image (last-resort fallback)
+    brand_fallback: dict[str, str] = {}
+    for e in pool:
+        b = e["brand"]
+        if b and b not in brand_fallback:
+            brand_fallback[b] = e["img"]
+
+    def _best_image(raw_name: str, brand: str) -> str | None:
+        key = _normalize_for_match(raw_name)
+        # Exact match
+        for e in pool:
+            if e["key"] == key:
+                return e["img"]
+        # Fuzzy: ≥2 words with len ≥ 2 in common
+        words = {w for w in key.split() if len(w) >= 2}
+        best_img, best_n = None, 1
+        for e in pool:
+            n = len(words & {w for w in e["key"].split() if len(w) >= 2})
             if n > best_n:
-                best_n, best_img = n, ov
-        return best_img
+                best_n, best_img = n, e["img"]
+        if best_img:
+            return best_img
+        # Last resort: same brand
+        return brand_fallback.get((brand or "").lower())
 
     result = []
     for p in products:
         if p.get("store") == "technomarket" and p.get("category") == "phones":
-            img = _best_image(p.get("raw_name", ""))
+            img = _best_image(p.get("raw_name", ""), p.get("brand", ""))
             if img:
                 p = {**p, "image_url": img}
+                logger.debug("[patch_tm] substituted: %s", p.get("raw_name", "")[:60])
         result.append(p)
     return result
 
@@ -1971,6 +1986,8 @@ async def alex_category_products(
             if sort == "score":
                 results.sort(key=lambda x: x["alex_score"], reverse=True)
             results = _patch_technomarket_images(results, extra_pool=image_pool)
+            tm_with_img = sum(1 for r in results if r.get("store") == "technomarket" and r.get("image_url"))
+            logger.info("[phones] pool=%d TM_with_img_after=%d", len(image_pool), tm_with_img)
             return {"results": results, "count": len(results), "total_count": total_count}
     except Exception as exc:
         logger.warning("[alex] category Supabase failed, using local: %s", exc)
