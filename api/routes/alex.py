@@ -3059,13 +3059,14 @@ async def homepage_picks():
     try:
         sb = get_supabase()
 
-        # Row 1 — tech picks (max 1 per store for diversity)
+        # Row 1 — tech picks (one per category, store diversity not enforced —
+        # fixed categories already guarantee product-type diversity)
         tech_raw = _hp_fetch_cats(sb, _HP_ROW1_CATS)
-        row1 = _hp_score_and_pick(tech_raw, _HP_ROW1_CATS, max_per_store=1)
+        row1 = _hp_score_and_pick(tech_raw, _HP_ROW1_CATS, max_per_store=5)
 
-        # Row 2 — white goods picks (max 1 per store for diversity)
+        # Row 2 — white goods picks (eMAG dominates this data, no store cap)
         app_raw = _hp_fetch_cats(sb, _HP_ROW2_CATS)
-        row2 = _hp_score_and_pick(app_raw, _HP_ROW2_CATS, max_per_store=1)
+        row2 = _hp_score_and_pick(app_raw, _HP_ROW2_CATS, max_per_store=5)
 
         # Row 3 — top deals this week (≥10% discount, not already shown, max 1 per store)
         shown_urls = {p.get("url", "") for p in row1 + row2}
@@ -3093,13 +3094,13 @@ async def homepage_picks():
                 deals_cands.append(p)
         deals_cands.sort(key=lambda x: x.get("discount_pct", 0), reverse=True)
         row3: list[dict] = []
-        row3_stores: set[str] = set()
+        row3_store_cnt: dict[str, int] = {}
         for p in deals_cands:
             store = p.get("store", "")
-            if store in row3_stores:
+            if row3_store_cnt.get(store, 0) >= 3:
                 continue
             row3.append(p)
-            row3_stores.add(store)
+            row3_store_cnt[store] = row3_store_cnt.get(store, 0) + 1
             if len(row3) >= 5:
                 break
 
