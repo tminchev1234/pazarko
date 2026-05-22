@@ -3014,27 +3014,44 @@ async def homepage_picks(limit: int = Query(12, le=24)):
             .select("raw_name, brand, category, category_raw, price, old_price, discount_pct, store, image_url, url")
             .not_.is_("image_url", "null")
             .neq("image_url", "")
-            .not_.is_("discount_pct", "null")
-            .gt("discount_pct", 5)
-            .order("discount_pct", desc=True)
-            .limit(200)
+            .not_.is_("price", "null")
+            .gt("price", 0)
+            .limit(600)
             .execute()
         )
         candidates = [r for r in (resp.data or []) if _is_electronics(r.get("raw_name", ""))]
     except Exception:
         candidates = [
             r for r in _load_local()
-            if r.get("image_url") and r.get("discount_pct", 0) > 5 and _is_electronics(r.get("raw_name", ""))
+            if r.get("image_url") and r.get("price", 0) > 0 and _is_electronics(r.get("raw_name", ""))
         ]
 
-    # One pick per category, highest score wins
-    by_cat: dict[str, dict] = {}
+    # Compute missing discount_pct from old_price
     for p in candidates:
-        cat = p.get("category", "other")
+        if not p.get("discount_pct"):
+            old = float(p.get("old_price") or 0)
+            cur = float(p.get("price") or 0)
+            if old > cur > 0:
+                p["discount_pct"] = round((1 - cur / old) * 100, 1)
+
+    # Score and sort
+    for p in candidates:
         p["alex_score"] = _alex_score(p)
-        p["cat_label"]  = _CAT_LABELS.get(cat, cat)
-        if cat not in by_cat or p["alex_score"] > by_cat[cat]["alex_score"]:
-            by_cat[cat] = p
+        p["cat_label"]  = _CAT_LABELS.get(p.get("category", ""), p.get("category", ""))
+    candidates.sort(key=lambda x: x["alex_score"], reverse=True)
+
+    # One pick per category, max 2 picks per store — ensures store diversity
+    by_cat: dict[str, dict] = {}
+    store_count: dict[str, int] = {}
+    for p in candidates:
+        cat   = p.get("category", "other")
+        store = p.get("store", "")
+        if cat in by_cat:
+            continue
+        if store_count.get(store, 0) >= 2:
+            continue
+        by_cat[cat] = p
+        store_count[store] = store_count.get(store, 0) + 1
 
     picks = sorted(by_cat.values(), key=lambda x: x["alex_score"], reverse=True)[:limit]
     return {"picks": picks, "count": len(picks)}
