@@ -205,6 +205,17 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .td-btn:hover{background:#2563eb}
 @media(max-width:600px){.top-deal-card{flex-direction:column}.td-img-col{width:100%;min-height:160px}.td-body-col{padding:14px 16px}}
 
+/* ── SUBSCRIBE SECTION ── */
+.sub-box{background:linear-gradient(135deg,#0f172a,#1e3a5f);border-radius:var(--radius);padding:28px 32px;text-align:center;margin-top:32px;color:#fff}
+.sub-box h3{font-size:19px;font-weight:800;margin-bottom:6px}
+.sub-box p{color:rgba(255,255,255,.7);font-size:13px;margin-bottom:16px;max-width:420px;margin-left:auto;margin-right:auto}
+.sub-row{display:flex;gap:8px;max-width:400px;margin:0 auto}
+.sub-input{flex:1;padding:11px 14px;border:none;border-radius:8px;font-size:14px;font-family:inherit;outline:none;background:#fff;color:#111}
+.sub-btn{background:#2563eb;color:#fff;border:none;border-radius:8px;padding:11px 20px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;transition:background .15s}
+.sub-btn:hover{background:#1d4ed8}
+.sub-msg{margin-top:10px;font-size:13px;min-height:18px}
+@media(max-width:480px){.sub-row{flex-direction:column}.sub-btn{width:100%}}
+
 /* ── SECONDHAND SECTION ── */
 .sh-section{margin-top:36px}
 .sh-bar{display:flex;gap:8px;margin:12px 0 14px}
@@ -860,10 +871,46 @@ async function renderHome() {
         <p style="color:rgba(255,255,255,.7);max-width:480px;margin:0 auto 20px;font-size:15px">Alex анализира спецификациите, сравнява цените и ти казва директно кое си заслужава — за минути, не за часове.</p>
         <button class="hero-btn" onclick="openChat()" style="font-size:15px;padding:13px 28px">💬 Попитай Alex безплатно</button>
       </div>
+
+      <div class="sub-box">
+        <h3>📬 Седмични оферти от Alex</h3>
+        <p>Получавай топ намаленията директно в имейла си — без спам, само реални сделки.</p>
+        <div class="sub-row">
+          <input class="sub-input" id="subEmail" type="email" placeholder="твоят@имейл.com">
+          <button class="sub-btn" onclick="submitSubscribe()">Абонирай се</button>
+        </div>
+        <div class="sub-msg" id="subMsg"></div>
+      </div>
     </div>`;
   loadStats();
   loadDayPick();
   loadHomePicks();
+}
+
+async function submitSubscribe() {
+  const inp = document.getElementById('subEmail');
+  const msg = document.getElementById('subMsg');
+  const email = (inp?.value || '').trim();
+  if (!email || !email.includes('@')) {
+    msg.style.color = '#fca5a5';
+    msg.textContent = 'Въведи валиден имейл адрес.';
+    return;
+  }
+  msg.style.color = 'rgba(255,255,255,.7)';
+  msg.textContent = 'Записване...';
+  try {
+    const d = await apiFetch('/alex/subscribe', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email})
+    });
+    msg.style.color = '#86efac';
+    msg.textContent = d.message || 'Записан успешно! ✓';
+    inp.value = '';
+  } catch(e) {
+    msg.style.color = '#fca5a5';
+    msg.textContent = 'Грешка — опитай отново.';
+  }
 }
 
 async function loadStats() {

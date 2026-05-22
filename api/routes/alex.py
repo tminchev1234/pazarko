@@ -31,6 +31,9 @@ from api.db import get_supabase
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["alex"])
 
+import os as _os
+_BREVO_API_KEY = _os.environ.get("BREVO_API_KEY", "")
+
 # ── Image proxy ────────────────────────────────────────────────────────────────
 # Bulgarian store CDNs block hotlinking. We proxy images server-side to avoid 403s.
 
@@ -2775,6 +2778,50 @@ async def homepage_picks(limit: int = Query(12, le=24)):
 
     picks = sorted(by_cat.values(), key=lambda x: x["alex_score"], reverse=True)[:limit]
     return {"picks": picks, "count": len(picks)}
+
+
+@router.post("/alex/subscribe")
+async def subscribe_email(request: Request):
+    """Add email to Brevo newsletter list."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON")
+
+    email = (body.get("email") or "").strip().lower()
+    if not email or "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(400, "Невалиден имейл адрес")
+
+    if not _BREVO_API_KEY:
+        raise HTTPException(503, "Email service not configured")
+
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.post(
+                "https://api.brevo.com/v3/contacts",
+                headers={
+                    "api-key": _BREVO_API_KEY,
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+                json={
+                    "email": email,
+                    "updateEnabled": True,
+                    "attributes": {"SOURCE": "pazarko_alex"},
+                },
+            )
+        if r.status_code in (201, 204):
+            return {"success": True, "message": "Записан успешно!"}
+        # 400 with "Contact already exist" = already subscribed, treat as success
+        if r.status_code == 400 and "already" in r.text.lower():
+            return {"success": True, "message": "Вече си абониран!"}
+        logger.warning("[subscribe] Brevo %s: %s", r.status_code, r.text[:200])
+        raise HTTPException(502, "Грешка при записване — опитай отново")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("[subscribe] %s", exc)
+        raise HTTPException(502, "Грешка при свързване с имейл услугата")
 
 
 @router.get("/alex/secondhand")
