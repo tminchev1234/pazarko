@@ -2866,26 +2866,25 @@ async def category_hot_deals(
 ):
     """Top-N most-discounted products in a category, each with a historical discount verdict."""
     now = _time.time()
-    cache_key = f"{category}:{limit}:v2"
+    cache_key = f"{category}:{limit}:v3"
     cached = _HOT_DEALS_CACHE.get(cache_key)
     if cached and now - cached[0] < _HOT_DEALS_TTL:
         return {"deals": cached[1]}
 
-    # 1. Fetch top discounted candidates
+    # 1. Fetch all products that have an old_price (discount candidates from any store)
     try:
         sb = get_supabase()
         resp = (
             sb.table("electronics_offers")
             .select("raw_name, brand, category, price, old_price, discount_pct, store, image_url, url")
             .eq("category", category)
-            .not_.is_("discount_pct", "null")
-            .gt("discount_pct", 0)
+            .not_.is_("old_price", "null")
+            .gt("old_price", 0)
             .not_.is_("image_url", "null")
             .neq("image_url", "")
             .not_.is_("price", "null")
             .gt("price", 0)
-            .order("discount_pct", desc=True)
-            .limit(60)
+            .limit(300)
             .execute()
         )
         candidates = resp.data or []
@@ -2894,6 +2893,18 @@ async def category_hot_deals(
 
     if not candidates:
         return {"deals": []}
+
+    # Compute discount_pct in Python where the scraper left it null
+    for p in candidates:
+        if not p.get("discount_pct"):
+            old = float(p.get("old_price") or 0)
+            cur = float(p.get("price") or 0)
+            if old > cur > 0:
+                p["discount_pct"] = round((1 - cur / old) * 100, 1)
+
+    # Keep only real discounts, sort best first
+    candidates = [p for p in candidates if (p.get("discount_pct") or 0) > 0]
+    candidates.sort(key=lambda x: float(x.get("discount_pct") or 0), reverse=True)
 
     # Apply category filters
     blocklist = [w.lower() for w in _CAT_BLOCKLIST.get(category, [])]
