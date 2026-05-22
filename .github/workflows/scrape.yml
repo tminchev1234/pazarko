@@ -1,0 +1,56 @@
+name: Scrape electronics prices
+
+on:
+  schedule:
+    # Mon, Wed, Fri at 01:00 UTC = ~03:00 Sofia (summer) / 04:00 (winter)
+    - cron: '0 1 * * 1,3,5'
+  workflow_dispatch:   # also triggerable manually from GitHub UI
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Set up Chrome + ChromeDriver
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Scrape all stores → JSON files
+        run: python -m alex.scrapers.run_all --json-only
+        env:
+          PYTHONUNBUFFERED: "1"
+          # Selenium Chrome flags for headless CI
+          DISPLAY: ""
+        timeout-minutes: 105
+
+      - name: Push JSON → Supabase + price history + alerts
+        run: python push_direct.py "$SUPABASE_URL" "$SUPABASE_KEY"
+        env:
+          SUPABASE_URL:  ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:  ${{ secrets.SUPABASE_KEY }}
+          SMTP_USER:     ${{ secrets.SMTP_USER }}
+          SMTP_PASS:     ${{ secrets.SMTP_PASS }}
+          API_BASE_URL:  ${{ secrets.API_BASE_URL }}
+          SECRET_KEY:    ${{ secrets.SECRET_KEY }}
+
+      - name: Upload JSON artifacts (for debugging)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: offers-json-${{ github.run_id }}
+          path: '*_offers.json'
+          retention-days: 7
