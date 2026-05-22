@@ -3006,24 +3006,33 @@ async def category_hot_deals(
 
 @router.get("/alex/homepage-picks")
 async def homepage_picks(limit: int = Query(12, le=24)):
-    """Alex's top pick per category — highest-scored product regardless of store or discount."""
+    """Alex's top pick per category — highest-scored product, one per category, max 2 per store."""
+    _PICK_STORES = ["emag", "technopolis", "technomarket", "zora", "ozone", "ardes"]
+    candidates: list[dict] = []
     try:
         sb = get_supabase()
-        resp = (
-            sb.table("electronics_offers")
-            .select("raw_name, brand, category, category_raw, price, old_price, discount_pct, store, image_url, url")
-            .not_.is_("image_url", "null")
-            .neq("image_url", "")
-            .not_.is_("price", "null")
-            .gt("price", 0)
-            .limit(600)
-            .execute()
-        )
-        candidates = [r for r in (resp.data or []) if _is_electronics(r.get("raw_name", ""))]
+        for store in _PICK_STORES:
+            try:
+                r = (
+                    sb.table("electronics_offers")
+                    .select("raw_name, brand, category, category_raw, price, old_price, discount_pct, store, image_url, url")
+                    .eq("store", store)
+                    .not_.is_("image_url", "null")
+                    .neq("image_url", "")
+                    .not_.is_("price", "null")
+                    .gt("price", 0)
+                    .limit(150)
+                    .execute()
+                )
+                candidates.extend(
+                    p for p in (r.data or []) if _is_electronics(p.get("raw_name", ""))
+                )
+            except Exception:
+                pass
     except Exception:
         candidates = [
-            r for r in _load_local()
-            if r.get("image_url") and r.get("price", 0) > 0 and _is_electronics(r.get("raw_name", ""))
+            p for p in _load_local()
+            if p.get("image_url") and p.get("price", 0) > 0 and _is_electronics(p.get("raw_name", ""))
         ]
 
     # Compute missing discount_pct from old_price
