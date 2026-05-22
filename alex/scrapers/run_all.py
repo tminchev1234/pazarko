@@ -46,12 +46,18 @@ def _run_zora(test: bool) -> list[dict]:
     return scrape_zora(max_categories=1 if test else 99, max_pages=2 if test else 12)
 
 
+def _run_ozone(test: bool) -> list[dict]:
+    from alex.scrapers.ozone import scrape_ozone
+    return scrape_ozone(max_categories=1 if test else 99, max_pages=2 if test else 10)
+
+
 SCRAPERS = {
     "emag":         _run_emag,
     "technopolis":  _run_technopolis,
     "ardes":        _run_ardes,
     "technomarket": _run_technomarket,
     "zora":         _run_zora,
+    "ozone":        _run_ozone,
 }
 
 
