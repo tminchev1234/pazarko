@@ -37,32 +37,41 @@ EXTRACT_JS = r"""
 const products = [];
 const seen = new Set();
 
-const cards = Array.from(document.querySelectorAll('div.product-item, li.product-item'));
+// Ozone shows a second currency inside .price via span.second-price-format — strip it before reading
+function priceText(el) {
+    if (!el) return '';
+    const clone = el.cloneNode(true);
+    const second = clone.querySelector('.second-price-format');
+    if (second) second.parentNode.removeChild(second);
+    return (clone.textContent || '').trim();
+}
+
+// Cards are <a class="product-box"> elements that contain a .price-box
+const cards = Array.from(document.querySelectorAll('a.product-box'))
+    .filter(c => c.querySelector('.price-box'));
 
 cards.forEach(card => {
-    // Name + link — first text-bearing anchor
-    let name = '', link = '';
-    for (const a of card.querySelectorAll('a[href]')) {
-        const t = (a.textContent || '').trim();
-        if (t.length > 5) { name = t; link = a.href; break; }
-    }
+    // Name
+    const nameEl = card.querySelector('span.title');
+    if (!nameEl) return;
+    const name = (nameEl.textContent || '').trim();
     if (!name || name.length < 4) return;
 
-    // Current price — .special-price (sale) or .price (regular)
-    const specialEl = card.querySelector('.special-price');
-    const priceEl   = card.querySelector('.price');
-    const priceRaw  = specialEl
-        ? (specialEl.textContent || '').trim()
-        : (priceEl ? (priceEl.textContent || '').trim() : '');
+    const link = card.href || '';
+
+    // Current price — inside p.special-price (on sale) or bare .price (regular)
+    const specialPriceEl = card.querySelector('p.special-price .price, .special-price > .price');
+    const regularPriceEl = card.querySelector('.price-box > .price, .regular-price .price');
+    const priceRaw = priceText(specialPriceEl || regularPriceEl);
     if (!priceRaw) return;
 
-    // Old / RRP price — .pcd-price contains "ПЦД: X €"
-    const pcdEl   = card.querySelector('.pcd-price');
-    const oldRaw  = pcdEl ? (pcdEl.textContent || '').trim() : '';
+    // Old / RRP price — inside .old-price
+    const oldPriceEl = card.querySelector('.old-price .price');
+    const oldRaw = priceText(oldPriceEl);
 
-    // Image
+    // Image — try data-src first (lazy), then src
     const imgEl = card.querySelector('img');
-    const img   = imgEl ? (imgEl.dataset.src || imgEl.src || '') : '';
+    const img = imgEl ? (imgEl.dataset.src || imgEl.getAttribute('data-original') || imgEl.src || '') : '';
 
     const key = name + '|' + priceRaw;
     if (seen.has(key)) return;
@@ -138,15 +147,28 @@ def scrape_ozone(headless: bool = True, max_categories: int = 99,
     opts.add_argument("--no-sandbox")
     opts.add_argument("--disable-dev-shm-usage")
     opts.add_argument("--disable-blink-features=AutomationControlled")
+    opts.add_argument("--disable-infobars")
+    opts.add_argument("--disable-extensions")
     opts.add_argument("--window-size=1440,900")
+    opts.add_argument("--lang=bg-BG")
     opts.add_argument(
         "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36"
     )
-    opts.add_experimental_option("excludeSwitches", ["enable-automation"])
+    opts.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
+    opts.add_experimental_option("useAutomationExtension", False)
 
     service = Service(ChromeDriverManager().install())
     driver  = webdriver.Chrome(service=service, options=opts)
+
+    # Mask webdriver fingerprint
+    driver.execute_cdp_cmd("Page.addScriptToEvaluateOnNewDocument", {
+        "source": """
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            Object.defineProperty(navigator, 'plugins', { get: () => [1,2,3,4,5] });
+            window.chrome = { runtime: {} };
+        """
+    })
 
     all_offers: list[dict] = []
     seen:       set[str]   = set()
@@ -154,7 +176,7 @@ def scrape_ozone(headless: bool = True, max_categories: int = 99,
 
     try:
         driver.get(BASE_URL + "/")
-        time.sleep(random.uniform(2.0, 3.0))
+        time.sleep(random.uniform(3.0, 5.0))
 
         for path, category, cat_label in OZONE_CATEGORIES[:max_categories]:
             logger.info("[ozone] Category: %s", cat_label)
