@@ -1481,6 +1481,9 @@ _VERDICT_TTL   = 12 * 3600  # 12 hours
 _TOP_DEAL_CACHE: dict[str, tuple[float, dict]] = {}  # category -> (ts, result)
 _TOP_DEAL_TTL   = 3 * 3600  # 3 hours
 
+_HOT_DEALS_CACHE: dict[str, tuple[float, list]] = {}  # "category:limit" -> (ts, deals)
+_HOT_DEALS_TTL  = 3 * 3600
+
 # ── Homepage Picks cache ───────────────────────────────────────────────────────
 
 _HOME_PICKS_CACHE: dict | None = None
@@ -2836,6 +2839,185 @@ async def category_top_deal(category: str = Query(...)):
     }
     _TOP_DEAL_CACHE[category] = (now, result)
     return result
+
+
+@router.get("/alex/category-hot-deals")
+async def category_hot_deals(
+    category: str = Query(...),
+    limit: int = Query(5, le=8),
+):
+    """Top-N most-discounted products in a category, each with a discount authenticity verdict."""
+    now = _time.time()
+    cache_key = f"{category}:{limit}"
+    cached = _HOT_DEALS_CACHE.get(cache_key)
+    if cached and now - cached[0] < _HOT_DEALS_TTL:
+        return {"deals": cached[1]}
+
+    # 1. Fetch top discounted candidates
+    try:
+        sb = get_supabase()
+        resp = (
+            sb.table("electronics_offers")
+            .select("raw_name, brand, category, price, old_price, discount_pct, store, image_url, url")
+            .eq("category", category)
+            .not_.is_("discount_pct", "null")
+            .gt("discount_pct", 0)
+            .not_.is_("image_url", "null")
+            .neq("image_url", "")
+            .not_.is_("price", "null")
+            .gt("price", 0)
+            .order("discount_pct", desc=True)
+            .limit(40)
+            .execute()
+        )
+        candidates = resp.data or []
+    except Exception:
+        return {"deals": []}
+
+    if not candidates:
+        return {"deals": []}
+
+    # Apply category filters
+    blocklist  = [w.lower() for w in _CAT_BLOCKLIST.get(category, [])]
+    min_price  = _CAT_MIN_PRICE.get(category, 0)
+    candidates = [
+        p for p in candidates
+        if (p.get("price") or 0) >= min_price
+        and not any(bl in (p.get("raw_name") or "").lower() for bl in blocklist)
+    ]
+    top_n = candidates[:limit]
+    if not top_n:
+        return {"deals": []}
+
+    # 2. Price history for the top-N URLs
+    urls = [p["url"] for p in top_n if p.get("url")]
+    history_by_url: dict[str, list[float]] = {}
+    try:
+        sb = get_supabase()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+        hist_resp = (
+            sb.table("price_history")
+            .select("product_url, price")
+            .in_("product_url", urls)
+            .gte("scraped_at", cutoff)
+            .execute()
+        )
+        for row in (hist_resp.data or []):
+            u, v = row.get("product_url"), row.get("price")
+            if u and v:
+                history_by_url.setdefault(u, []).append(float(v))
+    except Exception:
+        pass
+
+    # 3. All products in category from all stores — for competitor price check
+    all_cat: list[dict] = []
+    try:
+        sb = get_supabase()
+        all_resp = (
+            sb.table("electronics_offers")
+            .select("raw_name, brand, store, price")
+            .eq("category", category)
+            .not_.is_("price", "null")
+            .gt("price", 0)
+            .limit(600)
+            .execute()
+        )
+        all_cat = all_resp.data or []
+    except Exception:
+        pass
+
+    def _make_verdict(p: dict) -> dict:
+        url     = p.get("url", "")
+        current = float(p.get("price") or 0)
+        old     = float(p.get("old_price") or 0)
+        hist    = history_by_url.get(url, [])
+
+        # ── Historical truth ─────────────────────────────────────────────
+        hist_type   = "no_data"
+        hist_detail = ""
+        if len(hist) >= 3:
+            max_hist = max(hist)
+            min_hist = min(hist)
+            avg_hist = sum(hist) / len(hist)
+            if old > 0:
+                old_confirmed = any(abs(h - old) / old < 0.06 for h in hist)
+                if old_confirmed:
+                    hist_type   = "confirmed"
+                    hist_detail = f"Старата цена {old:.0f}€ потвърдена в историята"
+                elif max_hist < old * 0.90:
+                    hist_type   = "suspicious"
+                    hist_detail = f"Стара цена {old:.0f}€ не е открита (макс. {max_hist:.0f}€)"
+                else:
+                    hist_type   = "partial"
+            else:
+                if current <= min_hist * 1.05:
+                    hist_type   = "at_low"
+                    hist_detail = f"На историческото дъно ({min_hist:.0f}€)"
+                elif current < avg_hist * 0.92:
+                    hist_type   = "below_avg"
+                    hist_detail = f"{((avg_hist - current)/avg_hist*100):.0f}% под 60-дн. средна"
+        elif len(hist) >= 1:
+            hist_type = "little_data"
+
+        # ── Competitor check ─────────────────────────────────────────────
+        my_store = p.get("store", "")
+        my_key   = _normalize_for_match(p.get("raw_name", ""))
+        my_words = {w for w in my_key.split() if len(w) >= 2}
+        brand_low = (p.get("brand") or "").lower()
+
+        comp_store  = ""
+        comp_price  = 0.0
+        comp_pct    = 0.0
+        for other in all_cat:
+            if other.get("store") == my_store:
+                continue
+            op = float(other.get("price") or 0)
+            if not op or op >= current * 0.97:  # at least 3% cheaper
+                continue
+            ok = _normalize_for_match(other.get("raw_name", ""))
+            ow = {w for w in ok.split() if len(w) >= 2}
+            if brand_low and brand_low not in ok:
+                continue
+            if len(my_words & ow) >= 3:
+                diff = (current - op) / current * 100
+                if diff > comp_pct:
+                    comp_pct   = diff
+                    comp_price = op
+                    comp_store = other.get("store", "")
+
+        # ── Final verdict ────────────────────────────────────────────────
+        if comp_store:
+            v_type   = "cheaper_elsewhere"
+            v_label  = "По-евтино другаде"
+            v_detail = f"{comp_price:.0f}€ в {comp_store} (−{comp_pct:.0f}%)"
+            v_color  = "red"
+        elif hist_type == "suspicious":
+            v_type   = "suspicious"
+            v_label  = "Съмнително намаление"
+            v_detail = hist_detail
+            v_color  = "orange"
+        elif hist_type in ("confirmed", "at_low", "below_avg"):
+            v_type   = "real"
+            v_label  = "Потвърдена сделка"
+            v_detail = hist_detail
+            v_color  = "green"
+        else:
+            v_type   = "no_data"
+            v_label  = "Без история"
+            v_detail = "Няма достатъчно история за проверка"
+            v_color  = "gray"
+
+        return {
+            **p,
+            "verdict_type":   v_type,
+            "verdict_label":  v_label,
+            "verdict_detail": v_detail,
+            "verdict_color":  v_color,
+        }
+
+    deals = [_make_verdict(p) for p in top_n]
+    _HOT_DEALS_CACHE[cache_key] = (now, deals)
+    return {"deals": deals}
 
 
 @router.get("/alex/homepage-picks")
