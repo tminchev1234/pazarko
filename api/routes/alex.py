@@ -2866,7 +2866,7 @@ async def category_hot_deals(
 ):
     """Top-N most-discounted products in a category, each with a historical discount verdict."""
     now = _time.time()
-    cache_key = f"{category}:{limit}"
+    cache_key = f"{category}:{limit}:v2"
     cached = _HOT_DEALS_CACHE.get(cache_key)
     if cached and now - cached[0] < _HOT_DEALS_TTL:
         return {"deals": cached[1]}
@@ -2904,16 +2904,17 @@ async def category_hot_deals(
         and not any(bl in (p.get("raw_name") or "").lower() for bl in blocklist)
     ]
 
-    # Deduplicate color variants — keep highest-discount entry per model
-    seen_models: set[str] = set()
-    deduped: list[dict] = []
+    # One best deal per store (candidates already sorted by discount_pct DESC)
+    store_best: dict[str, dict] = {}
     for p in candidates:
-        key = _model_dedup_key(p.get("raw_name", ""))
-        if key and key not in seen_models:
-            seen_models.add(key)
-            deduped.append(p)
+        store = p.get("store", "")
+        if store and store not in store_best:
+            store_best[store] = p
 
-    top_n = deduped[:limit]
+    # Sort stores by discount_pct and take top limit
+    top_n = sorted(store_best.values(),
+                   key=lambda x: float(x.get("discount_pct") or 0),
+                   reverse=True)[:limit]
     if not top_n:
         return {"deals": []}
 
