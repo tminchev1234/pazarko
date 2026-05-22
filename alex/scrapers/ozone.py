@@ -1,11 +1,13 @@
 """
-Ozone.bg scraper — requests + BeautifulSoup
+Ozone.bg scraper — Selenium (headless Chrome)
 Site: https://www.ozone.bg
+Причина за Selenium: сайтът изисква JavaScript за зареждане на продукти
 
 Употреба:
   py -m alex.scrapers.ozone                 # scrape + JSON
   py -m alex.scrapers.ozone --supabase      # + Supabase
   py -m alex.scrapers.ozone --test          # 1 категория, 2 стр.
+  py -m alex.scrapers.ozone --show          # видим браузър
 """
 
 from __future__ import annotations
@@ -17,24 +19,9 @@ import random
 from datetime import datetime, timezone
 from typing import Optional
 
-import requests
-from bs4 import BeautifulSoup
-
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.ozone.bg"
-
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept-Language": "bg-BG,bg;q=0.9,en;q=0.8",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Connection": "keep-alive",
-    "Referer": "https://www.ozone.bg/",
-}
 
 OZONE_CATEGORIES = [
     ("/mobilni-ustroistva/smartfoni/",         "phones",     "Смартфони"),
@@ -46,20 +33,58 @@ OZONE_CATEGORIES = [
     ("/tv-foto-i-video/fotoaparati/",          "cameras",    "Фотоапарати"),
 ]
 
+EXTRACT_JS = r"""
+const products = [];
+const seen = new Set();
+
+const cards = Array.from(document.querySelectorAll('div.product-item, li.product-item'));
+
+cards.forEach(card => {
+    // Name + link — first text-bearing anchor
+    let name = '', link = '';
+    for (const a of card.querySelectorAll('a[href]')) {
+        const t = (a.textContent || '').trim();
+        if (t.length > 5) { name = t; link = a.href; break; }
+    }
+    if (!name || name.length < 4) return;
+
+    // Current price — .special-price (sale) or .price (regular)
+    const specialEl = card.querySelector('.special-price');
+    const priceEl   = card.querySelector('.price');
+    const priceRaw  = specialEl
+        ? (specialEl.textContent || '').trim()
+        : (priceEl ? (priceEl.textContent || '').trim() : '');
+    if (!priceRaw) return;
+
+    // Old / RRP price — .pcd-price contains "ПЦД: X €"
+    const pcdEl   = card.querySelector('.pcd-price');
+    const oldRaw  = pcdEl ? (pcdEl.textContent || '').trim() : '';
+
+    // Image
+    const imgEl = card.querySelector('img');
+    const img   = imgEl ? (imgEl.dataset.src || imgEl.src || '') : '';
+
+    const key = name + '|' + priceRaw;
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    products.push({ name, priceRaw, oldRaw, img, link });
+});
+
+return JSON.stringify(products);
+"""
+
 
 def _parse_price(text: Optional[str]) -> Optional[float]:
     if not text:
         return None
     t = text.strip()
-    # Strip Bulgarian label prefixes like "ПЦД:", "Цена:"
+    # Strip label prefixes like "Special Price", "ПЦД:", "Цена:"
     t = re.sub(r'^[А-Яа-яA-Za-z:\s]+', '', t).strip()
-    # Collapse thousands spaces: "1 299,00" → "1299,00"
     t = re.sub(r'(\d)\s+(\d)', r'\1\2', t)
-    # Remove all non-numeric except comma and dot
     cleaned = re.sub(r'[^\d,.]', '', t)
     if not cleaned:
         return None
-    # Thousands comma: ",NNN" at end or followed by "." → strip
     cleaned = re.sub(r',(\d{3})(?=[,.]|$)', r'\1', cleaned)
     cleaned = cleaned.replace(',', '.')
     parts = cleaned.split('.')
@@ -86,180 +111,126 @@ def _extract_brand(name: str) -> str:
         "Bosch", "Miele", "Whirlpool", "Electrolux", "Indesit", "Gorenje",
         "Nintendo", "Logitech", "Razer",
         "Canon", "Nikon", "Fujifilm", "GoPro",
-        "Dyson", "iRobot",
+        "Dyson", "iRobot", "Honor", "Motorola", "Realme", "Oppo",
     ]
     words = name.split()
     low = name.lower()
     for b in known:
         if low.startswith(b.lower()):
             return b
-    # Also check second word (some names start with category type in BG)
     if len(words) >= 2:
-        second = words[1].lower()
         for b in known:
-            if second.startswith(b.lower()):
+            if words[1].lower().startswith(b.lower()):
                 return b
     return words[0] if words else ""
 
 
-def _fetch(session: requests.Session, url: str) -> Optional[requests.Response]:
-    for attempt in range(3):
-        try:
-            r = session.get(url, headers=HEADERS, timeout=20)
-            if r.status_code in (404, 410):
-                return None
-            r.raise_for_status()
-            return r
-        except requests.exceptions.HTTPError as e:
-            code = e.response.status_code if e.response else 0
-            if code in (404, 410):
-                return None
-            logger.warning("[ozone] attempt %d %s: %s", attempt + 1, url, e)
-            time.sleep(2 ** attempt)
-        except Exception as e:
-            logger.warning("[ozone] attempt %d %s: %s", attempt + 1, url, e)
-            time.sleep(2 ** attempt)
-    return None
+def scrape_ozone(headless: bool = True, max_categories: int = 99,
+                 max_pages: int = 8) -> list[dict]:
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.chrome.service import Service
+    from webdriver_manager.chrome import ChromeDriverManager
 
+    opts = Options()
+    if headless:
+        opts.add_argument("--headless=new")
+    opts.add_argument("--no-sandbox")
+    opts.add_argument("--disable-dev-shm-usage")
+    opts.add_argument("--disable-blink-features=AutomationControlled")
+    opts.add_argument("--window-size=1440,900")
+    opts.add_argument(
+        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    )
+    opts.add_experimental_option("excludeSwitches", ["enable-automation"])
 
-def _get_max_page(soup: BeautifulSoup, max_pages: int) -> int:
-    # Ozone pager: <div class="pages"> or <div class="toolbar-bottom">
-    # Last page number link tells us max
-    nums = []
-    for a in soup.select('.pages a, .toolbar-bottom .pages a, .pager a'):
-        t = a.get_text(strip=True)
-        if t.isdigit():
-            nums.append(int(t))
-    # Also check data-page or href="?p=N" links
-    for a in soup.find_all('a', href=re.compile(r'[?&]p=(\d+)')):
-        m = re.search(r'[?&]p=(\d+)', a['href'])
-        if m:
-            nums.append(int(m.group(1)))
-    return min(max(nums, default=1), max_pages)
-
-
-def _parse_page(soup: BeautifulSoup, cat_url: str) -> list[dict]:
-    products = []
-    cards = soup.select('li.product-item, div.product-item')
-
-    for card in cards:
-        # Name + link — first text-bearing anchor in the card
-        name = ""
-        href = ""
-        for a in card.select('a[href]'):
-            text = a.get_text(strip=True)
-            if text and len(text) > 5:
-                name = text
-                href = a.get('href', '')
-                if href and not href.startswith('http'):
-                    href = BASE_URL + href
-                break
-        if not name or len(name) < 4:
-            continue
-
-        # Price — Ozone uses .special-price for sale price, .pcd-price for old/RRP
-        # Non-sale items use a bare .price span
-        price: Optional[float] = None
-        old_price: Optional[float] = None
-
-        special_el = card.select_one('.special-price')
-        pcd_el     = card.select_one('.pcd-price')
-        price_el   = card.select_one('.price')
-
-        if special_el:
-            price = _parse_price(special_el.get_text(strip=True))
-            if pcd_el:
-                old_price = _parse_price(pcd_el.get_text(strip=True))
-        elif price_el:
-            price = _parse_price(price_el.get_text(strip=True))
-
-        if not price:
-            continue
-
-        # Image
-        img = ""
-        img_el = card.select_one('img')
-        if img_el:
-            img = img_el.get('data-src') or img_el.get('data-original') or img_el.get('src', '')
-            if img and not img.startswith('http'):
-                img = BASE_URL + img
-
-        products.append({
-            "name": name,
-            "price": price,
-            "old_price": old_price,
-            "img": img,
-            "link": href,
-        })
-
-    return products
-
-
-def scrape_ozone(max_categories: int = 99, max_pages: int = 10) -> list[dict]:
-    session = requests.Session()
-    try:
-        session.get(BASE_URL + "/", headers=HEADERS, timeout=15)
-        time.sleep(random.uniform(1.0, 2.0))
-    except Exception:
-        pass
+    service = Service(ChromeDriverManager().install())
+    driver  = webdriver.Chrome(service=service, options=opts)
 
     all_offers: list[dict] = []
     seen:       set[str]   = set()
     scraped_at = datetime.now(timezone.utc).isoformat()
 
-    for path, category, cat_label in OZONE_CATEGORIES[:max_categories]:
-        url1 = BASE_URL + path
-        resp = _fetch(session, url1)
-        if not resp:
-            logger.warning("[ozone] Skipping %s (not found)", path)
-            continue
+    try:
+        driver.get(BASE_URL + "/")
+        time.sleep(random.uniform(2.0, 3.0))
 
-        soup   = BeautifulSoup(resp.text, 'html.parser')
-        max_pg = _get_max_page(soup, max_pages)
-        logger.info("[ozone] %s — %d pages", cat_label, max_pg)
+        for path, category, cat_label in OZONE_CATEGORIES[:max_categories]:
+            logger.info("[ozone] Category: %s", cat_label)
+            prev_count = -1
 
-        for page in range(1, max_pg + 1):
-            if page == 1:
-                page_soup = soup
-            else:
-                url  = f"{url1}?p={page}"
-                resp = _fetch(session, url)
-                if not resp:
+            for page in range(1, max_pages + 1):
+                url = BASE_URL + path
+                if page > 1:
+                    url = f"{url}?p={page}"
+
+                try:
+                    driver.get(url)
+                    time.sleep(random.uniform(2.5, 4.0))
+
+                    # Scroll to trigger lazy loading
+                    for pct in (0.3, 0.6, 1.0):
+                        driver.execute_script(
+                            f"window.scrollTo(0, document.body.scrollHeight * {pct})"
+                        )
+                        time.sleep(0.5)
+
+                    result = driver.execute_script(EXTRACT_JS)
+                    raw    = json.loads(result) if result else []
+
+                    if not raw:
+                        logger.info("[ozone] %s p%d — empty, stopping", cat_label, page)
+                        break
+
+                    if len(raw) == prev_count and page > 1:
+                        logger.info("[ozone] %s p%d — repeated page, stopping", cat_label, page)
+                        break
+                    prev_count = len(raw)
+
+                    new = 0
+                    for p in raw:
+                        price = _parse_price(p.get("priceRaw"))
+                        if not price:
+                            continue
+                        name = (p.get("name") or "").strip()
+                        key  = f"{name}|{price}"
+                        if key in seen:
+                            continue
+                        seen.add(key)
+                        new += 1
+
+                        old_price = _parse_price(p.get("oldRaw"))
+                        all_offers.append({
+                            "store":        "ozone",
+                            "raw_name":     name,
+                            "brand":        _extract_brand(name),
+                            "category":     category,
+                            "category_raw": cat_label,
+                            "price":        price,
+                            "old_price":    old_price,
+                            "discount_pct": _discount(price, old_price),
+                            "image_url":    p.get("img", ""),
+                            "url":          p.get("link", url),
+                            "in_stock":     True,
+                            "scraped_at":   scraped_at,
+                        })
+
+                    logger.info("[ozone] %s p%d → %d raw, %d new", cat_label, page, len(raw), new)
+
+                    if new == 0 and page > 1:
+                        break
+
+                    time.sleep(random.uniform(1.5, 2.5))
+
+                except Exception as exc:
+                    logger.error("[ozone] %s p%d: %s", cat_label, page, exc)
                     break
-                page_soup = BeautifulSoup(resp.text, 'html.parser')
 
-            raw = _parse_page(page_soup, url1)
+            time.sleep(random.uniform(2.0, 3.0))
 
-            new = 0
-            for p in raw:
-                key = f"{p['name']}|{p['price']}"
-                if key in seen:
-                    continue
-                seen.add(key)
-                new += 1
-
-                all_offers.append({
-                    "store":        "ozone",
-                    "raw_name":     p["name"],
-                    "brand":        _extract_brand(p["name"]),
-                    "category":     category,
-                    "category_raw": cat_label,
-                    "price":        p["price"],
-                    "old_price":    p["old_price"],
-                    "discount_pct": _discount(p["price"], p["old_price"]),
-                    "image_url":    p["img"],
-                    "url":          p["link"],
-                    "in_stock":     True,
-                    "scraped_at":   scraped_at,
-                })
-
-            logger.info("[ozone] %s p%d -> %d raw, %d new", cat_label, page, len(raw), new)
-
-            if not raw:
-                break
-            time.sleep(random.uniform(0.8, 1.8))
-
-        time.sleep(random.uniform(1.5, 2.5))
+    finally:
+        driver.quit()
 
     logger.info("[ozone] Total: %d offers", len(all_offers))
     return all_offers
@@ -289,11 +260,13 @@ if __name__ == "__main__":
     import sys
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
     test_mode   = "--test"     in sys.argv
+    show_mode   = "--show"     in sys.argv
     to_supabase = "--supabase" in sys.argv
 
     offers = scrape_ozone(
+        headless=not show_mode,
         max_categories=1 if test_mode else 99,
-        max_pages=2      if test_mode else 10,
+        max_pages=2      if test_mode else 8,
     )
 
     if offers:
