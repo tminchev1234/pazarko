@@ -2532,6 +2532,76 @@ async def trending_searches(
         return {"trending": []}
 
 
+_CAT_LABELS = {
+    "phones": "Смартфони", "laptops": "Лаптопи", "tvs": "Телевизори",
+    "headphones": "Слушалки", "tablets": "Таблети", "gaming": "Геймърско",
+    "cameras": "Фотоапарати", "appliances": "Уреди", "cooking": "Готварски уреди",
+    "washing": "Перални", "fridges": "Хладилници", "vacuum": "Прахосмукачки",
+    "ac": "Климатици", "dishwasher": "Съдомиялни", "accessories": "Аксесоари",
+}
+
+_KNOWN_BRANDS = {
+    "samsung", "apple", "sony", "lg", "xiaomi", "huawei", "lenovo", "hp",
+    "dell", "asus", "acer", "philips", "bosch", "bose", "jbl", "logitech",
+    "panasonic", "hisense", "tcl", "canon", "nikon", "nintendo", "dyson",
+}
+
+
+def _alex_score(p: dict) -> float:
+    """Simple value score 0-10 for homepage picks ranking."""
+    score = 5.0
+    disc  = p.get("discount_pct") or 0
+    price = p.get("price") or 0
+    brand = (p.get("brand") or p.get("raw_name", "").split()[0]).lower()
+
+    if disc >= 30:   score += 2.5
+    elif disc >= 20: score += 1.5
+    elif disc >= 10: score += 0.8
+
+    if brand in _KNOWN_BRANDS: score += 1.0
+
+    # Sweet spot: 50-500 EUR
+    if 50 <= price <= 500: score += 0.5
+
+    return round(min(score, 10.0), 1)
+
+
+@router.get("/alex/homepage-picks")
+async def homepage_picks(limit: int = Query(12, le=24)):
+    """Curated Alex picks for the homepage grid — best-value products across categories."""
+    try:
+        sb = get_supabase()
+        resp = (
+            sb.table("electronics_offers")
+            .select("raw_name, brand, category, category_raw, price, old_price, discount_pct, store, image_url, url")
+            .not_.is_("image_url", "null")
+            .neq("image_url", "")
+            .not_.is_("discount_pct", "null")
+            .gt("discount_pct", 5)
+            .order("discount_pct", desc=True)
+            .limit(200)
+            .execute()
+        )
+        candidates = [r for r in (resp.data or []) if _is_electronics(r.get("raw_name", ""))]
+    except Exception:
+        candidates = [
+            r for r in _load_local()
+            if r.get("image_url") and r.get("discount_pct", 0) > 5 and _is_electronics(r.get("raw_name", ""))
+        ]
+
+    # One pick per category, highest score wins
+    by_cat: dict[str, dict] = {}
+    for p in candidates:
+        cat = p.get("category", "other")
+        p["alex_score"] = _alex_score(p)
+        p["cat_label"]  = _CAT_LABELS.get(cat, cat)
+        if cat not in by_cat or p["alex_score"] > by_cat[cat]["alex_score"]:
+            by_cat[cat] = p
+
+    picks = sorted(by_cat.values(), key=lambda x: x["alex_score"], reverse=True)[:limit]
+    return {"picks": picks, "count": len(picks)}
+
+
 @router.get("/alex/stats")
 async def alex_stats():
     """Quick stats for the Alex homepage."""
