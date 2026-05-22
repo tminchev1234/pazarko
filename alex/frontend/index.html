@@ -905,7 +905,7 @@ async function loadDayPick() {
         </div>
       </div>
       <div class="pick-right">
-        <img src="${ea(imgProxy(p.image_url))}" alt="${ea(p.raw_name)}" onerror="this.style.display='none'">
+        <img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" onerror="this.style.display='none'">
       </div>`;
   } catch(e) { console.error(e); el.style.display='none'; }
 }
@@ -924,7 +924,7 @@ async function loadHomePicks() {
         data-url="${ea(p.url||'')}" data-score="${p.alex_score||''}"
         onclick="showVerdictFromCard(this)" style="cursor:pointer">
         <div class="home-pick-img">
-          ${p.image_url?`<img src="${ea(imgProxy(p.image_url))}" alt="${ea(p.raw_name)}" loading="lazy" onerror="imgErr(this,'${catIcon(p.category)}')">`:
+          ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="imgErr(this,'${catIcon(p.category)}')">`:
           `<span style="font-size:40px">${catIcon(p.category)}</span>`}
           ${p.discount_pct?`<span class="home-pick-disc">-${p.discount_pct}%</span>`:''}
         </div>
@@ -1068,7 +1068,7 @@ async function loadTopDeal(slug) {
           data-url="${ea(p.url||'')}" data-score="${p.alex_score||''}"
           onclick="showVerdictFromCard(this)">
           <div class="td-img-col">
-            ${p.image_url ? `<img src="${ea(imgProxy(p.image_url))}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.closest('.td-img-col').innerHTML='<span style=font-size:52px>${catIcon(slug)}</span>'">` : `<span style="font-size:52px">${catIcon(slug)}</span>`}
+            ${p.image_url ? `<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.closest('.td-img-col').innerHTML='<span style=font-size:52px>${catIcon(slug)}</span>'">` : `<span style="font-size:52px">${catIcon(slug)}</span>`}
             ${p.discount_pct ? `<span class="td-disc-badge">-${p.discount_pct}%</span>` : ''}
           </div>
           <div class="td-body-col">
@@ -1127,7 +1127,7 @@ async function _fetchSH(q) {
           const srcCls = item.source === 'olx' ? 'olx' : 'bazar';
           const srcLbl = item.source === 'olx' ? 'ОЛХ' : 'Базар';
           return `<a href="${ea(item.url||'#')}" target="_blank" rel="noopener" class="sh-item">
-            ${item.image_url ? `<img class="sh-thumb" src="${ea(imgProxy(item.image_url))}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+            ${item.image_url ? `<img class="sh-thumb" src="${ea(item.image_url)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
             <span class="sh-src ${srcCls}">${srcLbl}</span>
             <span class="sh-title">${eh(item.title||'')}</span>
             <span class="sh-price">${Math.round(item.price||0)} лв.</span>
@@ -1170,7 +1170,7 @@ async function loadPicks(slug) {
         onclick="showVerdictFromCard(this)" style="cursor:pointer">
         <div class="pick-hd"><span>${item.icon}</span><span>${eh(item.label)}</span></div>
         <div class="pick-img">
-          ${item.image_url?`<img src="${ea(imgProxy(item.image_url))}" alt="${ea(item.raw_name)}" loading="lazy" onerror="imgErr(this,'${catIcon(item.category)}')">`:
+          ${item.image_url?`<img src="${ea(item.image_url)}" alt="${ea(item.raw_name)}" loading="lazy" onerror="imgErr(this,'${catIcon(item.category)}')">`:
           `<span style="font-size:40px">${catIcon(item.category)}</span>`}
         </div>
         <div class="pick-body">
@@ -1246,7 +1246,7 @@ async function loadTrends(slug) {
       <div class="sec-head" style="margin-top:4px"><h2>🔥 Най-паднали цени</h2></div>
       <div class="drops-row">${d.top_drops.map(p => `
         <div class="drop-card" onclick="${p.url ? `window.open('${ea(p.url)}','_blank')` : ''}">
-          <div class="drop-img">${p.image_url ? `<img src="${ea(imgProxy(p.image_url))}" alt="" loading="lazy" onerror="this.closest('.drop-card').style.display='none'">` : ''}</div>
+          <div class="drop-img">${p.image_url ? `<img src="${ea(p.image_url)}" alt="" loading="lazy" onerror="this.closest('.drop-card').style.display='none'">` : ''}</div>
           <div class="drop-badge">-${p.drop_pct}%</div>
           <div class="drop-body">
             <div class="drop-name">${eh(p.raw_name)}</div>
@@ -1353,7 +1353,7 @@ function buildProdCard(p) {
         <span class="prod-score ${scc(p.alex_score)}">${p.alex_score}</span>
       </div>
       <div class="prod-img">
-        ${p.image_url?`<img src="${ea(imgProxy(p.image_url))}" alt="${ea(p.raw_name)}" loading="lazy" onerror="imgErr(this,'${catIcon(p.category)}')">`:
+        ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="imgErr(this,'${catIcon(p.category)}')">`:
         `<span style="font-size:34px">${catIcon(p.category)}</span>`}
       </div>
       <div class="prod-body">
@@ -1415,7 +1415,7 @@ function buildSegCard(p) {
           ${p.discount_pct?`<span class="seg-disc">-${p.discount_pct}%<button class="disc-chk" title="Реално ли е намалението?" onclick="event.stopPropagation();dealCheck(event,'${ea(p.url||'')}','${ea(p.raw_name||'')}',${p.price},${p.old_price||0},'${ea(p.store||'')}')">?</button></span>`:'<span></span>'}
           <span class="seg-score ${scc(p.alex_score)}">${p.alex_score}</span>
         </div>
-        ${p.image_url?`<img src="${ea(imgProxy(p.image_url))}" alt="${ea(p.raw_name)}" loading="lazy" onerror="imgErr(this,'${catIcon(p.category)}')">`:
+        ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="imgErr(this,'${catIcon(p.category)}')">`:
         `<span style="font-size:34px">${catIcon(p.category)}</span>`}
       </div>
       <div class="seg-body">
@@ -1453,7 +1453,7 @@ function showVerdict(prod) {
   _vrdProd = prod;
 
   document.getElementById('vrdImgEl').innerHTML = prod.image_url
-    ? `<img src="${ea(imgProxy(prod.image_url))}" alt="${ea(prod.raw_name)}" onerror="this.parentElement.innerHTML=''">`
+    ? `<img src="${ea(prod.image_url)}" alt="${ea(prod.raw_name)}" onerror="this.parentElement.innerHTML=''">`
     : '';
   document.getElementById('vrdNameEl').textContent = prod.raw_name;
   document.getElementById('vrdPriceEl').textContent = fmt(prod.price);
@@ -1526,7 +1526,7 @@ function showVerdict(prod) {
             image_url: p.image_url, url: p.url, alex_score: p.alex_score,
           }).replace(/"/g,'&quot;')}),80)">
             <div class="vrd-rel-img">
-              ${p.image_url ? `<img src="${ea(imgProxy(p.image_url))}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='📦'">` : '📦'}
+              ${p.image_url ? `<img src="${ea(p.image_url)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='📦'">` : '📦'}
             </div>
             <div class="vrd-rel-body">
               <div class="vrd-rel-name">${eh(p.raw_name)}</div>
@@ -1997,7 +1997,7 @@ function showChatProds(id, products, tool, input) {
       const disc = p.discount_pct ? `<span style="position:absolute;top:6px;left:6px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;padding:2px 5px;border-radius:4px">-${p.discount_pct}%</span>` : '';
       card.innerHTML = `
         <div class="chat-prod-img" style="position:relative">
-          ${p.image_url?`<img src="${ea(imgProxy(p.image_url))}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.closest('.chat-prod').style.display='none'">`: ''}
+          ${p.image_url?`<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.closest('.chat-prod').style.display='none'">`: ''}
           ${disc}
         </div>
         <div class="chat-prod-body">
@@ -2074,7 +2074,7 @@ function _addToSidePanel(products) {
     c.className = 'cpp-card';
     c.innerHTML = `
       <div class="cpp-img">
-        ${p.image_url ? `<img src="${ea(imgProxy(p.image_url))}" alt="" loading="lazy" onerror="this.closest('.cpp-card').style.display='none'">` : ''}
+        ${p.image_url ? `<img src="${ea(p.image_url)}" alt="" loading="lazy" onerror="this.closest('.cpp-card').style.display='none'">` : ''}
       </div>
       <div class="cpp-info">
         <div class="cpp-name">${eh(p.raw_name)}</div>
@@ -2420,7 +2420,7 @@ function _buildDevCard(dev) {
   const meta = [dev.store, dev.purchase_date ? dev.purchase_date.slice(0,7) : null, dev.purchase_price ? `${dev.purchase_price} лв.` : null].filter(Boolean).join(' · ');
 
   card.innerHTML = `
-    <div class="myd-card-ico">${dev.image_url ? `<img src="${ea(imgProxy(dev.image_url))}" alt="" onerror="this.parentNode.textContent='${ico}'">` : ico}</div>
+    <div class="myd-card-ico">${dev.image_url ? `<img src="${ea(dev.image_url)}" alt="" onerror="this.parentNode.textContent='${ico}'">` : ico}</div>
     <div class="myd-card-info">
       <div class="myd-card-name">${eh(dev.device_name)}</div>
       ${meta ? `<div class="myd-card-meta">${eh(meta)}</div>` : ''}
