@@ -2777,6 +2777,18 @@ async def homepage_picks(limit: int = Query(12, le=24)):
     return {"picks": picks, "count": len(picks)}
 
 
+@router.get("/alex/secondhand")
+async def secondhand_http(
+    q:        str = Query(..., min_length=2),
+    max_each: int = Query(5, le=8),
+):
+    """Real-time second-hand search from OLX + Bazar.bg."""
+    result = await asyncio.to_thread(
+        _exec_search_secondhand, {"query": q, "max_per_source": max_each}
+    )
+    return result
+
+
 @router.get("/alex/stats")
 async def alex_stats():
     """Quick stats for the Alex homepage."""

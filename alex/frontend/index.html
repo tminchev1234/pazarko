@@ -205,6 +205,28 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .td-btn:hover{background:#2563eb}
 @media(max-width:600px){.top-deal-card{flex-direction:column}.td-img-col{width:100%;min-height:160px}.td-body-col{padding:14px 16px}}
 
+/* ── SECONDHAND SECTION ── */
+.sh-section{margin-top:36px}
+.sh-bar{display:flex;gap:8px;margin:12px 0 14px}
+.sh-input{flex:1;padding:9px 14px;border:1px solid var(--border);border-radius:8px;font-size:13px;background:var(--bg);color:var(--text);font-family:inherit;outline:none}
+.sh-input:focus{border-color:var(--blue)}
+.sh-btn{background:var(--blue);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s;white-space:nowrap}
+.sh-btn:hover{background:#2563eb}
+.sh-list{display:flex;flex-direction:column;gap:6px}
+.sh-item{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;transition:background .15s;text-decoration:none;color:inherit}
+.sh-item:hover{background:#f3f4f6;border-color:#d1d5db}
+.sh-thumb{width:44px;height:44px;object-fit:contain;border-radius:6px;flex-shrink:0;background:#f9fafb}
+.sh-src{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;white-space:nowrap;flex-shrink:0}
+.sh-src.olx{background:#3dbc9a;color:#fff}
+.sh-src.bazar{background:#e67e22;color:#fff}
+.sh-title{flex:1;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.sh-price{font-size:15px;font-weight:700;color:#16a34a;white-space:nowrap;flex-shrink:0}
+.sh-loc{font-size:11px;color:var(--muted);white-space:nowrap;flex-shrink:0;max-width:90px;overflow:hidden;text-overflow:ellipsis}
+.sh-more{text-align:right;margin-top:10px;display:flex;gap:14px;justify-content:flex-end}
+.sh-more a{color:var(--blue);font-size:12px;font-weight:600;text-decoration:none}
+.sh-more a:hover{text-decoration:underline}
+@media(max-width:480px){.sh-loc{display:none}.sh-more{justify-content:center}}
+
 /* ── FILTERS ── */
 .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:18px;box-shadow:var(--sh)}
 .fl-group{display:flex;align-items:center;gap:7px}
@@ -985,6 +1007,17 @@ async function renderCategory(slug) {
         <span class="fl-count" id="fCount"></span>
       </div>
       <div class="prod-grid" id="prodGrid">${skRow(12,'prod-card',135)}</div>
+      <div class="sh-section" id="secondhandSection">
+        <div class="sec-head" style="margin-top:4px">
+          <h2>🔄 Втора употреба</h2>
+          <span style="font-size:12px;color:var(--muted)">Обяви в реално време от ОЛХ &amp; Базар.бг</span>
+        </div>
+        <div class="sh-bar">
+          <input class="sh-input" id="shInput" placeholder="Търси втора употреба...">
+          <button class="sh-btn" onclick="searchSH()">🔍 Търси</button>
+        </div>
+        <div id="shResults"><div style="color:var(--muted);font-size:13px;padding:8px 0">Зарежда се...</div></div>
+      </div>
     </div>`;
   // Default min_price per category — hides junk/feature-phone tier
   const _CAT_DEF_MIN = {phones:120, laptops:350, tvs:200, tablets:100, gaming:30};
@@ -998,6 +1031,7 @@ async function renderCategory(slug) {
   loadSegments(slug);
   loadTrends(slug);
   _loadTrending(slug);
+  loadSecondhand(slug);
 }
 
 function skRow(n, cls, h) {
@@ -1053,6 +1087,62 @@ async function loadTopDeal(slug) {
         </div>
       </div>`;
   } catch { el.innerHTML = ''; }
+}
+
+const _SH_CAT_Q = {
+  phones:'смартфон', laptops:'лаптоп', tvs:'телевизор',
+  headphones:'слушалки', tablets:'таблет', gaming:'геймърски',
+  fridges:'хладилник', washing:'пералня', ac:'климатик', vacuum:'прахосмукачка'
+};
+
+async function loadSecondhand(slug) {
+  const inp = document.getElementById('shInput');
+  const q = _SH_CAT_Q[slug] || slug;
+  if (inp) inp.value = q;
+  await _fetchSH(q);
+}
+
+async function searchSH() {
+  const q = (document.getElementById('shInput')?.value || '').trim();
+  if (q.length < 2) return;
+  await _fetchSH(q);
+}
+
+async function _fetchSH(q) {
+  const el = document.getElementById('shResults');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0">Зарежда се...</div>';
+  try {
+    const d = await apiFetch(`/alex/secondhand?q=${encodeURIComponent(q)}&max_each=5`);
+    const items = d.secondhand || [];
+    if (!items.length) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0">Няма намерени обяви. Опитай с различна дума.</div>';
+      return;
+    }
+    const olxUrl   = `https://www.olx.bg/elektronika/?q=${encodeURIComponent(q)}`;
+    const bazarUrl = `https://bazar.bg/obiavi/elektronika?q=${encodeURIComponent(q)}`;
+    el.innerHTML = `
+      <div class="sh-list">
+        ${items.map(item => {
+          const srcCls = item.source === 'olx' ? 'olx' : 'bazar';
+          const srcLbl = item.source === 'olx' ? 'ОЛХ' : 'Базар';
+          return `<a href="${ea(item.url||'#')}" target="_blank" rel="noopener" class="sh-item">
+            ${item.image_url ? `<img class="sh-thumb" src="${ea(imgProxy(item.image_url))}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+            <span class="sh-src ${srcCls}">${srcLbl}</span>
+            <span class="sh-title">${eh(item.title||'')}</span>
+            <span class="sh-price">${Math.round(item.price||0)} лв.</span>
+            ${item.location ? `<span class="sh-loc">${eh(item.location)}</span>` : ''}
+            <span style="font-size:12px;color:var(--blue);flex-shrink:0">→</span>
+          </a>`;
+        }).join('')}
+      </div>
+      <div class="sh-more">
+        <a href="${ea(olxUrl)}" target="_blank" rel="noopener">Виж всички в ОЛХ →</a>
+        <a href="${ea(bazarUrl)}" target="_blank" rel="noopener">Виж всички в Базар.бг →</a>
+      </div>`;
+  } catch {
+    el.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:8px 0">Грешка при зареждане.</div>';
+  }
 }
 
 async function loadPicks(slug) {
