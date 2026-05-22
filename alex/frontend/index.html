@@ -49,8 +49,52 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .nav-search input::placeholder{color:#6b7280}
 .nav-search button{background:none;border:none;padding:7px 10px;color:#9ca3af;font-size:15px;cursor:pointer;flex-shrink:0;transition:color .15s}
 .nav-search button:hover{color:#fff}
+.nav-devices{flex-shrink:0;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#9ca3af;font-size:17px;padding:6px 10px;border-radius:8px;cursor:pointer;transition:all .15s;line-height:1}
+.nav-devices:hover{background:rgba(255,255,255,.15);color:#fff}
 .nav-ask{flex-shrink:0;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;white-space:nowrap;transition:opacity .15s}
 .nav-ask:hover{opacity:.9}
+
+/* ── Моята техника modal ── */
+.myd-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
+.myd-ov.open{display:flex}
+.myd-modal{background:#fff;border-radius:18px;width:100%;max-width:540px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.myd-hdr{background:linear-gradient(135deg,#1a1a2e,#2d2d4e);color:#fff;padding:18px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.myd-hdr h3{margin:0;font-size:16px;font-weight:700}
+.myd-hdr button{background:rgba(255,255,255,.15);border:none;color:#fff;font-size:18px;width:32px;height:32px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.myd-body{overflow-y:auto;flex:1;padding:16px}
+.myd-empty{text-align:center;padding:32px 20px;color:#9ca3af;font-size:14px}
+.myd-empty div{font-size:36px;margin-bottom:10px}
+.myd-list{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+.myd-card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px}
+.myd-card-ico{font-size:28px;flex-shrink:0;width:44px;height:44px;background:#fff;border-radius:10px;display:flex;align-items:center;justify-content:center;border:1px solid #e5e7eb}
+.myd-card-ico img{width:38px;height:38px;object-fit:contain;border-radius:6px}
+.myd-card-info{flex:1;min-width:0}
+.myd-card-name{font-size:13px;font-weight:700;color:#1a1a2e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.myd-card-meta{font-size:11px;color:#6b7280;margin-top:2px}
+.myd-card-warranty{font-size:11px;font-weight:600;margin-top:4px;padding:2px 7px;border-radius:20px;display:inline-block}
+.myd-card-warranty.ok{background:#f0fdf4;color:#16a34a}
+.myd-card-warranty.warn{background:#fff7ed;color:#c2410c}
+.myd-card-warranty.exp{background:#fef2f2;color:#b91c1c}
+.myd-card-warranty.none{background:#f3f4f6;color:#9ca3af}
+.myd-card-actions{display:flex;flex-direction:column;gap:5px;flex-shrink:0}
+.myd-btn-tradein{background:#6366f1;color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:600;padding:5px 9px;cursor:pointer;white-space:nowrap;transition:opacity .15s}
+.myd-btn-tradein:hover{opacity:.85}
+.myd-btn-del{background:#fee2e2;color:#b91c1c;border:none;border-radius:7px;font-size:11px;font-weight:600;padding:5px 9px;cursor:pointer;transition:opacity .15s}
+.myd-btn-del:hover{opacity:.8}
+.myd-add{border-top:1px solid #e5e7eb;padding-top:14px}
+.myd-add h4{font-size:13px;font-weight:700;color:#374151;margin:0 0 10px}
+.myd-form{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.myd-form input,.myd-form select{padding:8px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:12px;font-family:inherit;background:#fff;color:#111;width:100%;box-sizing:border-box}
+.myd-form input:focus,.myd-form select:focus{outline:none;border-color:#6366f1}
+.myd-form-full{grid-column:1/-1}
+.myd-save{background:linear-gradient(135deg,#6366f1,#7c3aed);color:#fff;border:none;border-radius:9px;font-size:13px;font-weight:700;padding:10px 20px;cursor:pointer;width:100%;margin-top:6px;transition:opacity .15s}
+.myd-save:hover{opacity:.9}
+.myd-save:disabled{opacity:.5;cursor:default}
+
+/* Store badge tooltip */
+.store-badge{position:relative}
+.store-badge[data-tip]:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#1a1a2e;color:#fff;font-size:11px;padding:5px 9px;border-radius:7px;white-space:nowrap;z-index:200;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.store-badge[data-tip]:hover::before{content:'';position:absolute;bottom:calc(100% + 1px);left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:#1a1a2e;z-index:201;pointer-events:none}
 
 /* ── PAGE ── */
 .page{max-width:1200px;margin:0 auto;padding:0 20px 100px}
@@ -554,6 +598,7 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
       <input id="navSearchInput" type="search" placeholder="Търси продукт..." autocomplete="off" aria-label="Търсене">
       <button type="submit" title="Търси">🔍</button>
     </form>
+    <button class="nav-devices" onclick="openMyDevices()" title="Моята техника">📦</button>
     <button class="nav-ask" onclick="openChat()">💬 Попитай Alex</button>
   </div>
 </nav>
@@ -813,7 +858,7 @@ async function loadDayPick() {
           <span class="pick-disc-badge">-${p.discount_pct}%</span>
         </div>
         <div class="pick-store-row">
-          <span class="store-badge ${sc(p.store)}">${sl(p.store)}</span>
+          ${storeBadge(p.store)}
           <a href="${ea(p.url)}" target="_blank" rel="noopener" class="pick-btn">Виж офертата →</a>
         </div>
       </div>
@@ -849,7 +894,7 @@ async function loadHomePicks() {
               <span class="home-pick-price">${fmt(p.price)}</span>
               ${p.old_price?`<span class="home-pick-old">${fmt(p.old_price)}</span>`:''}
             </div>
-            <span class="store-badge ${sc(p.store)}">${sl(p.store)}</span>
+            ${storeBadge(p.store)}
           </div>
           ${p.url?`<a class="home-pick-link" href="${ea(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Виж офертата →</a>`:''}
         </div>
@@ -1050,7 +1095,7 @@ async function loadTrends(slug) {
               <span class="drop-now">${fmt(p.price_now)}</span>
               <span class="drop-was">${fmt(p.price_was)}</span>
             </div>
-            <span class="store-badge ${sc(p.store)}">${sl(p.store)}</span>
+            ${storeBadge(p.store)}
           </div>
         </div>`).join('')}
       </div>` : '';
@@ -1161,7 +1206,7 @@ function buildProdCard(p) {
       </div>
       <div class="prod-alex-tag">💬 Мнение на Alex</div>
       <div class="prod-ft">
-        <span class="store-badge ${sc(p.store)}">${sl(p.store)}</span>
+        ${storeBadge(p.store)}
         ${p.url?`<a class="prod-link" href="${ea(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Виж →</a>`:''}
         <button class="cmp-btn${inCmp?' in':''}"
           data-n="${ea(p.raw_name)}" data-s="${ea(p.store)}"
@@ -1799,7 +1844,7 @@ function showChatProds(id, products, tool, input) {
         <div class="chat-prod-body">
           <div class="chat-prod-name">${eh(p.raw_name)}</div>
           <div class="chat-prod-price">${fmt(p.price)}${p.old_price?` <span style="font-size:11px;color:var(--muted);text-decoration:line-through;font-weight:400">${fmt(p.old_price)}</span>`:''}</div>
-          <div class="chat-prod-store"><span class="store-badge ${sc(p.store)}" style="display:inline-block;margin-top:3px">${sl(p.store)}</span></div>
+          <div class="chat-prod-store" style="margin-top:3px">${storeBadge(p.store)}</div>
         </div>
         ${p.url?`<a class="chat-prod-link" href="${ea(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Виж офертата →</a>`:''}`;
       card.onclick = () => p.url && window.open(p.url,'_blank');
@@ -1875,7 +1920,7 @@ function _addToSidePanel(products) {
       <div class="cpp-info">
         <div class="cpp-name">${eh(p.raw_name)}</div>
         <div class="cpp-price">${fmt(p.price)}${p.old_price?` <span style="font-size:10px;color:var(--muted);text-decoration:line-through;font-weight:400">${fmt(p.old_price)}</span>`:''}</div>
-        <div class="cpp-store"><span class="store-badge ${sc(p.store)}">${sl(p.store)}</span></div>
+        <div class="cpp-store">${storeBadge(p.store)}</div>
         ${p.url ? `<a href="${ea(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="font-size:11px;color:var(--blue);font-weight:600;text-decoration:none;margin-top:3px;display:inline-block">Виж в магазина →</a>` : ''}
       </div>`;
     c.onclick = () => {
@@ -2024,8 +2069,19 @@ function imgErr(el, fb) {
 function catIcon(cat) { return (CATS[cat]||{}).icon || '📦'; }
 function ea(s) { return String(s).replace(/"/g,'&quot;'); }
 function fmt(n) { if(n==null)return'—'; return Number(n).toFixed(2).replace('.',',')+' €'; }
-function sl(s) { return {technopolis:'Technopolis',emag:'eMAG',ardes:'Ардес',technomarket:'Техномаркет'}[s]||s; }
-function sc(s) { return {technopolis:'s-technopolis',emag:'s-emag',ardes:'s-ardes',technomarket:'s-technomarket'}[s]||''; }
+function sl(s) { return {technopolis:'Technopolis',emag:'eMAG',ardes:'Ардес',technomarket:'Техномаркет',zora:'Зора'}[s]||s; }
+function sc(s) { return {technopolis:'s-technopolis',emag:'s-emag',ardes:'s-ardes',technomarket:'s-technomarket',zora:'s-zora'}[s]||''; }
+const _STORE_TIP = {
+  emag:        'Бърза доставка (до 24ч) · Лесно връщане',
+  technopolis: 'Физически магазини · Отличен сервиз',
+  technomarket:'Широка мрежа · Добро обслужване',
+  ardes:       'Онлайн магазин · Конкурентни цени',
+  zora:        'По-малък магазин · Проверявай наличност',
+};
+function storeBadge(store) {
+  const tip = _STORE_TIP[store] || '';
+  return `<span class="store-badge ${sc(store)}" ${tip?`data-tip="${ea(tip)}"`:''} style="display:inline-block">${sl(store)}</span>`;
+}
 function scc(v) { return v>=8?'sc-green':v>=6.5?'sc-blue':v>=5?'sc-amber':'sc-gray'; }
 async function apiFetch(path, opts = {}) {
   const r = await fetch(`${API}${path}`, opts);
@@ -2147,6 +2203,127 @@ function navSearch2(q) {
 
 buildNav();
 render();
+
+// ── Моята техника ─────────────────────────────────────────────────────────────
+
+const _CAT_ICO = {phones:'📱',laptops:'💻',tvs:'📺',tablets:'📱',headphones:'🎧',gaming:'🎮',cameras:'📷',appliances:'🏠',''  :'📦'};
+
+function openMyDevices() {
+  document.getElementById('mydOv').classList.add('open');
+  loadMyDevices();
+}
+function closeMyDevices() {
+  document.getElementById('mydOv').classList.remove('open');
+}
+
+async function loadMyDevices() {
+  const list = document.getElementById('mydList');
+  list.innerHTML = '<div style="text-align:center;padding:20px;color:#9ca3af;font-size:13px">Зареждане...</div>';
+  try {
+    const d = await apiFetch(`/alex/devices?user_id=${encodeURIComponent(_alexUid)}`);
+    const devs = d.devices || [];
+    if (!devs.length) {
+      list.innerHTML = `<div class="myd-empty"><div>📦</div>Нямаш добавени устройства.<br>Добави своята техника по-долу.</div>`;
+      return;
+    }
+    list.innerHTML = '';
+    devs.forEach(dev => list.appendChild(_buildDevCard(dev)));
+  } catch {
+    list.innerHTML = '<div class="myd-empty"><div>⚠️</div>Грешка при зареждане.</div>';
+  }
+}
+
+function _buildDevCard(dev) {
+  const card = document.createElement('div');
+  card.className = 'myd-card';
+
+  // Warranty badge
+  let wBadge = '<span class="myd-card-warranty none">Без гаранция</span>';
+  if (dev.purchase_date && dev.warranty_months) {
+    const end  = new Date(dev.warranty_end || dev.purchase_date);
+    end.setMonth(end.getMonth() + (dev.warranty_end ? 0 : dev.warranty_months));
+    const days = Math.round((end - Date.now()) / 86400000);
+    if (days < 0)
+      wBadge = `<span class="myd-card-warranty exp">Гаранцията изтекла</span>`;
+    else if (days < 60)
+      wBadge = `<span class="myd-card-warranty warn">Гаранция: ${days} дни</span>`;
+    else
+      wBadge = `<span class="myd-card-warranty ok">Гаранция: ${Math.round(days/30)} мес.</span>`;
+  }
+
+  const ico = _CAT_ICO[dev.category || ''] || '📦';
+  const meta = [dev.store, dev.purchase_date ? dev.purchase_date.slice(0,7) : null, dev.purchase_price ? `${dev.purchase_price} лв.` : null].filter(Boolean).join(' · ');
+
+  card.innerHTML = `
+    <div class="myd-card-ico">${dev.image_url ? `<img src="${ea(dev.image_url)}" alt="" onerror="this.parentNode.textContent='${ico}'">` : ico}</div>
+    <div class="myd-card-info">
+      <div class="myd-card-name">${eh(dev.device_name)}</div>
+      ${meta ? `<div class="myd-card-meta">${eh(meta)}</div>` : ''}
+      ${wBadge}
+    </div>
+    <div class="myd-card-actions">
+      <button class="myd-btn-tradein" onclick="tradeInDevice('${ea(dev.device_name)}')">💰 Продай?</button>
+      <button class="myd-btn-del"     onclick="deleteDevice(${dev.id}, this)">Изтрий</button>
+    </div>`;
+  return card;
+}
+
+async function saveDevice() {
+  const name = document.getElementById('myd_name').value.trim();
+  if (!name) { alert('Въведи название на устройството'); return; }
+
+  const btn = document.getElementById('mydSaveBtn');
+  btn.disabled = true; btn.textContent = 'Запазване...';
+
+  const body = {
+    device_name:     name,
+    brand:           document.getElementById('myd_brand').value.trim() || null,
+    category:        document.getElementById('myd_cat').value || null,
+    store:           document.getElementById('myd_store').value.trim() || null,
+    purchase_date:   document.getElementById('myd_date').value || null,
+    purchase_price:  parseFloat(document.getElementById('myd_price').value) || null,
+    warranty_months: parseInt(document.getElementById('myd_warranty').value) || 24,
+    product_url:     document.getElementById('myd_url').value.trim() || null,
+  };
+
+  try {
+    await apiFetch(`/alex/devices?user_id=${encodeURIComponent(_alexUid)}`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body),
+    });
+    // Clear form
+    ['myd_name','myd_brand','myd_store','myd_date','myd_price','myd_url'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('myd_cat').value = '';
+    document.getElementById('myd_warranty').value = '24';
+    await loadMyDevices();
+  } catch {
+    alert('Грешка при запис. Опитай отново.');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Запази устройство';
+  }
+}
+
+async function deleteDevice(id, btn) {
+  if (!confirm('Изтриване на устройството?')) return;
+  btn.disabled = true;
+  try {
+    await apiFetch(`/alex/devices/${id}?user_id=${encodeURIComponent(_alexUid)}`, { method: 'DELETE' });
+    await loadMyDevices();
+  } catch {
+    alert('Грешка при изтриване.');
+    btn.disabled = false;
+  }
+}
+
+function tradeInDevice(deviceName) {
+  closeMyDevices();
+  const savedCat = _chatCat;
+  _chatCat = null;
+  openChat();
+  _chatCat = savedCat;
+  setTimeout(() => sendChatText(`Колко мога да продам "${deviceName}" на вторичния пазар? Оцени ми го и ако искаш предложи на какво да го надградя.`), 350);
+}
 </script>
 <div class="why-popup" id="whyPopup"></div>
 
@@ -2159,6 +2336,44 @@ render();
     </div>
     <div class="dc-body" id="dcBody">
       <div class="dc-loading">Проверявам...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Моята техника modal ─────────────────────────────────────── -->
+<div class="myd-ov" id="mydOv" onclick="if(event.target===this)closeMyDevices()">
+  <div class="myd-modal">
+    <div class="myd-hdr">
+      <h3>📦 Моята техника</h3>
+      <button onclick="closeMyDevices()">✕</button>
+    </div>
+    <div class="myd-body">
+      <div class="myd-list" id="mydList"></div>
+
+      <div class="myd-add">
+        <h4>Добави устройство</h4>
+        <div class="myd-form" id="mydForm">
+          <input class="myd-form-full" id="myd_name"    placeholder="Устройство (напр. iPhone 13 Pro)" required>
+          <input id="myd_brand"   placeholder="Марка (напр. Apple)">
+          <select id="myd_cat">
+            <option value="">Категория...</option>
+            <option value="phones">Смартфон</option>
+            <option value="laptops">Лаптоп</option>
+            <option value="tvs">Телевизор</option>
+            <option value="tablets">Таблет</option>
+            <option value="headphones">Слушалки</option>
+            <option value="gaming">Конзола</option>
+            <option value="cameras">Фотоапарат</option>
+            <option value="appliances">Друго</option>
+          </select>
+          <input id="myd_store"   placeholder="Магазин (напр. eMAG)">
+          <input id="myd_date"    type="date" placeholder="Дата на покупка">
+          <input id="myd_price"   type="number" placeholder="Платена цена (лв.)">
+          <input id="myd_warranty" type="number" placeholder="Гаранция (месеци)" value="24">
+          <input id="myd_url"     placeholder="Линк към продукта (незадълж.)" class="myd-form-full">
+        </div>
+        <button class="myd-save" id="mydSaveBtn" onclick="saveDevice()">Запази устройство</button>
+      </div>
     </div>
   </div>
 </div>

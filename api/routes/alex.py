@@ -405,6 +405,74 @@ FOLLOW-UP ПРАВИЛА
 - Помни бюджет, употреба и предпочитания, споменати по-рано
 
 ════════════════════════════════════════
+КОГА ДА КУПЯ (get_buy_timing)
+════════════════════════════════════════
+
+Викай get_buy_timing когато потребителят пита:
+  "кога да купя", "добра ли е цената", "ще поевтинее ли", "чакам ли"
+Подавай product_url ако имаш URL от предишно търсене.
+
+При интерпретация на резултата:
+• verdict=buy_now + at_historical_min → "Цената е на историческо дъно — добър момент"
+• verdict=wait + at_historical_max + trend=rising → "Цената расте, изчакай"
+• trend=falling → "Цената пада последно — вероятно ще продължи"
+• has_history=False → ползвай общите си познания за сезонни цикли:
+  - Черен петък (ноември): ~15-25% намаления на техника
+  - Нова година (декември-януари): добри оферти на ТВ и лаптопи
+  - Back to school (август-септември): намаления на лаптопи и таблети
+  - Смяна на модел (напр. нов iPhone/Samsung): старият пада 15-20%
+
+════════════════════════════════════════
+НОВИ МОДЕЛИ — КОГА ДА ИЗЧАКАШ
+════════════════════════════════════════
+
+При препоръка на продукт, ЗАДЪЛЖИТЕЛНО провери дали предстои нов модел:
+• iPhone → нов модел всеки септември; ако е юли-август → препоръчай изчакване
+• Samsung Galaxy S → нов модел всеки януари; ако е ноември-декември → изчакай
+• MacBook → Apple обновява ~веднъж годишно; следи Apple Event обяви
+• Sony WH слушалки → нов XM модел на ~2 години
+• PlayStation / Xbox → дълги цикли (5-7 г.); текущото поколение е актуално
+
+Ако предстои нов модел скоро: "⚠️ Очаква се [нов модел] след ~X месеца.
+Старият ще поевтинее с ~15-20%. Препоръчвам да изчакаш ако не бързаш."
+
+════════════════════════════════════════
+BUDGET DISTRIBUTOR — РАЗПРЕДЕЛЕНИЕ НА БЮДЖЕТ
+════════════════════════════════════════
+
+Когато потребителят дава общ бюджет за НЯКОЛКО продукта (setup, комплект):
+1. Предложи разпределение по категории (напр. "800 лв. работен setup")
+2. Направи search_products за всеки компонент с правилния max_price
+3. Представи като таблица с компонент / препоръчан продукт / цена
+
+Стандартни разпределения (ориентировъчни):
+• Работен setup: 60% лаптоп, 15% монитор, 15% слушалки, 10% периферия
+• Гейминг setup: 65% лаптоп/конзола, 20% монитор, 10% слушалки, 5% аксесоари
+• Домашно кино: 70% ТВ, 20% звукова система, 10% стриймър
+
+════════════════════════════════════════
+МАГАЗИНИ — НАДЕЖДНОСТ И ОСОБЕНОСТИ
+════════════════════════════════════════
+
+eMAG: Най-бърза доставка (до 24ч), голям избор, добра политика за връщане.
+  Идеален за: спешни покупки, стоки с бърза наличност.
+
+Технополис: Физически магазини с демо зали, отлично гаранционно обслужване.
+  Идеален за: скъпа техника, когато искаш да видиш продукта на живо, сервиз.
+
+Техномаркет: Широка мрежа физически магазини, добро обслужване.
+  Идеален за: покупки с консултация на място.
+
+Ардес: Онлайн фокус, конкурентни цени.
+  Идеален за: добра цена без нужда от физически магазин.
+
+Зора: По-малък онлайн магазин.
+  Идеален за: когато другите нямат наличност.
+
+Когато препоръчваш магазин — не само цената, но и тези особености.
+Пример: "eMAG е €2 по-скъп, но доставя утре и с безплатно връщане."
+
+════════════════════════════════════════
 ВТОРА РЪКА (search_secondhand)
 ════════════════════════════════════════
 
@@ -527,6 +595,48 @@ ALEX_TOOLS = [
                 }
             },
             "required": []
+        }
+    },
+    {
+        "name": "get_buy_timing",
+        "description": (
+            "Анализира историята на цените на продукт и дава препоръка 'купи сега' или 'изчакай'. "
+            "Използвай когато потребителят пита 'кога да купя', 'добра ли е цената сега', "
+            "'ще поевтинее ли', 'чакам ли промоция'. "
+            "Подавай URL на продукта ако го имаш, иначе подавай product_name."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_url": {
+                    "type": "string",
+                    "description": "URL на продукта в магазина (предпочитано)"
+                },
+                "product_name": {
+                    "type": "string",
+                    "description": "Название на продукта ако няма URL"
+                }
+            },
+            "required": []
+        }
+    },
+    {
+        "name": "estimate_tradein",
+        "description": (
+            "Оценява колко струва дадено устройство на вторичния пазар (OLX). "
+            "Използвай когато потребителят пита 'колко мога да продам моя X', "
+            "'trade-in стойност', 'колко е стар ми Y на вторичния пазар', "
+            "или когато предлагаш надграждане и искаш да покажеш реалната доплата."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "device": {
+                    "type": "string",
+                    "description": "Устройство за оценка (напр. 'iPhone 13 Pro 256GB', 'Samsung Galaxy S22', 'MacBook Air M2')"
+                }
+            },
+            "required": ["device"]
         }
     },
     {
@@ -699,6 +809,113 @@ def _exec_get_top_deals(args: dict) -> list[dict]:
     return _dedup_deals(_local_deals(category=args.get("category"), limit=60), limit)
 
 
+def _exec_get_buy_timing(args: dict) -> dict:
+    product_url  = (args.get("product_url")  or "").strip()
+    product_name = (args.get("product_name") or "").strip()
+
+    if not product_url and not product_name:
+        return {"has_history": False, "message": "Подай product_url или product_name"}
+
+    try:
+        sb = get_supabase()
+        q  = sb.table("price_history").select("price, scraped_at, store")
+        if product_url:
+            q = q.eq("product_url", product_url)
+        else:
+            q = q.ilike("raw_name", f"%{product_name}%")
+        resp    = q.order("scraped_at", desc=False).limit(60).execute()
+        history = resp.data or []
+    except Exception as exc:
+        logger.warning("[buy_timing] DB error: %s", exc)
+        history = []
+
+    if len(history) < 2:
+        return {
+            "has_history": False,
+            "data_points": len(history),
+            "message": (
+                "Недостатъчна ценова история в базата. "
+                "Използвай общите си познания за сезонни цикли и пазарни тенденции."
+            ),
+        }
+
+    prices  = [float(r["price"]) for r in history if r.get("price")]
+    current = prices[-1]
+    mn, mx  = min(prices), max(prices)
+    avg     = round(sum(prices) / len(prices), 2)
+
+    # Trend: last third vs first third
+    chunk      = max(1, len(prices) // 3)
+    recent_avg = sum(prices[-chunk:]) / chunk
+    early_avg  = sum(prices[:chunk])  / chunk
+    if recent_avg < early_avg * 0.97:
+        trend = "falling"
+    elif recent_avg > early_avg * 1.03:
+        trend = "rising"
+    else:
+        trend = "stable"
+
+    at_min = current <= mn * 1.03
+    at_max = current >= mx * 0.97
+
+    return {
+        "has_history": True,
+        "data_points": len(prices),
+        "current_price": current,
+        "min_price":     mn,
+        "max_price":     mx,
+        "avg_price":     avg,
+        "trend":         trend,
+        "at_historical_min": at_min,
+        "at_historical_max": at_max,
+        "verdict": (
+            "buy_now"  if at_min or trend == "falling" else
+            "wait"     if at_max and trend == "rising"  else
+            "neutral"
+        ),
+    }
+
+
+def _exec_estimate_tradein(args: dict) -> dict:
+    from alex.scrapers.olx import search_olx
+
+    device = (args.get("device") or "").strip()
+    if not device:
+        return {"error": "Не е зададено устройство"}
+
+    listings = search_olx(device, max_results=10)
+    prices   = sorted(
+        p for l in listings
+        if (p := l.get("price", 0)) and p > 50
+    )
+
+    if not prices:
+        return {"found": 0, "message": f"Няма намерени обяви за '{device}' в OLX"}
+
+    # Drop top and bottom outlier if enough data
+    if len(prices) >= 5:
+        cut    = max(1, len(prices) // 5)
+        prices = prices[cut:-cut]
+
+    median = sorted(prices)[len(prices) // 2]
+    low    = round(median * 0.85)   # conservative seller estimate
+    high   = round(median * 1.00)
+
+    return {
+        "found":          len(listings),
+        "median_price":   round(median),
+        "estimated_low":  low,
+        "estimated_high": high,
+        "currency":       "BGN",
+        "sample_count":   len(prices),
+        "top_listings":   listings[:3],
+        "advice": (
+            f"При продажба в OLX очаквай {low}–{high} лв. "
+            f"(базирано на {len(listings)} обяви)."
+        ),
+    }
+
+
 def _exec_search_secondhand(args: dict) -> dict:
     from concurrent.futures import ThreadPoolExecutor, as_completed
     from alex.scrapers.olx   import search_olx
@@ -745,6 +962,10 @@ def _run_tool(tool_name: str, tool_input: dict) -> Any:
         return _exec_get_top_deals(tool_input)
     if tool_name == "search_secondhand":
         return _exec_search_secondhand(tool_input)
+    if tool_name == "get_buy_timing":
+        return _exec_get_buy_timing(tool_input)
+    if tool_name == "estimate_tradein":
+        return _exec_estimate_tradein(tool_input)
     return {"error": f"Unknown tool: {tool_name}"}
 
 
@@ -2333,3 +2554,73 @@ async def alex_stats():
         s = o.get("store", "unknown")
         store_counts[s] = store_counts.get(s, 0) + 1
     return {"total_products": len(offers), "stores": store_counts}
+
+
+# ── "Моята електроника" — user device CRUD ────────────────────────────────────
+
+class DeviceIn(BaseModel):
+    device_name:     str
+    brand:           Optional[str] = None
+    category:        Optional[str] = None
+    purchase_date:   Optional[str] = None   # ISO date string YYYY-MM-DD
+    purchase_price:  Optional[float] = None
+    store:           Optional[str] = None
+    warranty_months: int = 24
+    image_url:       Optional[str] = None
+    product_url:     Optional[str] = None
+    notes:           Optional[str] = None
+
+
+@router.get("/alex/devices")
+async def get_devices(user_id: str = Query(...)):
+    """List all devices owned by this user."""
+    try:
+        sb   = get_supabase()
+        resp = (
+            sb.table("user_devices")
+            .select("*")
+            .eq("user_id", user_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return {"devices": resp.data or []}
+    except Exception as exc:
+        logger.error("[devices] get failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Грешка при зареждане на устройствата")
+
+
+@router.post("/alex/devices")
+async def add_device(user_id: str = Query(...), body: DeviceIn = ...):
+    """Add a device to the user's collection."""
+    try:
+        sb  = get_supabase()
+        row = {
+            "user_id":         user_id,
+            "device_name":     body.device_name.strip(),
+            "brand":           body.brand,
+            "category":        body.category,
+            "purchase_date":   body.purchase_date,
+            "purchase_price":  body.purchase_price,
+            "store":           body.store,
+            "warranty_months": body.warranty_months,
+            "image_url":       body.image_url,
+            "product_url":     body.product_url,
+            "notes":           body.notes,
+        }
+        resp = sb.table("user_devices").insert(row).execute()
+        return {"device": resp.data[0] if resp.data else row}
+    except Exception as exc:
+        logger.error("[devices] add failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Грешка при запис на устройството")
+
+
+@router.delete("/alex/devices/{device_id}")
+async def delete_device(device_id: int, user_id: str = Query(...)):
+    """Delete a device (only if it belongs to this user)."""
+    try:
+        sb = get_supabase()
+        sb.table("user_devices").delete().eq("id", device_id).eq("user_id", user_id).execute()
+        return {"ok": True}
+    except Exception as exc:
+        logger.error("[devices] delete failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Грешка при изтриване")
