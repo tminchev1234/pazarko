@@ -1587,19 +1587,6 @@ def _generate_home_picks() -> list[dict]:
         return []
 
 
-@router.get("/alex/homepage-picks")
-async def alex_homepage_picks(refresh: bool = False):
-    """Cross-category AI-curated picks for the homepage (cached 6h)."""
-    global _HOME_PICKS_CACHE, _HOME_PICKS_TS
-    now = _time.time()
-    if not refresh and _HOME_PICKS_CACHE is not None and (now - _HOME_PICKS_TS) < _PICKS_TTL:
-        return {"picks": _HOME_PICKS_CACHE}
-    picks = _generate_home_picks()
-    _HOME_PICKS_CACHE = picks
-    _HOME_PICKS_TS = now
-    return {"picks": picks}
-
-
 def _match_product(name: str, products: list[dict]) -> dict | None:
     name_l = name.lower()
     for p in products:
