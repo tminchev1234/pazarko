@@ -3004,101 +3004,112 @@ async def category_hot_deals(
     return {"deals": deals}
 
 
-@router.get("/alex/homepage-picks")
-async def homepage_picks(limit: int = Query(12, le=24)):
-    """Alex's top pick per category — highest-scored product, one per category, max 2 per store."""
-    _PICK_STORES = ["emag", "technopolis", "technomarket", "zora", "ozone", "ardes"]
-    candidates: list[dict] = []
-    try:
-        sb = get_supabase()
-        for store in _PICK_STORES:
-            try:
-                r = (
-                    sb.table("electronics_offers")
-                    .select("raw_name, brand, category, category_raw, price, old_price, discount_pct, store, image_url, url")
-                    .eq("store", store)
-                    .not_.is_("image_url", "null")
-                    .neq("image_url", "")
-                    .not_.is_("price", "null")
-                    .gt("price", 0)
-                    .limit(150)
-                    .execute()
-                )
-                candidates.extend(
-                    p for p in (r.data or []) if _is_electronics(p.get("raw_name", ""))
-                )
-            except Exception:
-                pass
-    except Exception:
-        candidates = [
-            p for p in _load_local()
-            if p.get("image_url") and p.get("price", 0) > 0 and _is_electronics(p.get("raw_name", ""))
-        ]
+_HP_ROW1_CATS = ["phones", "laptops", "tvs", "tablets", "headphones"]
+_HP_ROW2_CATS = ["washing", "vacuum", "ac", "fridges", "cooking"]
 
-    # Compute missing discount_pct from old_price
-    for p in candidates:
+
+def _hp_fetch_cats(sb, categories: list[str]) -> list[dict]:
+    """Fetch candidates for a fixed list of categories."""
+    try:
+        r = (
+            sb.table("electronics_offers")
+            .select("raw_name, brand, category, category_raw, price, old_price, discount_pct, store, image_url, url")
+            .in_("category", categories)
+            .not_.is_("image_url", "null")
+            .neq("image_url", "")
+            .not_.is_("price", "null")
+            .gt("price", 0)
+            .limit(500)
+            .execute()
+        )
+        return r.data or []
+    except Exception:
+        return []
+
+
+def _hp_score_and_pick(products: list[dict], categories: list[str], max_per_store: int = 2) -> list[dict]:
+    """Return one best-scored product per category (preserving category order), max N per store."""
+    for p in products:
         if not p.get("discount_pct"):
             old = float(p.get("old_price") or 0)
             cur = float(p.get("price") or 0)
             if old > cur > 0:
                 p["discount_pct"] = round((1 - cur / old) * 100, 1)
-
-    # Score all candidates
-    for p in candidates:
         p["alex_score"] = _alex_score(p)
         p["cat_label"]  = _CAT_LABELS.get(p.get("category", ""), p.get("category", ""))
-    candidates.sort(key=lambda x: x["alex_score"], reverse=True)
+    products.sort(key=lambda x: x["alex_score"], reverse=True)
 
-    selected: list[dict] = []
-    sel_cats:   set[str] = set()
-    sel_stores: set[str] = set()
-    sel_urls:   set[str] = set()
-
-    def _add(p: dict) -> None:
-        key = p.get("url") or p.get("raw_name", "")
-        if key in sel_urls:
-            return
-        selected.append(p)
-        sel_cats.add(p.get("category", "other"))
-        sel_stores.add(p.get("store", ""))
-        sel_urls.add(key)
-
-    # Pass 1: ideal — both category and store are new (max diversity)
-    for p in candidates:
-        if p.get("category", "other") not in sel_cats and p.get("store", "") not in sel_stores:
-            _add(p)
-
-    # Pass 2: ensure every store has at least one pick (row 1 guarantee)
-    for p in candidates:
-        if p.get("store", "") not in sel_stores:
-            _add(p)
-
-    row1_count = len(selected)  # everything so far = row 1 (one per store)
-
-    # Pass 3: fill row 2 with remaining categories (max 1 more per store)
-    store_cnt: dict[str, int] = {}
-    for p in selected:
-        store_cnt[p.get("store", "")] = store_cnt.get(p.get("store", ""), 0) + 1
-
-    for p in candidates:
+    result:      dict[str, dict] = {}  # cat -> best product
+    store_count: dict[str, int]  = {}
+    for p in products:
         cat   = p.get("category", "other")
         store = p.get("store", "")
-        if cat in sel_cats:
+        if cat not in categories or cat in result:
             continue
-        if store_cnt.get(store, 0) >= 2:
+        if store_count.get(store, 0) >= max_per_store:
             continue
-        key = p.get("url") or p.get("raw_name", "")
-        if key in sel_urls:
-            continue
-        selected.append(p)
-        sel_cats.add(cat)
-        store_cnt[store] = store_cnt.get(store, 0) + 1
+        result[cat] = p
+        store_count[store] = store_count.get(store, 0) + 1
+    return [result[c] for c in categories if c in result]
 
-    # Sort each row by score independently
-    row1 = sorted(selected[:row1_count], key=lambda x: x["alex_score"], reverse=True)
-    row2 = sorted(selected[row1_count:], key=lambda x: x["alex_score"], reverse=True)
-    picks = (row1 + row2)[:limit]
-    return {"picks": picks, "row1_count": row1_count, "count": len(picks)}
+
+@router.get("/alex/homepage-picks")
+async def homepage_picks():
+    """Three rows: tech categories, appliance categories, top deals."""
+    try:
+        sb = get_supabase()
+
+        # Row 1 — tech (phones, laptops, tvs, tablets, headphones)
+        tech_raw = _hp_fetch_cats(sb, _HP_ROW1_CATS)
+        row1 = _hp_score_and_pick(tech_raw, _HP_ROW1_CATS)
+
+        # Row 2 — white goods (washing, vacuum, ac, fridges, cooking)
+        app_raw = _hp_fetch_cats(sb, _HP_ROW2_CATS)
+        row2 = _hp_score_and_pick(app_raw, _HP_ROW2_CATS)
+
+        # Row 3 — top deals this week (≥10% discount, not already shown, max 1 per store)
+        shown_urls = {p.get("url", "") for p in row1 + row2}
+        deals_r = (
+            sb.table("electronics_offers")
+            .select("raw_name, brand, category, category_raw, price, old_price, discount_pct, store, image_url, url")
+            .not_.is_("image_url", "null")
+            .neq("image_url", "")
+            .not_.is_("old_price", "null")
+            .gt("old_price", 0)
+            .limit(300)
+            .execute()
+        )
+        deals_cands: list[dict] = []
+        for p in (deals_r.data or []):
+            if p.get("url", "") in shown_urls:
+                continue
+            if not p.get("discount_pct"):
+                old = float(p.get("old_price") or 0)
+                cur = float(p.get("price") or 0)
+                if old > cur > 0:
+                    p["discount_pct"] = round((1 - cur / old) * 100, 1)
+            if (p.get("discount_pct") or 0) >= 10 and p.get("image_url"):
+                p["cat_label"] = _CAT_LABELS.get(p.get("category", ""), p.get("category", ""))
+                deals_cands.append(p)
+        deals_cands.sort(key=lambda x: x.get("discount_pct", 0), reverse=True)
+        row3: list[dict] = []
+        row3_stores: set[str] = set()
+        for p in deals_cands:
+            store = p.get("store", "")
+            if store in row3_stores:
+                continue
+            row3.append(p)
+            row3_stores.add(store)
+            if len(row3) >= 5:
+                break
+
+    except Exception:
+        row1, row2, row3 = [], [], []
+
+    return {
+        "row1": row1, "row2": row2, "row3": row3,
+        "count": len(row1) + len(row2) + len(row3),
+    }
 
 
 @router.post("/alex/subscribe")
