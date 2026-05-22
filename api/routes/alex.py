@@ -2841,12 +2841,30 @@ async def category_top_deal(category: str = Query(...)):
     return result
 
 
+_COLOR_WORDS = {
+    "black", "white", "blue", "red", "green", "grey", "gray", "silver", "gold",
+    "purple", "pink", "titanium", "midnight", "starlight", "navy", "mint",
+    "lilac", "lavender", "violet", "cyan", "coral", "rose", "phantom",
+    "graphite", "glacier", "dark", "light", "obsidian", "cream", "yellow",
+    "orange", "sage", "sand", "bronze", "cobalt", "teal", "indigo", "mauve",
+    "champagne", "ivory", "charcoal", "onyx", "pearl", "space",
+}
+
+
+def _model_dedup_key(name: str) -> str:
+    """Normalize name and strip trailing color words so color variants share a key."""
+    parts = _normalize_for_match(name).split()
+    while parts and parts[-1] in _COLOR_WORDS:
+        parts.pop()
+    return " ".join(parts)
+
+
 @router.get("/alex/category-hot-deals")
 async def category_hot_deals(
     category: str = Query(...),
     limit: int = Query(5, le=8),
 ):
-    """Top-N most-discounted products in a category, each with a discount authenticity verdict."""
+    """Top-N most-discounted products in a category, each with a historical discount verdict."""
     now = _time.time()
     cache_key = f"{category}:{limit}"
     cached = _HOT_DEALS_CACHE.get(cache_key)
@@ -2867,7 +2885,7 @@ async def category_hot_deals(
             .not_.is_("price", "null")
             .gt("price", 0)
             .order("discount_pct", desc=True)
-            .limit(40)
+            .limit(60)
             .execute()
         )
         candidates = resp.data or []
@@ -2878,18 +2896,28 @@ async def category_hot_deals(
         return {"deals": []}
 
     # Apply category filters
-    blocklist  = [w.lower() for w in _CAT_BLOCKLIST.get(category, [])]
-    min_price  = _CAT_MIN_PRICE.get(category, 0)
+    blocklist = [w.lower() for w in _CAT_BLOCKLIST.get(category, [])]
+    min_price = _CAT_MIN_PRICE.get(category, 0)
     candidates = [
         p for p in candidates
         if (p.get("price") or 0) >= min_price
         and not any(bl in (p.get("raw_name") or "").lower() for bl in blocklist)
     ]
-    top_n = candidates[:limit]
+
+    # Deduplicate color variants — keep highest-discount entry per model
+    seen_models: set[str] = set()
+    deduped: list[dict] = []
+    for p in candidates:
+        key = _model_dedup_key(p.get("raw_name", ""))
+        if key and key not in seen_models:
+            seen_models.add(key)
+            deduped.append(p)
+
+    top_n = deduped[:limit]
     if not top_n:
         return {"deals": []}
 
-    # 2. Price history for the top-N URLs
+    # 2. Price history for the top-N URLs (60-day window)
     urls = [p["url"] for p in top_n if p.get("url")]
     history_by_url: dict[str, list[float]] = {}
     try:
@@ -2909,30 +2937,12 @@ async def category_hot_deals(
     except Exception:
         pass
 
-    # 3. All products in category from all stores — for competitor price check
-    all_cat: list[dict] = []
-    try:
-        sb = get_supabase()
-        all_resp = (
-            sb.table("electronics_offers")
-            .select("raw_name, brand, store, price")
-            .eq("category", category)
-            .not_.is_("price", "null")
-            .gt("price", 0)
-            .limit(600)
-            .execute()
-        )
-        all_cat = all_resp.data or []
-    except Exception:
-        pass
-
     def _make_verdict(p: dict) -> dict:
         url     = p.get("url", "")
-        current = float(p.get("price") or 0)
         old     = float(p.get("old_price") or 0)
+        current = float(p.get("price") or 0)
         hist    = history_by_url.get(url, [])
 
-        # ── Historical truth ─────────────────────────────────────────────
         hist_type   = "no_data"
         hist_detail = ""
         if len(hist) >= 3:
@@ -2946,7 +2956,7 @@ async def category_hot_deals(
                     hist_detail = f"Старата цена {old:.0f}€ потвърдена в историята"
                 elif max_hist < old * 0.90:
                     hist_type   = "suspicious"
-                    hist_detail = f"Стара цена {old:.0f}€ не е открита (макс. {max_hist:.0f}€)"
+                    hist_detail = f"Не сме виждали {old:.0f}€ (макс. {max_hist:.0f}€)"
                 else:
                     hist_type   = "partial"
             else:
@@ -2959,53 +2969,15 @@ async def category_hot_deals(
         elif len(hist) >= 1:
             hist_type = "little_data"
 
-        # ── Competitor check ─────────────────────────────────────────────
-        my_store = p.get("store", "")
-        my_key   = _normalize_for_match(p.get("raw_name", ""))
-        my_words = {w for w in my_key.split() if len(w) >= 2}
-        brand_low = (p.get("brand") or "").lower()
-
-        comp_store  = ""
-        comp_price  = 0.0
-        comp_pct    = 0.0
-        for other in all_cat:
-            if other.get("store") == my_store:
-                continue
-            op = float(other.get("price") or 0)
-            if not op or op >= current * 0.97:  # at least 3% cheaper
-                continue
-            ok = _normalize_for_match(other.get("raw_name", ""))
-            ow = {w for w in ok.split() if len(w) >= 2}
-            if brand_low and brand_low not in ok:
-                continue
-            if len(my_words & ow) >= 3:
-                diff = (current - op) / current * 100
-                if diff > comp_pct:
-                    comp_pct   = diff
-                    comp_price = op
-                    comp_store = other.get("store", "")
-
-        # ── Final verdict ────────────────────────────────────────────────
-        if comp_store:
-            v_type   = "cheaper_elsewhere"
-            v_label  = "По-евтино другаде"
-            v_detail = f"{comp_price:.0f}€ в {comp_store} (−{comp_pct:.0f}%)"
-            v_color  = "red"
-        elif hist_type == "suspicious":
-            v_type   = "suspicious"
-            v_label  = "Съмнително намаление"
-            v_detail = hist_detail
-            v_color  = "orange"
+        if hist_type == "suspicious":
+            v_type, v_label  = "suspicious", "Съмнително намаление"
+            v_detail, v_color = hist_detail, "orange"
         elif hist_type in ("confirmed", "at_low", "below_avg"):
-            v_type   = "real"
-            v_label  = "Потвърдена сделка"
-            v_detail = hist_detail
-            v_color  = "green"
+            v_type, v_label  = "real", "Потвърдена сделка"
+            v_detail, v_color = hist_detail, "green"
         else:
-            v_type   = "no_data"
-            v_label  = "Без история"
-            v_detail = "Няма достатъчно история за проверка"
-            v_color  = "gray"
+            v_type, v_label  = "no_data", "Без история"
+            v_detail, v_color = "Няма достатъчно история за проверка", "gray"
 
         return {
             **p,

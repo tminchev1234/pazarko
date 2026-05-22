@@ -1155,7 +1155,7 @@ async function loadTopDeal(slug) {
 async function loadHotDeals(slug) {
   const el = document.getElementById('hotDealsEl');
   if (!el) return;
-  const _V_ICO = { real:'✅', suspicious:'⚠️', cheaper_elsewhere:'❌', no_data:'ℹ️' };
+  const _V_ICO = { real:'✅', suspicious:'⚠️', no_data:'ℹ️' };
   try {
     const d = await apiFetch(`/alex/category-hot-deals?category=${slug}&limit=5`);
     const deals = d.deals || [];
