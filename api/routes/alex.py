@@ -214,19 +214,23 @@ def _normalize_for_match(name: str) -> str:
     return re.sub(r"\s+", " ", n).strip()
 
 
-def _patch_technomarket_images(products: list[dict]) -> list[dict]:
+def _patch_technomarket_images(products: list[dict], extra_pool: list[dict] | None = None) -> list[dict]:
     """
     Technomarket phone images are hotlink-blocked (403 from external domains).
     For each Technomarket phone, substitute image_url with the same model's
-    image from Technopolis / eMAG / Ardes found elsewhere in the product list.
+    image from Technopolis / eMAG / Ardes.
+
+    extra_pool: additional products (e.g. fetched separately from Supabase) used
+    purely for building the name→image map — gives a much wider matching surface
+    than just the 60 products on the current page.
     """
     phones = [p for p in products if p.get("category") == "phones"]
     if not any(p.get("store") == "technomarket" for p in phones):
         return products  # nothing to do
 
-    # Build name-key → image from non-Technomarket phones in the same list
+    # Build name-key → image from extra_pool first, then current list
     other: dict[str, str] = {}
-    for p in phones:
+    for p in (extra_pool or []) + phones:
         if p.get("store") != "technomarket" and p.get("image_url"):
             key = _normalize_for_match(p.get("raw_name", ""))
             if key and key not in other:
@@ -1940,6 +1944,24 @@ async def alex_category_products(
         )
         total_count = total_resp.count or 0
 
+        # Pre-fetch wide image pool for Technomarket phone substitution
+        image_pool: list[dict] = []
+        if category == "phones":
+            try:
+                pool_resp = (
+                    sb.table("electronics_offers")
+                    .select("raw_name, image_url, store, category")
+                    .eq("category", "phones")
+                    .neq("store", "technomarket")
+                    .not_.is_("image_url", "null")
+                    .neq("image_url", "")
+                    .limit(300)
+                    .execute()
+                )
+                image_pool = pool_resp.data or []
+            except Exception:
+                pass
+
         resp = q.order(pg_sort[0], desc=pg_sort[1]).limit(limit).execute()
         if resp.data is not None:
             results = [
@@ -1948,7 +1970,7 @@ async def alex_category_products(
             ]
             if sort == "score":
                 results.sort(key=lambda x: x["alex_score"], reverse=True)
-            results = _patch_technomarket_images(results)
+            results = _patch_technomarket_images(results, extra_pool=image_pool)
             return {"results": results, "count": len(results), "total_count": total_count}
     except Exception as exc:
         logger.warning("[alex] category Supabase failed, using local: %s", exc)
