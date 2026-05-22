@@ -3006,7 +3006,7 @@ async def category_hot_deals(
 
 @router.get("/alex/homepage-picks")
 async def homepage_picks(limit: int = Query(12, le=24)):
-    """Curated Alex picks for the homepage grid — best-value products across categories."""
+    """Alex's top pick per category — highest-scored product regardless of store or discount."""
     try:
         sb = get_supabase()
         resp = (
@@ -3034,24 +3034,14 @@ async def homepage_picks(limit: int = Query(12, le=24)):
             if old > cur > 0:
                 p["discount_pct"] = round((1 - cur / old) * 100, 1)
 
-    # Score and sort
+    # Score all, then keep the single best per category
+    by_cat: dict[str, dict] = {}
     for p in candidates:
         p["alex_score"] = _alex_score(p)
         p["cat_label"]  = _CAT_LABELS.get(p.get("category", ""), p.get("category", ""))
-    candidates.sort(key=lambda x: x["alex_score"], reverse=True)
-
-    # One pick per category, max 2 picks per store — ensures store diversity
-    by_cat: dict[str, dict] = {}
-    store_count: dict[str, int] = {}
-    for p in candidates:
-        cat   = p.get("category", "other")
-        store = p.get("store", "")
-        if cat in by_cat:
-            continue
-        if store_count.get(store, 0) >= 2:
-            continue
-        by_cat[cat] = p
-        store_count[store] = store_count.get(store, 0) + 1
+        cat = p.get("category", "other")
+        if cat not in by_cat or p["alex_score"] > by_cat[cat]["alex_score"]:
+            by_cat[cat] = p
 
     picks = sorted(by_cat.values(), key=lambda x: x["alex_score"], reverse=True)[:limit]
     return {"picks": picks, "count": len(picks)}
