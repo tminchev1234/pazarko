@@ -3012,25 +3012,26 @@ _HP_STORES = ["emag", "technopolis", "technomarket", "zora", "ozone", "ardes"]
 
 
 def _hp_fetch_cats(sb, categories: list[str]) -> list[dict]:
-    """Fetch candidates per store so every store gets a fair chance."""
+    """Fetch per category per store — guarantees every store/category combo is represented."""
     results: list[dict] = []
-    for store in _HP_STORES:
-        try:
-            r = (
-                sb.table("electronics_offers")
-                .select("raw_name, brand, category, category_raw, price, old_price, discount_pct, store, image_url, url")
-                .in_("category", categories)
-                .eq("store", store)
-                .not_.is_("image_url", "null")
-                .neq("image_url", "")
-                .not_.is_("price", "null")
-                .gt("price", 0)
-                .limit(40)
-                .execute()
-            )
-            results.extend(r.data or [])
-        except Exception:
-            pass
+    for cat in categories:
+        for store in _HP_STORES:
+            try:
+                r = (
+                    sb.table("electronics_offers")
+                    .select("raw_name, brand, category, category_raw, price, old_price, discount_pct, store, image_url, url")
+                    .eq("category", cat)
+                    .eq("store", store)
+                    .not_.is_("image_url", "null")
+                    .neq("image_url", "")
+                    .not_.is_("price", "null")
+                    .gt("price", 0)
+                    .limit(8)
+                    .execute()
+                )
+                results.extend(r.data or [])
+            except Exception:
+                pass
     return results
 
 
