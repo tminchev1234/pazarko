@@ -3187,19 +3187,20 @@ async def secondhand_http(
 @router.get("/alex/stats")
 async def alex_stats():
     """Quick stats for the Alex homepage."""
+    _KNOWN_STORES = ["emag", "technopolis", "technomarket", "zora", "ozone", "ardes"]
     try:
         sb = get_supabase()
-        total  = sb.table("electronics_offers").select("id", count="exact").execute()
-        stores = sb.table("electronics_offers").select("store").execute()
         store_counts: dict[str, int] = {}
-        for row in (stores.data or []):
-            store_counts[row["store"]] = store_counts.get(row["store"], 0) + 1
-        if total.count:
-            return {"total_products": total.count, "stores": store_counts}
+        for store in _KNOWN_STORES:
+            r = sb.table("electronics_offers").select("id", count="exact").eq("store", store).execute()
+            if r.count:
+                store_counts[store] = r.count
+        total = sum(store_counts.values())
+        if total:
+            return {"total_products": total, "stores": store_counts}
     except Exception as exc:
         logger.warning("[alex] Supabase stats failed, using local JSON: %s", exc)
 
-    # Fallback: count from local JSON
     offers = _load_local()
     store_counts = {}
     for o in offers:

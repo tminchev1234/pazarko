@@ -695,7 +695,7 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
       <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#2563eb,#7c3aed);display:flex;align-items:center;justify-content:center;font-size:18px">🤖</div>
       <div>
         <div class="chat-logo">Alex</div>
-        <div class="chat-sub">AI съветник · реални цени от 4 магазина</div>
+        <div class="chat-sub">AI съветник · реални цени от 6 магазина</div>
       </div>
     </div>
     <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
@@ -866,7 +866,7 @@ async function renderHome() {
       </div>
       <div class="trust-strip">
         <div class="trust-item">🔍 <strong id="statN">…</strong> реални цени</div>
-        <div class="trust-item">🏪 <strong>4</strong> магазина</div>
+        <div class="trust-item">🏪 <strong id="statStores">…</strong> магазина</div>
         <div class="trust-item">🤖 <strong>AI</strong> анализ</div>
         <div class="trust-item">🚫 <strong>0</strong> реклами</div>
         <div class="trust-item">💰 <strong>0 лв.</strong> комисионна</div>
@@ -953,8 +953,10 @@ async function submitSubscribe() {
 async function loadStats() {
   try {
     const d = await apiFetch('/alex/stats');
-    const el = document.getElementById('statN');
-    if (el) el.textContent = (d.total_products||0).toLocaleString();
+    const elN = document.getElementById('statN');
+    const elS = document.getElementById('statStores');
+    if (elN) elN.textContent = (d.total_products||0).toLocaleString();
+    if (elS) elS.textContent = Object.keys(d.stores||{}).length;
   } catch {}
 }
 
