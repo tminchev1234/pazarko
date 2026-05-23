@@ -3008,23 +3008,30 @@ _HP_ROW1_CATS = ["phones", "laptops", "tvs", "tablets"]
 _HP_ROW2_CATS = ["washing", "vacuum", "ac", "fridges"]
 
 
+_HP_STORES = ["emag", "technopolis", "technomarket", "zora", "ozone", "ardes"]
+
+
 def _hp_fetch_cats(sb, categories: list[str]) -> list[dict]:
-    """Fetch candidates for a fixed list of categories."""
-    try:
-        r = (
-            sb.table("electronics_offers")
-            .select("raw_name, brand, category, category_raw, price, old_price, discount_pct, store, image_url, url")
-            .in_("category", categories)
-            .not_.is_("image_url", "null")
-            .neq("image_url", "")
-            .not_.is_("price", "null")
-            .gt("price", 0)
-            .limit(500)
-            .execute()
-        )
-        return r.data or []
-    except Exception:
-        return []
+    """Fetch candidates per store so every store gets a fair chance."""
+    results: list[dict] = []
+    for store in _HP_STORES:
+        try:
+            r = (
+                sb.table("electronics_offers")
+                .select("raw_name, brand, category, category_raw, price, old_price, discount_pct, store, image_url, url")
+                .in_("category", categories)
+                .eq("store", store)
+                .not_.is_("image_url", "null")
+                .neq("image_url", "")
+                .not_.is_("price", "null")
+                .gt("price", 0)
+                .limit(40)
+                .execute()
+            )
+            results.extend(r.data or [])
+        except Exception:
+            pass
+    return results
 
 
 def _hp_score_and_pick(products: list[dict], categories: list[str]) -> list[dict]:

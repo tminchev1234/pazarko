@@ -968,7 +968,10 @@ async function loadDayPick() {
     const picks = (d.results||[]).filter(p => p.image_url && p.url && p.discount_pct >= 10);
     if (!picks.length) { el.style.display='none'; return; }
     picks.sort((a,b) => (b.discount_pct||0) - (a.discount_pct||0));
-    const p = picks[0];
+    // Rotate daily through top 10: same pick all day, new one next day
+    const top10 = picks.slice(0, 10);
+    const dayIdx = Math.floor(Date.now() / 86400000) % top10.length;
+    const p = top10[dayIdx];
     const reasons = [
       p.discount_pct >= 30 ? `Намален с ${p.discount_pct}% — рядко виждаме такава оферта` : `${p.discount_pct}% под обичайната цена`,
       p.old_price ? `Спестяваш ${fmt(p.old_price - p.price)} спрямо препоръчаната цена` : null,
