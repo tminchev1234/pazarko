@@ -3004,8 +3004,8 @@ async def category_hot_deals(
     return {"deals": deals}
 
 
-_HP_ROW1_CATS = ["phones", "laptops", "tvs", "tablets", "headphones"]
-_HP_ROW2_CATS = ["washing", "vacuum", "ac", "fridges", "cooking"]
+_HP_ROW1_CATS = ["phones", "laptops", "tvs", "tablets"]
+_HP_ROW2_CATS = ["washing", "vacuum", "ac", "fridges"]
 
 
 def _hp_fetch_cats(sb, categories: list[str]) -> list[dict]:
@@ -3027,8 +3027,12 @@ def _hp_fetch_cats(sb, categories: list[str]) -> list[dict]:
         return []
 
 
-def _hp_score_and_pick(products: list[dict], categories: list[str], max_per_store: int = 2) -> list[dict]:
-    """Return one best-scored product per category (preserving category order), max N per store."""
+def _hp_score_and_pick(products: list[dict], categories: list[str]) -> list[dict]:
+    """One best-scored product per category with max store diversity.
+
+    Two-pass: pass 1 fills slots with max 1 per store; pass 2 fills any
+    remaining empty slots allowing a second pick from a used store.
+    """
     for p in products:
         if not p.get("discount_pct"):
             old = float(p.get("old_price") or 0)
@@ -3039,17 +3043,29 @@ def _hp_score_and_pick(products: list[dict], categories: list[str], max_per_stor
         p["cat_label"]  = _CAT_LABELS.get(p.get("category", ""), p.get("category", ""))
     products.sort(key=lambda x: x["alex_score"], reverse=True)
 
-    result:      dict[str, dict] = {}  # cat -> best product
+    result:      dict[str, dict] = {}
     store_count: dict[str, int]  = {}
+
+    # Pass 1: strict — max 1 per store
     for p in products:
-        cat   = p.get("category", "other")
-        store = p.get("store", "")
+        cat, store = p.get("category", "other"), p.get("store", "")
         if cat not in categories or cat in result:
             continue
-        if store_count.get(store, 0) >= max_per_store:
+        if store_count.get(store, 0) >= 1:
+            continue
+        result[cat] = p
+        store_count[store] = 1
+
+    # Pass 2: fill remaining empty categories (allow max 2 per store)
+    for p in products:
+        cat, store = p.get("category", "other"), p.get("store", "")
+        if cat not in categories or cat in result:
+            continue
+        if store_count.get(store, 0) >= 2:
             continue
         result[cat] = p
         store_count[store] = store_count.get(store, 0) + 1
+
     return [result[c] for c in categories if c in result]
 
 
@@ -3059,14 +3075,13 @@ async def homepage_picks():
     try:
         sb = get_supabase()
 
-        # Row 1 — tech picks (one per category, store diversity not enforced —
-        # fixed categories already guarantee product-type diversity)
+        # Row 1 — tech picks (phones, laptops, tvs, tablets)
         tech_raw = _hp_fetch_cats(sb, _HP_ROW1_CATS)
-        row1 = _hp_score_and_pick(tech_raw, _HP_ROW1_CATS, max_per_store=5)
+        row1 = _hp_score_and_pick(tech_raw, _HP_ROW1_CATS)
 
-        # Row 2 — white goods picks (eMAG dominates this data, no store cap)
+        # Row 2 — white goods picks (washing, vacuum, ac, fridges)
         app_raw = _hp_fetch_cats(sb, _HP_ROW2_CATS)
-        row2 = _hp_score_and_pick(app_raw, _HP_ROW2_CATS, max_per_store=5)
+        row2 = _hp_score_and_pick(app_raw, _HP_ROW2_CATS)
 
         # Row 3 — top deals this week (≥10% discount, not already shown, max 1 per store)
         shown_urls = {p.get("url", "") for p in row1 + row2}
