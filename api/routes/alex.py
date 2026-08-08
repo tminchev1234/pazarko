@@ -2318,6 +2318,39 @@ async def price_history(url: str = Query(..., description="Product URL")):
     }
 
 
+# ─── Click tracking — outbound retailer link клик (за фунията) ────────────────
+class ClickEvent(BaseModel):
+    url:        str
+    store:      Optional[str] = None
+    name:       Optional[str] = None
+    query:      Optional[str] = None
+    price:      Optional[float] = None
+    email:      Optional[str] = None       # ако е логнат/абониран
+    session_id: Optional[str] = None
+
+
+@router.post("/alex/track-click")
+async def track_click(ev: ClickEvent):
+    """Записва клик към магазин. Best-effort — никога не блокира навигацията.
+    Изисква таблица click_events (виж migrations/003_click_events.sql)."""
+    if not ev.url or not ev.url.startswith(("http://", "https://")):
+        return {"ok": False}
+    try:
+        sb = get_supabase()
+        sb.table("click_events").insert({
+            "product_url": ev.url[:1000],
+            "store":       (ev.store or "").strip()[:80] or None,
+            "product_name":(ev.name or "").strip()[:300] or None,
+            "query":       (ev.query or "").strip()[:300] or None,
+            "price":       ev.price,
+            "email":       (ev.email or "").strip()[:160] or None,
+            "session_id":  (ev.session_id or "").strip()[:80] or None,
+        }).execute()
+    except Exception as exc:
+        logger.debug("[track-click] insert failed: %s", exc)
+    return {"ok": True}
+
+
 class WatchlistAddRequest(BaseModel):
     user_id: str
     email: str
