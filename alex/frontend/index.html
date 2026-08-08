@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Alex — AI Съветник по Електроника</title>
 <meta name="description" content="Alex е твоят AI експерт по електроника в България. Реални цени от eMAG, Технополис, Техномаркет, Зора, Озон и още.">
+<!-- Google вход през Clerk — същата инстанция като академията/компаньона -->
+<script
+  data-clerk-publishable-key="pk_test_aG9uZXN0LWNhdHRsZS0yMy5jbGVyay5hY2NvdW50cy5kZXYk"
+  src="https://honest-cattle-23.clerk.accounts.dev/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"
+  type="text/javascript" crossorigin="anonymous" async
+></script>
 <style>
 :root {
   --nav-bg: #111827;
@@ -681,6 +687,8 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
     </form>
     <button class="nav-devices" onclick="openMyDevices()" title="Моята техника">📦</button>
     <button class="nav-ask" onclick="openChat()">💬 Попитай Alex</button>
+    <button id="navLogin" onclick="alexAuth()" title="Вход с Google"
+      style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:7px 14px;font-weight:600;cursor:pointer;font-size:13px;white-space:nowrap">Влез</button>
   </div>
 </nav>
 
@@ -2804,6 +2812,40 @@ function tradeInDevice(deviceName) {
       } else err(d.error||'Възникна грешка');
     }catch(_){ err('Мрежова грешка'); }
   });
+})();
+</script>
+
+<!-- ═══ GOOGLE ВХОД през Clerk — верифицира имейла, връзва интента към потребителя ═══ -->
+<script>
+(function(){
+  function syncUser(){
+    var btn = document.getElementById('navLogin');
+    var u = window.Clerk && window.Clerk.user;
+    if(u){
+      var email = (u.primaryEmailAddress && u.primaryEmailAddress.emailAddress) || '';
+      if(email) localStorage.setItem('alexEmail', email);   // deal opt-in + click-tracking го ползват
+      var name = u.firstName || (email ? email.split('@')[0] : 'Профил');
+      if(btn){ btn.textContent = '👤 ' + name; btn.title = 'Изход'; }
+    } else {
+      if(btn){ btn.textContent = 'Влез'; btn.title = 'Вход с Google'; }
+    }
+  }
+  window.alexAuth = function(){
+    if(!window.Clerk){ return; }
+    if(window.Clerk.user){
+      window.Clerk.signOut().then(function(){ location.reload(); });
+    } else {
+      window.Clerk.openSignIn({});   // Google е включен в Clerk дашборда
+    }
+  };
+  function initClerk(tries){
+    if(!window.Clerk){ if((tries||0) < 40) setTimeout(function(){ initClerk((tries||0)+1); }, 200); return; }
+    window.Clerk.load().then(function(){
+      syncUser();
+      try { window.Clerk.addListener(function(){ syncUser(); }); } catch(_){}
+    }).catch(function(){});
+  }
+  window.addEventListener('load', function(){ initClerk(0); });
 })();
 </script>
 </body>
