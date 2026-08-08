@@ -2362,6 +2362,29 @@ def _deal_tokens(text: str) -> set:
     return {w for w in words if len(w) >= 3 and w not in _DEAL_STOP}
 
 
+def _trigrams(s: str) -> set:
+    s = "  " + s + " "
+    return {s[i:i + 3] for i in range(len(s) - 2)}
+
+
+def _tri_sim(a: str, b: str) -> float:
+    """Trigram similarity (Jaccard) — толерира ед./мн.ч., варианти, грешки."""
+    ta, tb = _trigrams(a), _trigrams(b)
+    if not ta or not tb:
+        return 0.0
+    return len(ta & tb) / len(ta | tb)
+
+
+def _term_hits(term: str, offer_tokens: set) -> bool:
+    """Дали интент-дума match-ва някоя дума от офертата (fuzzy)."""
+    for t in offer_tokens:
+        if t == term or t.startswith(term) or term.startswith(t):
+            return True
+        if _tri_sim(term, t) >= 0.5:
+            return True
+    return False
+
+
 class DealSubscribeRequest(BaseModel):
     email:    str
     query:    str
@@ -2471,7 +2494,8 @@ async def cron_deal_alerts(request: Request):
         for otok, o in pool_tok:
             if (o.get("discount_pct") or 0) < min_disc:
                 continue
-            if len(terms & otok) >= need:
+            matched = sum(1 for term in terms if _term_hits(term, otok))   # fuzzy (trigram + prefix)
+            if matched >= need:
                 if best is None or (o.get("discount_pct") or 0) > (best.get("discount_pct") or 0):
                     best = o
         if not best:
