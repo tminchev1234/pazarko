@@ -491,6 +491,23 @@ KILL CONDITION — ЗАДЪЛЖИТЕЛНО ЗА ТОП 1 И 2
 При бюджет → добави max_price: budget≈800, mid≈1400, premium≈2000+
 
 ════════════════════════════════════════
+ФОТОАПАРАТИ — СПЕЦИАЛНА СТРАТЕГИЯ
+════════════════════════════════════════
+
+❗ Категорията "cameras" съдържа детски играчки и карти памет — ЗАДЪЛЖИТЕЛНО ползвай min_price!
+
+При "фотоапарат" / "камера" / "camera" → търси ПО МАРКА с min_price:
+1. search_products(query="Canon", category="cameras", min_price=150, limit=20)
+2. search_products(query="Sony", category="cameras", min_price=150, limit=20)
+3. search_products(query="Nikon", category="cameras", min_price=150, limit=20)
+4. search_products(query="Fujifilm", category="cameras", min_price=150, limit=20)
+5. Ако < 4 общо → search_products(query="Olympus", category="cameras", min_price=150, limit=20)
+
+❌ НЕ търси: "фотоапарат", "camera", "mirrorless", "DSLR" — нищо няма да намериш
+✅ ТЪРСИ: конкретни марки + ВИНАГИ min_price=150 — иначе ще намериш детски камери
+✅ При бюджет до 510€ → добави max_price към търсенето
+
+════════════════════════════════════════
 СТРУКТУРА НА ОТГОВОРА (при SPEAK режим)
 ════════════════════════════════════════
 
@@ -1187,7 +1204,7 @@ def _update_alex_dna(
 
 async def _stream_alex(
     messages: List[AlexMessage],
-    system: str,
+    system: list,   # list of system content blocks (ALEX_SYSTEM is cached)
     user_id: Optional[str] = None,
     category: Optional[str] = None,
     user_dna: Optional[dict] = None,
@@ -1295,9 +1312,12 @@ async def alex_chat(req: AlexChatRequest):
         except Exception:
             pass  # DNA is optional — chat works without it
 
-    system = ALEX_SYSTEM
+    # Prompt caching: ALEX_SYSTEM (+ tools, which render before system) are cached
+    # as one shared prefix across ALL users. The per-user DNA addendum goes AFTER
+    # the cache breakpoint so it stays volatile without invalidating that prefix.
+    system = [{"type": "text", "text": ALEX_SYSTEM, "cache_control": {"type": "ephemeral"}}]
     if user_dna:
-        system += _alex_dna_addendum(user_dna)
+        system.append({"type": "text", "text": _alex_dna_addendum(user_dna)})
 
     return StreamingResponse(
         _stream_alex(req.messages, system, req.user_id, req.category, user_dna),
@@ -1325,7 +1345,8 @@ async def alex_chat_simple(req: AlexChatRequest):
         response = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=2048,
-            system=ALEX_SYSTEM,
+            # Prompt caching: caches tools + system prefix (re-sent every tool round)
+            system=[{"type": "text", "text": ALEX_SYSTEM, "cache_control": {"type": "ephemeral"}}],
             tools=ALEX_TOOLS,
             messages=msg_dicts,
         )
@@ -1514,6 +1535,7 @@ _CAT_MIN_PRICE = {
     "vacuum":      60.0,
     "cooking":    150.0,
     "dishwasher": 250.0,
+    "cameras":    150.0,
 }
 
 # ── Segment config: 3 price tiers per category ────────────────────────────────
@@ -1598,6 +1620,10 @@ _CAT_BLOCKLIST = {
     "tablets":    ["рисуване", "drawing", "natec", "графичен", "wacom"],
     "gaming":     ["калъф", "case", "протектор", "стъкло", "кабел", "слушалк"],
     "headphones": ["калъф", "case", "кабел"],
+    # cameras category contains memory cards, kids toy cameras, disposable cameras
+    "cameras":    ["карта памет", "sd card", "memory card", "детски", "kids",
+                   "galaxia", "термопечат", "instax mini", "suc water", "одноразов",
+                   "disposable"],
 }
 
 
@@ -1986,6 +2012,7 @@ async def alex_category_products(
                 {**r, "alex_score": alex_score(r)}
                 for r in resp.data
             ]
+            results = _apply_blocklist(results, category)
             if sort == "score":
                 results.sort(key=lambda x: x["alex_score"], reverse=True)
             results = _patch_technomarket_images(results, extra_pool=image_pool)
@@ -2021,6 +2048,7 @@ async def alex_category_products(
             "alex_score":  alex_score(o),
         })
 
+    results = _apply_blocklist(results, category)
     if   sort == "price_desc": results.sort(key=lambda x: x["price"], reverse=True)
     elif sort == "discount":   results.sort(key=lambda x: x.get("discount_pct") or 0, reverse=True)
     elif sort == "score":      results.sort(key=lambda x: x["alex_score"], reverse=True)
@@ -2628,20 +2656,27 @@ async def related_products(
             .order("alex_score", desc=True)
             .limit(40)
         )
+        min_p = _CAT_MIN_PRICE.get(category, 0)
         if price:
-            q = q.gte("price", price * 0.6).lte("price", price * 1.4)
+            q = q.gte("price", max(price * 0.6, min_p)).lte("price", price * 1.4)
+        elif min_p:
+            q = q.gte("price", min_p)
         resp = q.execute()
-        results = [r for r in (resp.data or []) if r.get("url") != exclude_url]
+        raw = [r for r in (resp.data or []) if r.get("url") != exclude_url]
+        results = _apply_blocklist(raw, category)
         return {"results": results[:limit]}
     except Exception as exc:
         logger.warning("[related] DB failed, using local: %s", exc)
         offers = _load_local()
+        min_p = _CAT_MIN_PRICE.get(category, 0)
         results = [
             o for o in offers
             if o.get("category") == category
             and o.get("url") != exclude_url
             and (not price or abs(float(o.get("price", 0)) - price) / max(price, 1) <= 0.4)
+            and (float(o.get("price", 0)) >= min_p)
         ]
+        results = _apply_blocklist(results, category)
         results.sort(key=lambda x: x.get("alex_score", 0) or 0, reverse=True)
         return {"results": results[:limit]}
 
