@@ -2351,6 +2351,156 @@ async def track_click(ev: ClickEvent):
     return {"ok": True}
 
 
+# ─── DEAL ALERTS по интент (Фаза 1) + keyword matching (Фаза 3-lite) ──────────
+_DEAL_STOP = {"за", "на", "с", "и", "до", "от", "под", "над", "най", "евтин",
+              "евтина", "цена", "лв", "бг", "нов", "нова", "the", "a", "with"}
+
+
+def _deal_tokens(text: str) -> set:
+    """Ключови думи за match-ване на интент срещу име на оферта."""
+    words = re.findall(r"[a-zа-я0-9]+", (text or "").lower())
+    return {w for w in words if len(w) >= 3 and w not in _DEAL_STOP}
+
+
+class DealSubscribeRequest(BaseModel):
+    email:    str
+    query:    str
+    category: Optional[str] = None
+    consent:  bool = False
+
+
+@router.post("/alex/deal-subscribe")
+async def deal_subscribe(req: DealSubscribeRequest):
+    """Абонамент за силна оферта по това, което е търсил потребителят."""
+    import secrets
+    email = (req.email or "").strip().lower()
+    query = (req.query or "").strip()
+    if "@" not in email or len(email) < 5:
+        return {"ok": False, "error": "Невалиден имейл"}
+    if len(query) < 2:
+        return {"ok": False, "error": "Липсва търсене"}
+    if not req.consent:
+        return {"ok": False, "error": "Нужно е съгласие за известия"}
+    try:
+        sb = get_supabase()
+        sb.table("deal_subscriptions").insert({
+            "email":       email,
+            "query":       query[:200],
+            "category":    (req.category or "").strip()[:80] or None,
+            "min_discount": 20,
+            "active":      True,
+            "unsub_token": secrets.token_urlsafe(24),
+        }).execute()
+    except Exception as exc:
+        s = str(exc).lower()
+        if "duplicate" in s or "23505" in s:          # вече абониран
+            return {"ok": True, "already": True}
+        logger.warning("[deal-subscribe] %s", exc)
+        return {"ok": False, "error": "Възникна грешка"}
+    return {"ok": True}
+
+
+@router.get("/alex/deal-unsubscribe")
+async def deal_unsubscribe(token: str = ""):
+    """1-клик отписване (GDPR)."""
+    if token:
+        try:
+            get_supabase().table("deal_subscriptions").update(
+                {"active": False}).eq("unsub_token", token).execute()
+        except Exception as exc:
+            logger.debug("[deal-unsub] %s", exc)
+    html = ("<!doctype html><meta charset=utf-8><body style='font-family:sans-serif;"
+            "text-align:center;padding:60px;color:#1a1a2e'><h2>Отписа се ✓</h2>"
+            "<p style='color:#666'>Няма да получаваш повече известия за оферти.</p>"
+            "<a href='/alex/' style='color:#6366f1'>← Обратно към Alex</a></body>")
+    return Response(content=html, media_type="text/html")
+
+
+@router.post("/alex/cron/deal-alerts")
+async def cron_deal_alerts(request: Request):
+    """Сканира силните оферти и известява по интент. Cron — X-Cron-Secret или ?secret=."""
+    settings = get_settings()
+    secret = request.query_params.get("secret") or request.headers.get("X-Cron-Secret", "")
+    if settings.secret_key and secret != settings.secret_key:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    if not settings.smtp_user or not settings.smtp_pass:
+        return {"ok": False, "error": "SMTP не е конфигуриран", "sent": 0}
+
+    try:
+        sb = get_supabase()
+        subs = (sb.table("deal_subscriptions").select("*")
+                .eq("active", True).execute().data or [])
+    except Exception as exc:
+        logger.error("[deal-cron] load subs failed: %s", exc)
+        raise HTTPException(status_code=500, detail="DB error")
+    if not subs:
+        return {"ok": True, "subs": 0, "sent": 0}
+
+    # Пул от силните текущи оферти (веднъж), после match в Python
+    try:
+        pool = (sb.table("electronics_offers")
+                .select("raw_name, price, old_price, discount_pct, store, url, image_url")
+                .gte("discount_pct", 15)
+                .order("discount_pct", desc=True)
+                .limit(3000).execute().data or [])
+    except Exception as exc:
+        logger.error("[deal-cron] load offers failed: %s", exc)
+        pool = []
+    pool_tok = [(_deal_tokens(o.get("raw_name", "")), o) for o in pool]
+
+    from api.email_utils import send_deal_alert
+    site = _os.environ.get("SITE_URL", "https://pazarko-1.onrender.com").rstrip("/")
+    now = datetime.now(timezone.utc)
+    sent = 0
+
+    for s in subs:
+        la = s.get("last_alerted_at")           # 3-дневен cooldown на абонамент
+        if la:
+            try:
+                if now - datetime.fromisoformat(la.replace("Z", "+00:00")) < timedelta(days=3):
+                    continue
+            except Exception:
+                pass
+        terms = _deal_tokens(s.get("query", ""))
+        if not terms:
+            continue
+        need = 1 if len(terms) == 1 else max(2, (len(terms) + 1) // 2)
+        min_disc = int(s.get("min_discount") or 20)
+
+        best = None
+        for otok, o in pool_tok:
+            if (o.get("discount_pct") or 0) < min_disc:
+                continue
+            if len(terms & otok) >= need:
+                if best is None or (o.get("discount_pct") or 0) > (best.get("discount_pct") or 0):
+                    best = o
+        if not best:
+            continue
+
+        ok = send_deal_alert(
+            to_email=s["email"], query=s.get("query", ""),
+            product_name=best.get("raw_name", ""), price=float(best.get("price") or 0),
+            old_price=float(best["old_price"]) if best.get("old_price") else None,
+            discount_pct=int(best["discount_pct"]) if best.get("discount_pct") else None,
+            store=best.get("store", ""), product_url=best.get("url", ""),
+            image_url=best.get("image_url"),
+            unsubscribe_url=f"{site}/alex/deal-unsubscribe?token={s.get('unsub_token','')}",
+            smtp_user=settings.smtp_user, smtp_pass=settings.smtp_pass,
+            smtp_host=settings.smtp_host, smtp_port=settings.smtp_port,
+            from_name=settings.alert_from_name,
+        )
+        if ok:
+            try:
+                sb.table("deal_subscriptions").update(
+                    {"last_alerted_at": now.isoformat()}).eq("id", s["id"]).execute()
+            except Exception:
+                pass
+            sent += 1
+
+    logger.info("[deal-cron] subs=%d sent=%d", len(subs), sent)
+    return {"ok": True, "subs": len(subs), "sent": sent}
+
+
 class WatchlistAddRequest(BaseModel):
     user_id: str
     email: str

@@ -2725,5 +2725,86 @@ function tradeInDevice(deviceName) {
   }, true);  // capture phase — хваща клика преди навигацията
 })();
 </script>
+
+<!-- ═══ DEAL ALERT OPT-IN — „известявай ме при силна оферта за [това, което търсих]" ═══ -->
+<style>
+  #dealOptin{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:9999;
+    background:#1a1a2e;color:#fff;border-radius:14px;padding:16px 18px;max-width:440px;
+    width:calc(100% - 32px);box-shadow:0 12px 40px rgba(0,0,0,.4);display:none;font-family:inherit}
+  #dealOptin.show{display:block}
+  #dealOptin .doh{font-size:14px;font-weight:600;margin-bottom:10px;padding-right:18px}
+  #dealOptin .doh b{color:#a5b4fc}
+  #dealOptin .dorow{display:flex;gap:8px;margin-bottom:10px}
+  #dealOptin input[type=email]{flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+    border-radius:8px;padding:9px 12px;color:#fff;font-size:14px;min-width:0}
+  #dealOptin button.sub{background:#6366f1;color:#fff;border:none;border-radius:8px;padding:9px 16px;
+    font-weight:700;cursor:pointer;font-size:14px;white-space:nowrap}
+  #dealOptin .docons{display:flex;align-items:flex-start;gap:7px;font-size:11.5px;color:#9aa0b5;line-height:1.4;cursor:pointer}
+  #dealOptin .dox{position:absolute;top:10px;right:13px;color:#9aa0b5;cursor:pointer;font-size:16px}
+  #dealOptin .domsg{font-size:13px;text-align:center;padding:4px;display:none}
+</style>
+<div id="dealOptin">
+  <span class="dox" id="doClose">✕</span>
+  <div class="doh">🔔 Да те известя ли при <b>силна оферта</b> за „<span id="doQ"></span>"?</div>
+  <div class="dorow">
+    <input type="email" id="doEmail" placeholder="твоят@имейл.com" autocomplete="email">
+    <button class="sub" id="doBtn">Известявай ме</button>
+  </div>
+  <label class="docons"><input type="checkbox" id="doConsent" style="margin-top:2px">
+    Съгласявам се да получавам имейл при силна оферта. Отписване по всяко време.</label>
+  <div class="domsg" id="doMsg"></div>
+</div>
+<script>
+(function(){
+  var box = document.getElementById('dealOptin'), shownFor = null, deb;
+  function q(){
+    var c=document.getElementById('chatInput'); if(c&&c.value.trim()) return c.value.trim();
+    var n=document.getElementById('navSearchInput'); return (n&&n.value.trim())||'';
+  }
+  function maybeShow(){
+    var query=q();
+    if(!query || query.length<2) return;
+    var key='dealSub:'+query.toLowerCase();
+    if(sessionStorage.getItem(key)) return;            // вече абониран/затворен тази сесия
+    if(shownFor===query.toLowerCase()) return;
+    if(!document.querySelector('[data-url]')) return;   // има ли реални резултати
+    shownFor=query.toLowerCase();
+    document.getElementById('doQ').textContent=query.slice(0,60);
+    document.getElementById('doEmail').value=localStorage.getItem('alexEmail')||'';
+    document.getElementById('doMsg').style.display='none';
+    document.getElementById('doConsent').checked=false;
+    box.classList.add('show');
+  }
+  new MutationObserver(function(){ clearTimeout(deb); deb=setTimeout(maybeShow, 500); })
+    .observe(document.body, {childList:true, subtree:true});
+
+  document.getElementById('doClose').addEventListener('click', function(){
+    var query=document.getElementById('doQ').textContent;
+    sessionStorage.setItem('dealSub:'+query.toLowerCase(),'x');  // не показвай пак тази заявка
+    box.classList.remove('show');
+  });
+  document.getElementById('doBtn').addEventListener('click', async function(){
+    var email=(document.getElementById('doEmail').value||'').trim();
+    var consent=document.getElementById('doConsent').checked;
+    var query=document.getElementById('doQ').textContent;
+    var msg=document.getElementById('doMsg');
+    function err(t){ msg.style.display='block'; msg.style.color='#fca5a5'; msg.textContent=t; }
+    if(email.indexOf('@')<1) return err('Въведи валиден имейл');
+    if(!consent) return err('Отбележи съгласието');
+    localStorage.setItem('alexEmail', email);
+    try{
+      var r=await fetch('/alex/deal-subscribe',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({email:email, query:query, consent:true})});
+      var d=await r.json();
+      if(d.ok){
+        sessionStorage.setItem('dealSub:'+query.toLowerCase(),'1');
+        msg.style.display='block'; msg.style.color='#86efac';
+        msg.textContent='Готово! Ще те известим при силна оферта. 🎉';
+        setTimeout(function(){ box.classList.remove('show'); }, 2200);
+      } else err(d.error||'Възникна грешка');
+    }catch(_){ err('Мрежова грешка'); }
+  });
+})();
+</script>
 </body>
 </html>
