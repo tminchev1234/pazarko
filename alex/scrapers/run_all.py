@@ -66,6 +66,31 @@ def save_to_supabase(offers: list[dict], store: str) -> int:
     if not offers:
         return 0
     sb = get_supabase_admin()
+
+    # 1. Append to price_history — NEVER deleted. This is the price-history moat:
+    #    every daily run adds one data point per product, so "най-ниска цена за
+    #    30 дни", детекторът за фалшиви отстъпки и buy-timing се захранват с време.
+    now_ts = datetime.now(timezone.utc).isoformat()
+    history_rows = [
+        {
+            "store":        store,
+            "product_url":  o.get("url", ""),
+            "raw_name":     o.get("raw_name", ""),
+            "category":     o.get("category"),
+            "brand":        o.get("brand"),
+            "price":        o.get("price"),
+            "old_price":    o.get("old_price"),
+            "discount_pct": int(o["discount_pct"]) if o.get("discount_pct") is not None else None,
+            "image_url":    o.get("image_url"),
+            "scraped_at":   now_ts,
+        }
+        for o in offers
+        if o.get("url") and o.get("price")
+    ]
+    for i in range(0, len(history_rows), 200):
+        sb.table("price_history").insert(history_rows[i:i + 200]).execute()
+
+    # 2. Replace the current snapshot (electronics_offers = latest prices only).
     sb.table("electronics_offers").delete().eq("store", store).execute()
     total = 0
     for i in range(0, len(offers), 100):
