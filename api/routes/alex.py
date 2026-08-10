@@ -556,10 +556,16 @@ FOLLOW-UP ПРАВИЛА
   "кога да купя", "добра ли е цената", "ще поевтинее ли", "чакам ли"
 Подавай product_url ако имаш URL от предишно търсене.
 
-При интерпретация на резултата:
-• verdict=buy_now + at_historical_min → "Цената е на историческо дъно — добър момент"
-• verdict=wait + at_historical_max + trend=rising → "Цената расте, изчакай"
-• trend=falling → "Цената пада последно — вероятно ще продължи"
+Резултатът носи deal_score + advice (готов съвет) + числа (current, low, lowest_date,
+price_30d_ago, median). Използвай ги КОНКРЕТНО, с реални числа и дати:
+• deal_score=lowest/good → "най-ниска цена, откакто следим (дъно X лв на <дата>) — добър момент"
+• deal_score=real → "реална отстъпка — под обичайната цена (~X лв)"
+• deal_score=suspicious (is_fake_discount) → "внимание, това е привидно намаление — цената е около
+  обичайните X лв през целия период; преди месец беше <price_30d_ago> лв"
+• deal_score=high → "близо до собствения пик — по-добре изчакай"
+• Ако е поевтиняло/поскъпнало, кажи с числа: "преди ~месец беше <price_30d_ago> лв, сега <current> лв"
+• Когато потребителят пита за конкретен модел — с get_prices сравни магазините и посочи в кой е
+  най-евтино в момента и с колко (напр. "в Ozone е с 40 лв по-евтино от eMAG").
 • has_history=False → ползвай общите си познания за сезонни цикли:
   - Черен петък (ноември): ~15-25% намаления на техника
   - Нова година (декември-януари): добри оферти на ТВ и лаптопи
@@ -744,10 +750,13 @@ ALEX_TOOLS = [
     {
         "name": "get_buy_timing",
         "description": (
-            "Анализира историята на цените на продукт и дава препоръка 'купи сега' или 'изчакай'. "
-            "Използвай когато потребителят пита 'кога да купя', 'добра ли е цената сега', "
-            "'ще поевтинее ли', 'чакам ли промоция'. "
-            "Подавай URL на продукта ако го имаш, иначе подавай product_name."
+            "Анализира НАШАТА собствена натрупана история на цените за конкретен продукт. "
+            "Връща: deal_score (lowest/good/real/suspicious/high/typical), is_fake_discount, "
+            "текуща цена, най-ниска цена + дата, цена преди ~30 дни, тренд, готов съвет (advice). "
+            "Използвай когато потребителят пита 'кога да купя', 'добра ли е цената', 'реално ли е "
+            "намалението', 'ще поевтинее ли', ИЛИ когато иска мнение за конкретен продукт/оферта — "
+            "така можеш да кажеш 'това е реална отстъпка' / 'привидно намаление, преди месец беше по-евтино'. "
+            "Подавай product_url ако го имаш (най-точно), иначе product_name."
         ),
         "input_schema": {
             "type": "object",
@@ -959,71 +968,132 @@ def _exec_get_top_deals(args: dict) -> list[dict]:
     return _dedup_deals(local, limit)
 
 
+def _price_analysis(rows: list[dict]) -> dict:
+    """Single source of truth for price-history verdicts — used by BOTH
+    get_buy_timing (chat) and the /alex/price-history card endpoint, so the two
+    never drift. rows ascending by scraped_at; each has price + scraped_at
+    (+ optional old_price). Verdict is computed from OUR accumulated history,
+    not the retailer's claimed 'old price'."""
+    out = {"has_history": False, "data_points": len(rows), "deal_score": "unknown"}
+    series = [(r["scraped_at"], float(r["price"])) for r in rows if r.get("price") is not None]
+    if len(series) < 4:
+        return out
+    days = len({ts[:10] for ts, _ in series})
+    if days < 3:
+        return out
+
+    prices    = [p for _, p in series]
+    current   = prices[-1]
+    low, high = min(prices), max(prices)
+    srt       = sorted(prices)
+    median    = srt[len(srt) // 2]
+    moves     = high > low * 1.03
+    latest_old = next((r["old_price"] for r in reversed(rows) if r.get("old_price")), None)
+    claims_disc = bool(latest_old and current < latest_old * 0.97)
+
+    if not moves:
+        score = "suspicious" if claims_disc else "typical"
+    elif current <= low * 1.005:
+        score = "lowest"
+    elif current <= low * 1.03:
+        score = "good"
+    elif claims_disc and current >= median * 0.99:
+        score = "suspicious"
+    elif current >= high * 0.97 and current > median * 1.02:
+        score = "high"
+    elif claims_disc and current < median:
+        score = "real"
+    else:
+        score = "typical"
+
+    chunk  = max(1, len(prices) // 3)
+    recent = sum(prices[-chunk:]) / chunk
+    early  = sum(prices[:chunk]) / chunk
+    trend  = "falling" if recent < early * 0.97 else "rising" if recent > early * 1.03 else "stable"
+
+    low_ts = min(series, key=lambda x: x[1])[0][:10]
+    tgt    = datetime.fromisoformat(series[-1][0][:10]) - timedelta(days=30)
+    p30    = min(series, key=lambda x: abs((datetime.fromisoformat(x[0][:10]) - tgt).days))
+
+    return {
+        "has_history":      True,
+        "data_points":      len(prices),
+        "days_tracked":     days,
+        "deal_score":       score,
+        "is_fake_discount": score == "suspicious",
+        "trend":            trend,
+        "current":          round(current, 2),
+        "low":              round(low, 2),
+        "high":             round(high, 2),
+        "median":           round(median, 2),
+        "lowest_date":      low_ts,
+        "price_30d_ago":    round(p30[1], 2),
+        "date_30d_ago":     p30[0][:10],
+        "first_seen_price": round(prices[0], 2),
+        "first_seen_date":  series[0][0][:10],
+        "pct_above_low":    round((current / low - 1) * 100) if low else 0,
+        "at_historical_min": current <= low * 1.03,
+        "old_price_claim":  latest_old,
+    }
+
+
+def _buy_timing_advice(a: dict) -> str:
+    s = a["deal_score"]
+    if s == "lowest":
+        return f"Най-ниската цена, откакто следим продукта ({a['days_tracked']} дни) — добър момент."
+    if s == "good":
+        return f"Близо до най-ниската (дъно {a['low']:.0f} лв на {a['lowest_date']}) — разумен момент."
+    if s == "real":
+        return f"Реална отстъпка — под обичайната цена ({a['median']:.0f} лв)."
+    if s == "suspicious":
+        return ("Внимание: „намалението“ е привидно — цената е около обичайните "
+                f"{a['median']:.0f} лв през целия проследен период.")
+    if s == "high":
+        return f"Близо до собствения пик ({a['high']:.0f} лв) — по-добре изчакай."
+    return f"Обичайна цена. Най-ниско е било {a['low']:.0f} лв на {a['lowest_date']}."
+
+
 def _exec_get_buy_timing(args: dict) -> dict:
     product_url  = (args.get("product_url")  or "").strip()
     product_name = (args.get("product_name") or "").strip()
-
     if not product_url and not product_name:
         return {"has_history": False, "message": "Подай product_url или product_name"}
 
+    cutoff = (datetime.now() - timedelta(days=95)).isoformat()
     try:
         sb = get_supabase()
-        q  = sb.table("price_history").select("price, scraped_at, store")
+        q  = (sb.table("price_history")
+              .select("price, old_price, scraped_at, store, product_url, raw_name")
+              .gte("scraped_at", cutoff))
         if product_url:
             q = q.eq("product_url", product_url)
         else:
             q = q.ilike("raw_name", f"%{product_name}%")
-        resp    = q.order("scraped_at", desc=False).limit(60).execute()
-        history = resp.data or []
+        rows = q.order("scraped_at", desc=False).limit(300).execute().data or []
     except Exception as exc:
         logger.warning("[buy_timing] DB error: %s", exc)
-        history = []
+        rows = []
 
-    if len(history) < 2:
+    # Matched by name → collapse to the single most-tracked product, so we never
+    # mix different models' prices into one meaningless series.
+    if not product_url and rows:
+        from collections import Counter
+        top = Counter(r.get("product_url") for r in rows if r.get("product_url")).most_common(1)
+        if top and top[0][0]:
+            rows = [r for r in rows if r.get("product_url") == top[0][0]]
+
+    a = _price_analysis(rows)
+    if not a["has_history"]:
         return {
             "has_history": False,
-            "data_points": len(history),
-            "message": (
-                "Недостатъчна ценова история в базата. "
-                "Използвай общите си познания за сезонни цикли и пазарни тенденции."
-            ),
+            "data_points": a["data_points"],
+            "message": ("Недостатъчна ценова история за този продукт — ползвай общите "
+                        "си познания за сезонни цикли (Черен петък ~15-25% и т.н.)."),
         }
-
-    prices  = [float(r["price"]) for r in history if r.get("price")]
-    current = prices[-1]
-    mn, mx  = min(prices), max(prices)
-    avg     = round(sum(prices) / len(prices), 2)
-
-    # Trend: last third vs first third
-    chunk      = max(1, len(prices) // 3)
-    recent_avg = sum(prices[-chunk:]) / chunk
-    early_avg  = sum(prices[:chunk])  / chunk
-    if recent_avg < early_avg * 0.97:
-        trend = "falling"
-    elif recent_avg > early_avg * 1.03:
-        trend = "rising"
-    else:
-        trend = "stable"
-
-    at_min = current <= mn * 1.03
-    at_max = current >= mx * 0.97
-
-    return {
-        "has_history": True,
-        "data_points": len(prices),
-        "current_price": current,
-        "min_price":     mn,
-        "max_price":     mx,
-        "avg_price":     avg,
-        "trend":         trend,
-        "at_historical_min": at_min,
-        "at_historical_max": at_max,
-        "verdict": (
-            "buy_now"  if at_min or trend == "falling" else
-            "wait"     if at_max and trend == "rising"  else
-            "neutral"
-        ),
-    }
+    a["store"]   = rows[-1].get("store")
+    a["product"] = rows[-1].get("raw_name")
+    a["advice"]  = _buy_timing_advice(a)
+    return a
 
 
 def _exec_estimate_tradein(args: dict) -> dict:
@@ -2309,48 +2379,7 @@ async def price_history(url: str = Query(..., description="Product URL")):
         logger.warning("[alex/price-history] %s", exc)
         rows = []
 
-    out = {"history": rows, "data_points": len(rows), "deal_score": "unknown"}
-
-    prices = [float(r["price"]) for r in rows if r.get("price") is not None]
-    days = len({r["scraped_at"][:10] for r in rows})
-    # Require real depth before claiming anything — otherwise the badge would lie.
-    if len(prices) >= 4 and days >= 3:
-        current   = prices[-1]
-        low, high = min(prices), max(prices)
-        srt       = sorted(prices)
-        median    = srt[len(srt) // 2]
-        moves     = high > low * 1.03      # price actually varies (not a flat line)
-        latest_old = next((r["old_price"] for r in reversed(rows) if r.get("old_price")), None)
-        claims_disc = bool(latest_old and current < latest_old * 0.97)  # store shows a real "was" price
-
-        if not moves:
-            # Flat in our records → no signal. A claimed markdown on a price that
-            # never actually moved is the classic fake discount.
-            score = "suspicious" if claims_disc else "typical"
-        elif current <= low * 1.005:
-            score = "lowest"               # genuinely the lowest we've ever recorded
-        elif current <= low * 1.03:
-            score = "good"                 # within 3% of the lowest
-        elif claims_disc and current >= median * 0.99:
-            score = "suspicious"           # "discount", but this IS its usual price
-        elif current >= high * 0.97 and current > median * 1.02:
-            score = "high"                 # genuinely near its own peak — bad time to buy
-        elif claims_disc and current < median:
-            score = "real"                 # genuine markdown vs its typical price
-        else:
-            score = "typical"              # around its usual price, no strong signal
-
-        out.update({
-            "deal_score":    score,
-            "current":       round(current, 2),
-            "low_90":        round(low, 2),
-            "high_90":       round(high, 2),
-            "median_90":     round(median, 2),
-            "days":          days,
-            "pct_above_low": round((current / low - 1) * 100) if low else 0,
-        })
-
-    return out
+    return {**_price_analysis(rows), "history": rows}
 
 
 # ─── Click tracking — outbound retailer link клик (за фунията) ────────────────
