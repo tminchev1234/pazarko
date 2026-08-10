@@ -614,7 +614,8 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .vrd-close-btn:hover{background:#f3f4f6}
 .vrd-deal-badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:8px;vertical-align:middle}
 .vrd-deal-real{background:#dcfce7;color:#16a34a}
-.vrd-deal-fake{background:#fef3c7;color:#d97706}
+.vrd-deal-fake{background:#fee2e2;color:#dc2626}
+.vrd-deal-neutral{background:#f1f5f9;color:#64748b}
 .vrd-history{margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
 .vrd-history-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
 .vrd-watch-row{margin:14px 0 10px}
@@ -1647,7 +1648,7 @@ function showVerdict(prod) {
     (async () => {
       try {
         const d = await apiFetch(`/alex/price-history?url=${encodeURIComponent(prod.url)}`);
-        _renderDealBadge(d.deal_score, prod.old_price);
+        _renderDealBadge(d.deal_score, prod.old_price, d);
         _renderSparkline(d.history, prod.price);
       } catch {}
     })();
@@ -1690,17 +1691,22 @@ function showVerdict(prod) {
   }
 }
 
-function _renderDealBadge(score, oldPrice) {
-  if (!oldPrice || score === 'unknown') return;
+function _renderDealBadge(score, oldPrice, info) {
   const el = document.getElementById('vrdDealBadge');
   if (!el) return;
-  if (score === 'real') {
-    el.textContent = '✅ Реална сделка';
-    el.className = 'vrd-deal-badge vrd-deal-real';
-  } else if (score === 'suspicious') {
-    el.textContent = '⚠️ Съмнително намаление';
-    el.className = 'vrd-deal-badge vrd-deal-fake';
-  }
+  // Verdict from OUR price history — works even when the store shows no "old price".
+  const map = {
+    lowest:     ['🏆 Най-ниска цена, откакто следим', 'vrd-deal-real'],
+    good:       ['🟢 Близо до най-ниската', 'vrd-deal-real'],
+    real:       ['✅ Реална отстъпка', 'vrd-deal-real'],
+    suspicious: ['⚠️ Фиктивно „намаление“ — това е обичайната цена', 'vrd-deal-fake'],
+    high:       ['🔴 Близо до най-високата — по-добре изчакай', 'vrd-deal-fake'],
+    typical:    ['≈ Обичайна цена', 'vrd-deal-neutral'],
+  };
+  const m = map[score];
+  if (!m) return;   // "unknown" (too little history) → no badge, no lying
+  el.textContent = m[0];
+  el.className = 'vrd-deal-badge ' + m[1];
 }
 
 function _renderSparkline(history, currentPrice) {

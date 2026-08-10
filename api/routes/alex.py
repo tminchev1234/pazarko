@@ -2288,8 +2288,11 @@ async def alex_verdict_endpoint(
 
 @router.get("/alex/price-history")
 async def price_history(url: str = Query(..., description="Product URL")):
-    """Return 30-day price history for a product + deal authenticity score."""
-    cutoff = (datetime.now() - timedelta(days=30)).isoformat()
+    """90-day price history + honest deal verdict, computed from OUR OWN
+    accumulated price_history — not the retailer's claimed 'old price'.
+    This is the anti-fake-discount signal: it catches 'was 999, now 799'
+    when 799 has actually been the usual price all along."""
+    cutoff = (datetime.now() - timedelta(days=95)).isoformat()
     try:
         sb = get_supabase()
         resp = (
@@ -2298,7 +2301,7 @@ async def price_history(url: str = Query(..., description="Product URL")):
             .eq("product_url", url)
             .gte("scraped_at", cutoff)
             .order("scraped_at", desc=False)
-            .limit(60)
+            .limit(200)
             .execute()
         )
         rows = resp.data or []
@@ -2306,22 +2309,48 @@ async def price_history(url: str = Query(..., description="Product URL")):
         logger.warning("[alex/price-history] %s", exc)
         rows = []
 
-    deal_score = "unknown"
-    if rows:
-        prices = [r["price"] for r in rows]
-        max_real = max(prices)
-        # Check the most recent old_price claim
-        latest_old = next(
-            (r["old_price"] for r in reversed(rows) if r.get("old_price")), None
-        )
-        if latest_old:
-            deal_score = "real" if max_real >= latest_old * 0.88 else "suspicious"
+    out = {"history": rows, "data_points": len(rows), "deal_score": "unknown"}
 
-    return {
-        "history": rows,
-        "deal_score": deal_score,  # "real" | "suspicious" | "unknown"
-        "data_points": len(rows),
-    }
+    prices = [float(r["price"]) for r in rows if r.get("price") is not None]
+    days = len({r["scraped_at"][:10] for r in rows})
+    # Require real depth before claiming anything — otherwise the badge would lie.
+    if len(prices) >= 4 and days >= 3:
+        current   = prices[-1]
+        low, high = min(prices), max(prices)
+        srt       = sorted(prices)
+        median    = srt[len(srt) // 2]
+        moves     = high > low * 1.03      # price actually varies (not a flat line)
+        latest_old = next((r["old_price"] for r in reversed(rows) if r.get("old_price")), None)
+        claims_disc = bool(latest_old and current < latest_old * 0.97)  # store shows a real "was" price
+
+        if not moves:
+            # Flat in our records → no signal. A claimed markdown on a price that
+            # never actually moved is the classic fake discount.
+            score = "suspicious" if claims_disc else "typical"
+        elif current <= low * 1.005:
+            score = "lowest"               # genuinely the lowest we've ever recorded
+        elif current <= low * 1.03:
+            score = "good"                 # within 3% of the lowest
+        elif claims_disc and current >= median * 0.99:
+            score = "suspicious"           # "discount", but this IS its usual price
+        elif current >= high * 0.97 and current > median * 1.02:
+            score = "high"                 # genuinely near its own peak — bad time to buy
+        elif claims_disc and current < median:
+            score = "real"                 # genuine markdown vs its typical price
+        else:
+            score = "typical"              # around its usual price, no strong signal
+
+        out.update({
+            "deal_score":    score,
+            "current":       round(current, 2),
+            "low_90":        round(low, 2),
+            "high_90":       round(high, 2),
+            "median_90":     round(median, 2),
+            "days":          days,
+            "pct_above_low": round((current / low - 1) * 100) if low else 0,
+        })
+
+    return out
 
 
 # ─── Click tracking — outbound retailer link клик (за фунията) ────────────────
