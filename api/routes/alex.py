@@ -946,11 +946,17 @@ def _exec_get_top_deals(args: dict) -> list[dict]:
         resp = q.order("discount_pct", desc=True).limit(60).execute()
         if resp.data:
             clean = [r for r in resp.data if _is_electronics(r.get("raw_name", ""))]
+            # Подреждаме по Value Score (alex_score), а не по гол процент отстъпка —
+            # така „Избор на деня" награждава реална стойност (цена спрямо медиана +
+            # марка), не 72% от завишена начална цена на боклук.
+            clean.sort(key=alex_score, reverse=True)
             return _dedup_deals(clean, limit)
     except Exception as exc:
         logger.warning("[alex] Supabase get_top_deals failed, using local JSON: %s", exc)
 
-    return _dedup_deals(_local_deals(category=args.get("category"), limit=60), limit)
+    local = sorted(_local_deals(category=args.get("category"), limit=60),
+                   key=alex_score, reverse=True)
+    return _dedup_deals(local, limit)
 
 
 def _exec_get_buy_timing(args: dict) -> dict:
