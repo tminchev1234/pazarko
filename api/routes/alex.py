@@ -2351,6 +2351,72 @@ async def track_click(ev: ClickEvent):
     return {"ok": True}
 
 
+# ─── IDENTITY LINK — паметта да следва човека, не браузъра ────────────────────
+class IdentityLink(BaseModel):
+    anon_id: str
+    user_id: str
+    email:   Optional[str] = None
+
+
+@router.post("/alex/identity/link")
+async def identity_link(req: IdentityLink):
+    """Свързва анонимния профил (localStorage UUID) с Clerk самоличността.
+    Извиква се веднъж при първо вписване. Идемпотентно, best-effort —
+    без него паметта живее само на едно устройство."""
+    anon = (req.anon_id or "").strip()
+    uid  = (req.user_id or "").strip()
+    if not anon or not uid or anon == uid:
+        return {"ok": False, "error": "invalid ids"}
+    sb = get_supabase()
+    merged = False
+
+    # 1) user_dna — сливаме анонимния профил в Clerk профила
+    try:
+        a = sb.table("user_dna").select("*").eq("user_id", anon).limit(1).execute()
+        anon_row = (a.data or [None])[0]
+        if anon_row:
+            c = sb.table("user_dna").select("*").eq("user_id", uid).limit(1).execute()
+            clerk_row = (c.data or [None])[0]
+            if not clerk_row:
+                # Няма Clerk профил още → пре-ключваме анонимния под Clerk ID
+                new_row = {k: v for k, v in anon_row.items() if k != "id"}
+                new_row["user_id"] = uid
+                sb.table("user_dna").upsert(new_row).execute()
+            else:
+                # И двата съществуват → сливаме категории (уникални, макс 6) + ценово
+                cats = list(clerk_row.get("top_categories") or [])
+                for cat in (anon_row.get("top_categories") or []):
+                    if cat not in cats:
+                        cats.append(cat)
+                upd: dict = {"top_categories": cats[:6]}
+                ps_a, ps_c = anon_row.get("price_sensitivity"), clerk_row.get("price_sensitivity")
+                if ps_a is not None and ps_c is not None:
+                    upd["price_sensitivity"] = round((ps_a + ps_c) / 2, 3)
+                upd["updated_at"] = datetime.utcnow().isoformat()
+                sb.table("user_dna").update(upd).eq("user_id", uid).execute()
+            sb.table("user_dna").delete().eq("user_id", anon).execute()
+            merged = True
+    except Exception as exc:
+        logger.warning("[identity-link] user_dna merge failed: %s", exc)
+
+    # 2) Пре-ключваме останалите user_id-таблици
+    for tbl in ("watchlists", "user_devices"):
+        try:
+            sb.table(tbl).update({"user_id": uid}).eq("user_id", anon).execute()
+        except Exception as exc:
+            logger.debug("[identity-link] %s re-key failed: %s", tbl, exc)
+
+    # 3) deal_subscriptions се водят по имейл → закачаме ги за акаунта
+    email = (req.email or "").strip().lower()
+    if email:
+        try:
+            sb.table("deal_subscriptions").update({"user_id": uid}).eq("email", email).execute()
+        except Exception as exc:
+            logger.debug("[identity-link] deal_subs link failed: %s", exc)
+
+    return {"ok": True, "merged": merged}
+
+
 # ─── DEAL ALERTS по интент (Фаза 1) + keyword matching (Фаза 3-lite) ──────────
 _DEAL_STOP = {"за", "на", "с", "и", "до", "от", "под", "над", "най", "евтин",
               "евтина", "цена", "лв", "бг", "нов", "нова", "the", "a", "with"}

@@ -1792,11 +1792,10 @@ async function saveWatch() {
   }
 }
 
-function _uid() {
-  let id = localStorage.getItem('alexUid');
-  if (!id) { id = crypto.randomUUID(); localStorage.setItem('alexUid', id); }
-  return id;
-}
+// Единна самоличност: същата, която чатът ползва (виж _alexUid по-долу).
+// Преди тук се пазеше отделен ключ 'alexUid' → паметта на watchlist и на чата
+// бяха разцепени за един и същи човек. Сега са едно.
+function _uid() { return _alexUid; }
 
 function closeVerdict() {
   const ov = document.getElementById('vrdOv');
@@ -1901,12 +1900,16 @@ let _chatBusy   = false;
 let _chatOpen   = false;
 let _cardsShown = false;
 
-// ── Anonymous persistent user ID ──────
-const _alexUid = (() => {
+// ── Самоличност: анонимна по подразбиране, Clerk ID при вписване ──────
+// _alexUid е mutable: стартира като анонимен localStorage UUID и се
+// надгражда до Clerk user.id в syncUser() (най-долу), за да следва
+// паметта (user_dna, watchlist, deal alerts) човека, а не браузъра.
+function _anonUid() {
   let uid = localStorage.getItem('alex_uid');
   if (!uid) { uid = crypto.randomUUID(); localStorage.setItem('alex_uid', uid); }
   return uid;
-})();
+}
+let _alexUid = _anonUid();
 
 // ── Chat question counter (for nudge) ─
 let _alexAskCount = parseInt(localStorage.getItem('alex_ask_count') || '0');
@@ -2824,9 +2827,21 @@ function tradeInDevice(deviceName) {
     if(u){
       var email = (u.primaryEmailAddress && u.primaryEmailAddress.emailAddress) || '';
       if(email) localStorage.setItem('alexEmail', email);   // deal opt-in + click-tracking го ползват
+      // ── Паметта следва човека: Clerk ID става основната самоличност ──
+      var prev = _alexUid;
+      _alexUid = u.id;
+      if(prev && prev !== u.id && localStorage.getItem('alex_linked') !== u.id){
+        try {
+          fetch('/alex/identity/link', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ anon_id: prev, user_id: u.id, email: email })
+          }).then(function(){ localStorage.setItem('alex_linked', u.id); }).catch(function(){});
+        } catch(_){}
+      }
       var name = u.firstName || (email ? email.split('@')[0] : 'Профил');
       if(btn){ btn.textContent = '👤 ' + name; btn.title = 'Изход'; }
     } else {
+      _alexUid = _anonUid();   // изход → обратно към анонимна самоличност
       if(btn){ btn.textContent = 'Влез'; btn.title = 'Вход с Google'; }
     }
   }
