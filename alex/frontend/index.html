@@ -911,6 +911,13 @@ async function renderHome() {
         <div class="home-picks-grid" id="homePicksRow3"></div>
       </div>
 
+      <div id="homeRealWrap" style="display:none">
+        <div class="home-picks-row2-head">🟢 Наистина изгодни сега
+          <span style="font-weight:400;color:var(--muted);font-size:12px">— на най-ниската си цена от месеци, спрямо собствената история</span>
+        </div>
+        <div class="home-picks-grid" id="homeRealGrid"></div>
+      </div>
+
       <div style="background:linear-gradient(135deg,#1e1b4b,#1e3a5f);border-radius:var(--radius);padding:32px;text-align:center;margin-top:40px;color:#fff">
         <div style="font-size:32px;margin-bottom:12px">🤖</div>
         <h2 style="font-size:22px;font-weight:800;margin-bottom:10px">Не знаеш кое да избереш?</h2>
@@ -931,6 +938,7 @@ async function renderHome() {
   loadStats();
   loadDayPick();
   loadHomePicks();
+  loadRealDeals();
 }
 
 async function submitSubscribe() {
@@ -1058,6 +1066,20 @@ async function loadHomePicks() {
       row3Wrap.style.display = '';
     }
   } catch(e) { console.error(e); row1El.innerHTML = ''; }
+}
+
+// „Наистина изгодни сега" — продукти на собственото си дъно (от нашата история)
+async function loadRealDeals() {
+  const wrap = document.getElementById('homeRealWrap');
+  const grid = document.getElementById('homeRealGrid');
+  if (!wrap || !grid) return;
+  try {
+    const d = await apiFetch('/alex/real-deals?limit=10');
+    const items = (d.results || []).filter(p => p.image_url);
+    if (items.length < 3) return;   // не показвай почти празна секция
+    grid.innerHTML = items.map(p => _pickCardHtml(p, true)).join('');
+    wrap.style.display = '';
+  } catch (e) { /* тихо — секцията просто не се показва */ }
 }
 
 // ═══════════════════════════════════════

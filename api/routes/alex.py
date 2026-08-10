@@ -2186,7 +2186,7 @@ async def alex_trends(category: str):
     from collections import defaultdict
     try:
         sb = get_supabase()
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
 
         hist = (
             sb.table("price_history")
@@ -2380,6 +2380,119 @@ async def price_history(url: str = Query(..., description="Product URL")):
         rows = []
 
     return {**_price_analysis(rows), "history": rows}
+
+
+# ─── Наистина изгодни сега — продукти на/близо до собственото им 90-дневно дъно ─
+_REAL_DEALS_CACHE: dict = {"ts": 0.0, "data": None}
+_REAL_DEALS_TTL = 6 * 3600
+
+
+@router.get("/alex/real-deals")
+async def real_deals(limit: int = Query(12, le=24)):
+    """Продукти, които СЕГА са на/близо до собственото си 90-дневно дъно И под
+    обичайната си цена — истински сделки от НАШАТА история, не обявени от
+    магазина отстъпки. Тежко сканиране → кеширано 6ч."""
+    import time
+    now = time.time()
+    cache = _REAL_DEALS_CACHE
+    if cache["data"] is not None and now - cache["ts"] < _REAL_DEALS_TTL:
+        return {"results": cache["data"][:limit], "cached": True}
+
+    try:
+        sb = get_supabase()
+        cutoff = (datetime.now() - timedelta(days=95)).isoformat()
+        rows: list = []
+        step, off = 1000, 0
+        while True:
+            page = (sb.table("price_history")
+                    .select("product_url, price, scraped_at")
+                    .gte("scraped_at", cutoff)
+                    .order("id", desc=False)
+                    .range(off, off + step - 1).execute().data or [])
+            rows.extend(page)
+            if len(page) < step:
+                break
+            off += step
+            if off > 200000:
+                break
+
+        agg: dict = {}
+        for r in rows:
+            u = r.get("product_url"); p = r.get("price")
+            if not u or p is None:
+                continue
+            p = float(p); ts = r["scraped_at"]
+            a = agg.get(u)
+            if a is None:
+                agg[u] = {"prices": [p], "min": p, "max": p, "days": {ts[:10]},
+                          "last_ts": ts, "cur": p, "low_ts": ts[:10]}
+            else:
+                a["prices"].append(p)
+                if p < a["min"]:
+                    a["min"] = p; a["low_ts"] = ts[:10]
+                if p > a["max"]:
+                    a["max"] = p
+                a["days"].add(ts[:10])
+                if ts > a["last_ts"]:
+                    a["last_ts"] = ts; a["cur"] = p
+
+        cands = []
+        for u, a in agg.items():
+            if len(a["prices"]) < 6 or len(a["days"]) < 5:
+                continue
+            if a["max"] <= a["min"] * 1.06:           # must actually move
+                continue
+            cur = a["cur"]
+            if cur > a["min"] * 1.02:                 # must be at/near its own low
+                continue
+            srt = sorted(a["prices"]); median = srt[len(srt) // 2]
+            if median <= cur * 1.05:                  # must be meaningfully below its usual
+                continue
+            cands.append({"url": u, "cur": cur, "low": a["min"],
+                          "median": median, "low_ts": a["low_ts"],
+                          "below": (median - cur) / median})
+        cands.sort(key=lambda x: -x["below"])
+        top = cands[:40]
+
+        result = []
+        if top:
+            meta = {}
+            offs = (sb.table("electronics_offers")
+                    .select("url, raw_name, price, store, image_url, category")
+                    .in_("url", [c["url"] for c in top]).execute().data or [])
+            for o in offs:
+                meta[o["url"]] = o
+            for c in top:
+                m = meta.get(c["url"])
+                if not m or not m.get("image_url"):
+                    continue
+                price  = float(m.get("price") or c["cur"])
+                median = c["median"]
+                if median <= price:                   # still a saving vs its usual?
+                    continue
+                cat = m.get("category") or ""
+                result.append({
+                    "raw_name":     m.get("raw_name", ""),
+                    "url":          c["url"],
+                    "store":        m.get("store", ""),
+                    "image_url":    m.get("image_url"),
+                    "category":     cat,
+                    "cat_label":    _CAT_LABELS.get(cat, cat),
+                    "price":        round(price, 2),
+                    "old_price":    round(median, 2),        # its OWN usual price
+                    "discount_pct": round((median - price) / median * 100),
+                    "low":          round(c["low"], 2),
+                    "lowest_date":  c["low_ts"],
+                })
+                if len(result) >= 24:
+                    break
+
+        cache["data"] = result
+        cache["ts"]   = now
+        return {"results": result[:limit], "cached": False}
+    except Exception as exc:
+        logger.warning("[real-deals] %s", exc)
+        return {"results": (cache["data"] or [])[:limit], "error": True}
 
 
 # ─── Click tracking — outbound retailer link клик (за фунията) ────────────────
