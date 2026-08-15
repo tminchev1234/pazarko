@@ -2570,6 +2570,123 @@ async def real_deals(limit: int = Query(12, le=24)):
     return {"results": _compute_real_deals()[:limit]}
 
 
+# ─── Доклад: колко от обявените намаления са фиктивни ──────────────────────────
+_FAKE_REPORT_CACHE: dict = {"ts": 0.0, "data": None}
+_FAKE_REPORT_TTL = 6 * 3600
+
+
+def _compute_fake_report() -> dict:
+    """Сравнява обявените от магазините намаления срещу НАШАТА ценова история.
+    „Фиктивно" = текущата цена е около обичайната (не е реално по-ниска), ИЛИ
+    обявената „стара цена" никога не е съществувала в проследения период."""
+    import time
+    now = time.time()
+    c = _FAKE_REPORT_CACHE
+    if c["data"] is not None and now - c["ts"] < _FAKE_REPORT_TTL:
+        return c["data"]
+
+    empty = {"judged": 0, "fake": 0, "real": 0, "weak": 0, "fake_pct": None,
+             "by_store": [], "worst": [], "tracked": 0, "below_usual": 0,
+             "above_usual": 0, "enough": False, "updated": None}
+    try:
+        sb = get_supabase()
+        cutoff = (datetime.now() - timedelta(days=95)).isoformat()
+        rows: list = []
+        step, off = 1000, 0
+        while True:
+            page = (sb.table("price_history")
+                    .select("product_url, price, old_price, scraped_at")
+                    .gte("scraped_at", cutoff).order("id")
+                    .range(off, off + step - 1).execute().data or [])
+            rows.extend(page)
+            if len(page) < step:
+                break
+            off += step
+            if off > 200000:
+                break
+
+        agg: dict = {}
+        for r in rows:
+            u = r.get("product_url"); p = r.get("price")
+            if not u or p is None:
+                continue
+            p = float(p); ts = r["scraped_at"]
+            a = agg.get(u)
+            if a is None:
+                agg[u] = {"prices": [p], "max": p, "last_ts": ts, "cur": p}
+            else:
+                a["prices"].append(p)
+                if p > a["max"]:
+                    a["max"] = p
+                if ts > a["last_ts"]:
+                    a["last_ts"] = ts; a["cur"] = p
+
+        # Прозрачност (работи веднага): колко продукта са СЕГА под обичайната си цена
+        tracked = below = above = 0
+        for u, a in agg.items():
+            if len(a["prices"]) < 4:
+                continue
+            tracked += 1
+            srt = sorted(a["prices"]); med = srt[len(srt) // 2]
+            if a["cur"] < med * 0.98:
+                below += 1
+            elif a["cur"] > med * 1.02:
+                above += 1
+
+        # Обявени намаления → съдим срещу историята
+        disc = (sb.table("electronics_offers")
+                .select("url, raw_name, price, old_price, discount_pct, store, category, image_url")
+                .gt("discount_pct", 0).not_.is_("old_price", "null")
+                .limit(3000).execute().data or [])
+        judged = fake = real = weak = 0
+        by_store: dict = {}
+        worst: list = []
+        for o in disc:
+            a = agg.get(o.get("url"))
+            if not a or len(a["prices"]) < 4:
+                continue
+            srt = sorted(a["prices"]); med = srt[len(srt) // 2]
+            cur = float(o.get("price") or a["cur"]); old = float(o["old_price"])
+            dp = int(o.get("discount_pct") or 0); st = o.get("store") or "?"
+            by_store.setdefault(st, {"judged": 0, "fake": 0})
+            by_store[st]["judged"] += 1
+            judged += 1
+            is_fake = (cur >= med * 0.985) or (a["max"] < old * 0.95)
+            if is_fake:
+                fake += 1; by_store[st]["fake"] += 1
+                worst.append({"discount_pct": dp, "raw_name": (o.get("raw_name") or "")[:70],
+                              "store": st, "current": round(cur, 2), "claimed_old": round(old, 2),
+                              "real_usual": round(med, 2), "image_url": o.get("image_url"),
+                              "url": o.get("url")})
+            elif cur < med * 0.95:
+                real += 1
+            else:
+                weak += 1
+        worst.sort(key=lambda x: -x["discount_pct"])
+
+        data = {
+            "judged": judged, "fake": fake, "real": real, "weak": weak,
+            "fake_pct": round(fake / judged * 100) if judged else None,
+            "by_store": [{"store": k, "judged": v["judged"], "fake": v["fake"]}
+                         for k, v in sorted(by_store.items(), key=lambda kv: -kv[1]["judged"])],
+            "worst": worst[:12],
+            "tracked": tracked, "below_usual": below, "above_usual": above,
+            "enough": judged >= 20,
+            "updated": datetime.now().strftime("%d.%m.%Y %H:%M"),
+        }
+        c["data"] = data; c["ts"] = now
+        return data
+    except Exception as exc:
+        logger.warning("[fake-report] %s", exc)
+        return c["data"] or empty
+
+
+@router.get("/alex/fake-discount-report")
+async def fake_discount_report():
+    """Данни за публичния доклад „Реалната цена" — колко намаления са фиктивни."""
+    return _compute_fake_report()
+
+
 # ─── Click tracking — outbound retailer link клик (за фунията) ────────────────
 class ClickEvent(BaseModel):
     url:        str

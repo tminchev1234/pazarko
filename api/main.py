@@ -40,6 +40,11 @@ app.include_router(alex.router,      prefix="/api")
 async def alex_redirect():
     return RedirectResponse(url="/alex/")
 
+@app.get("/report")
+async def serve_report():
+    """Публичен доклад 'Реалната цена' — колко намаления са фиктивни."""
+    return FileResponse("alex/frontend/report.html")
+
 @app.get("/alex/")
 async def serve_alex_home():
     return FileResponse("alex/frontend/index.html")

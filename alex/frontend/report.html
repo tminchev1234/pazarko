@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="bg">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Реалната цена — колко „намаления" са истински? · Pazarko</title>
+<meta name="description" content="Независим доклад: сравняваме обявените намаления на българските магазини срещу реалната ценова история. Колко от 'намаленията' са фиктивни?">
+<style>
+  :root{
+    --bg:#0b0c17; --card:#15172a; --card2:#1b1d33; --ink:#edeef8; --muted:#a3a5c6;
+    --faint:#71739a; --line:#262842; --accent:#8f88ff; --green:#37d39a; --red:#ff8095;
+    --amber:#eeb45a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(1000px 560px at 80% -10%,rgba(143,136,255,.14),transparent 60%),var(--bg);
+    color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:920px;margin:0 auto;padding:34px 20px 60px}
+  .eyebrow{font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--accent)}
+  h1{font-size:clamp(28px,5vw,46px);font-weight:800;letter-spacing:-.02em;line-height:1.05;margin:12px 0 10px;text-wrap:balance}
+  .lede{font-size:clamp(15px,2vw,18px);color:var(--muted);max-width:60ch;line-height:1.5}
+  .hero{background:linear-gradient(160deg,#1a1c34,#141628);border:1px solid var(--line);border-radius:18px;
+    padding:26px;margin:26px 0;text-align:center}
+  .hero .big{font-size:clamp(40px,9vw,76px);font-weight:800;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+  .hero .big.collect{font-size:clamp(22px,4vw,32px);color:var(--amber)}
+  .hero .cap{color:var(--muted);font-size:15px;margin-top:8px}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:22px 0}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 16px;text-align:center}
+  .stat .n{font-size:clamp(24px,5vw,34px);font-weight:800;font-variant-numeric:tabular-nums}
+  .stat .n.g{color:var(--green)} .stat .n.a{color:var(--amber)}
+  .stat .l{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.35}
+  h2{font-size:22px;font-weight:800;letter-spacing:-.01em;margin:34px 0 6px}
+  .sub{color:var(--faint);font-size:13px;margin-bottom:14px}
+  .worst{display:grid;grid-template-columns:1fr;gap:10px}
+  .fd{display:flex;gap:14px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  .fd img{width:52px;height:52px;object-fit:contain;background:#fff;border-radius:8px;flex:none}
+  .fd .body{min-width:0;flex:1}
+  .fd .nm{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fd .dt{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .fd .dt b{color:var(--ink)}
+  .fd .tag{background:#3a1520;color:var(--red);font-weight:700;font-size:12px;padding:4px 9px;border-radius:7px;white-space:nowrap;flex:none}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin-top:6px}
+  td,th{padding:9px 6px;border-bottom:1px solid var(--line);text-align:left}
+  th{color:var(--faint);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+  .method{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-top:22px;font-size:14px;color:var(--muted);line-height:1.6}
+  .method b{color:var(--ink)}
+  .cta{display:flex;gap:12px;flex-wrap:wrap;margin-top:26px}
+  .btn{display:inline-block;text-decoration:none;font-weight:700;font-size:15px;padding:12px 22px;border-radius:11px}
+  .btn.p{background:var(--accent);color:#0b0c17}
+  .btn.s{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+  .foot{margin-top:34px;color:var(--faint);font-size:12px;border-top:1px solid var(--line);padding-top:16px}
+  .collectbox{background:var(--card);border:1px dashed color-mix(in srgb,var(--amber) 40%,transparent);border-radius:12px;padding:16px 18px;color:var(--muted);font-size:14px;line-height:1.55}
+  .collectbox b{color:var(--amber)}
+  @media(max-width:560px){.stats{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="eyebrow">Pazarko · независим доклад</div>
+    <h1>Реалната цена: колко „намаления“ са истински?</h1>
+    <p class="lede">Всеки ден записваме цените на българските магазини за електроника. После сравняваме обявените „намаления“ срещу <b style="color:var(--ink)">реалната история на цената</b> — а не срещу измислената „стара цена“ от етикета.</p>
+
+    <div class="hero" id="hero">
+      <div class="big collect">Зареждане…</div>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div id="fakeSection"></div>
+
+    <div class="method">
+      <b>Как смятаме.</b> За всеки продукт пазим до 3 месеца история. „Намалението“ е <b>фиктивно</b>, когато текущата цена е около обичайната за продукта (не е реално по-ниска), или когато обявената „стара цена“ никога не е съществувала в проследения период. Смятаме само продукти с достатъчно история — иначе мълчим, не гадаем.
+    </div>
+
+    <div class="cta">
+      <a class="btn p" href="/alex/" >💬 Питай Alex за конкретен продукт</a>
+      <a class="btn s" href="/alex/">🧩 Виж реалната цена в магазина (разширение)</a>
+    </div>
+
+    <div class="foot" id="foot">Обновено при зареждане · данните растат с всеки ден скрейп.</div>
+  </div>
+
+<script>
+(function(){
+  var fmt = function(n){ return (Math.round(n)).toLocaleString('bg-BG'); };
+  var money = function(n){ return (Math.round(n*100)/100).toLocaleString('bg-BG') + ' лв'; };
+  var esc = function(s){ var d=document.createElement('div'); d.textContent=s==null?'':String(s); return d.innerHTML; };
+
+  fetch('/api/alex/fake-discount-report').then(function(r){return r.json()}).then(render).catch(function(){
+    document.getElementById('hero').innerHTML='<div class="big collect">Данните не са налични в момента</div>';
+  });
+
+  function render(d){
+    var hero=document.getElementById('hero');
+    if(d.enough && d.fake_pct!=null){
+      hero.innerHTML='<div class="big" style="color:var(--red)">'+d.fake_pct+'%</div>'+
+        '<div class="cap">от проверените „намаления“ са <b style="color:var(--red)">фиктивни</b> — цената е около обичайната, „отстъпката“ е привидна.<br>(от '+fmt(d.judged)+' проверени оферти)</div>';
+    } else {
+      hero.innerHTML='<div class="big collect">Събираме данните 🔎</div>'+
+        '<div class="cap">Обявените намаления тепърва трупат ценова история. Процентът фиктивни ще се появи тук след няколко седмици. Дотогава — виж прозрачността по-долу.</div>';
+    }
+
+    // transparency stats (work now)
+    var st=document.getElementById('stats');
+    st.innerHTML =
+      cell(fmt(d.tracked||0), 'продукта следим с реална ценова история') +
+      cell(fmt(d.below_usual||0), 'сега са <b>под</b> обичайната си цена', 'g') +
+      cell(fmt(d.above_usual||0), 'сега са <b>над</b> обичайната си цена', 'a');
+
+    // fake section
+    var fs=document.getElementById('fakeSection');
+    if(d.enough && d.worst && d.worst.length){
+      var rows = (d.by_store||[]).map(function(s){
+        var pct = s.judged? Math.round(s.fake/s.judged*100):0;
+        return '<tr><td>'+esc(s.store)+'</td><td class="r">'+s.judged+'</td><td class="r" style="color:var(--red)">'+pct+'%</td></tr>';
+      }).join('');
+      var cards = d.worst.map(function(w){
+        return '<div class="fd">'+
+          (w.image_url?'<img src="'+esc(w.image_url)+'" alt="" onerror="this.style.display=\'none\'">':'')+
+          '<div class="body"><div class="nm">'+esc(w.raw_name)+'</div>'+
+          '<div class="dt">Уж <b>'+money(w.claimed_old)+'</b> → сега '+money(w.current)+' · но обичайно е <b>'+money(w.real_usual)+'</b> · '+esc(w.store)+'</div></div>'+
+          '<div class="tag">−'+w.discount_pct+'% уж</div></div>';
+      }).join('');
+      fs.innerHTML='<h2>Най-подвеждащите „намаления“</h2>'+
+        '<div class="sub">Обявена голяма отстъпка, но цената е реалната обичайна.</div>'+
+        '<div class="worst">'+cards+'</div>'+
+        '<h2>По магазин</h2><table><tr><th>Магазин</th><th class="r">Проверени</th><th class="r">Фиктивни</th></tr>'+rows+'</table>';
+    } else {
+      fs.innerHTML='<div class="collectbox">🔎 <b>Още събираме.</b> Проверени обяви с достатъчно история: <b>'+fmt(d.judged||0)+'</b>. Скрейпваме всеки ден — секцията с конкретните фиктивни намаления ще се напълни, щом обявените оферти натрупат история (обикновено 2–3 седмици).</div>';
+    }
+
+    if(d.updated) document.getElementById('foot').textContent='Обновено: '+d.updated+' · данните растат с всеки ден скрейп.';
+  }
+  function cell(n,label,cls){ return '<div class="stat"><div class="n '+(cls||'')+'">'+n+'</div><div class="l">'+label+'</div></div>'; }
+})();
+</script>
+</body>
+</html>
