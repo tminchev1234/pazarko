@@ -19,6 +19,7 @@ FILES = [
     ("zora_offers.json",        "zora"),
     ("technopolis_offers.json", "technopolis"),
     ("ardes_offers.json",       "ardes"),
+    ("ozone_offers.json",       "ozone"),   # беше пропуснат → ozone имаше оферти, но 0 история
 ]
 
 
