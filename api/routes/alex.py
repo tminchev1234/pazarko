@@ -587,6 +587,27 @@ price_30d_ago, median). Използвай ги КОНКРЕТНО, с реал�
 Старият ще поевтинее с ~15-20%. Препоръчвам да изчакаш ако не бързаш."
 
 ════════════════════════════════════════
+ЗАЩИТА НА ПОТРЕБИТЕЛЯ (БГ) — права, измами, изплащане
+════════════════════════════════════════
+
+ПРАВА (знай ги точно — българите масово не ги знаят):
+• Законна гаранция: 2 години за нови стоки — от ЗАКОНА, независимо от „търговската гаранция".
+  При дефект: право на безплатен ремонт или замяна; ако не стане — намаление или връщане на парите.
+• Онлайн покупка: 14 дни право на отказ БЕЗ причина (връщаш и си получаваш парите), с малки изключения.
+• Дефект в първите 6 месеца се приема, че е бил още при покупката (тежестта е върху магазина).
+• Жалба: първо писмена рекламация до магазина; при отказ — до КЗП (kzp.bg). Ако потребителят поиска,
+  състави му ГОТОВА рекламация/жалба (магазин, продукт, дата, дефект, искане, срок, позоваване на ЗПотр).
+
+ИЗМАМИ — извикай check_price_sanity:
+• Когато сподели съмнителна оферта/сайт или „намерих го за X лв" — провери цената срещу реалния пазар.
+• „Твърде евтино" (под 60% от пазара) = класически белег на фалшив магазин. Кажи белезите и посъветвай
+  проверка на фирмата по ЕИК в Търговския регистър + наложен платеж вместо предплащане.
+
+ИЗПЛАЩАНЕ — извикай installment_cost:
+• При въпрос за вноски/лизинг покажи РЕАЛНОТО оскъпяване + ефективен ГПР, не само месечната вноска.
+  Пример: „24 вноски = общо 1340 лв за телефон, който е 999 в брой → +34% (ГПР ~28%). В брой спестяваш 341 лв."
+
+════════════════════════════════════════
 BUDGET DISTRIBUTOR — РАЗПРЕДЕЛЕНИЕ НА БЮДЖЕТ
 ════════════════════════════════════════
 
@@ -816,6 +837,42 @@ ALEX_TOOLS = [
                 }
             },
             "required": ["query"]
+        }
+    },
+    {
+        "name": "check_price_sanity",
+        "description": (
+            "Проверява дали обявена цена е реална или подозрителна (скам-сигнал). "
+            "Използвай когато потребителят пита 'този сайт/оферта измама ли е', 'реална ли е тази цена', "
+            "'намерих го за X лв, нормално ли е', или сподели съмнително евтина оферта. "
+            "Сравнява срещу реалния пазар от нашите данни; връща verdict + белези на измама."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_name":  {"type": "string", "description": "Марка+модел (напр. 'iPhone 15 128GB')"},
+                "claimed_price": {"type": "number", "description": "Обявената цена в лева"}
+            },
+            "required": ["product_name", "claimed_price"]
+        }
+    },
+    {
+        "name": "installment_cost",
+        "description": (
+            "Смята реалното оскъпяване и ефективния ГПР при покупка 'на изплащане'/лизинг. "
+            "Използвай когато потребителят пита за вноски, 'на колко вноски', 'колко ще ме излезе на "
+            "изплащане', или сравнява кеш срещу изплащане. Подай cash_price + months + monthly_payment "
+            "(или total_paid, ако знае само общата сума)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "cash_price":      {"type": "number",  "description": "Цена в брой (лв)"},
+                "months":          {"type": "integer", "description": "Брой вноски"},
+                "monthly_payment": {"type": "number",  "description": "Месечна вноска (лв)"},
+                "total_paid":      {"type": "number",  "description": "Обща сума за плащане (алтернатива на месечната)"}
+            },
+            "required": ["cash_price", "months"]
         }
     }
 ]
@@ -1205,6 +1262,93 @@ def _exec_search_secondhand(args: dict) -> dict:
     }
 
 
+def _irr_monthly(cash: float, monthly: float, months: int) -> float:
+    """Ефективна месечна лихва: r, при която сегашната стойност на вноските = кеш цената."""
+    lo, hi = 0.0, 1.0
+    for _ in range(64):
+        mid = (lo + hi) / 2
+        pv = sum(monthly / ((1 + mid) ** k) for k in range(1, months + 1))
+        if pv > cash:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
+def _exec_installment_cost(args: dict) -> dict:
+    """Разобличава скритата лихва при покупка 'на изплащане'."""
+    try:
+        cash = float(args.get("cash_price") or 0)
+        months = int(args.get("months") or 0)
+        monthly = float(args.get("monthly_payment") or 0)
+        total = float(args.get("total_paid") or 0)
+    except (TypeError, ValueError):
+        return {"error": "Невалидни числа"}
+    if cash <= 0 or months <= 0 or (monthly <= 0 and total <= 0):
+        return {"error": "Подай cash_price, months и monthly_payment (или total_paid)"}
+    if total <= 0:
+        total = monthly * months
+    if monthly <= 0:
+        monthly = total / months
+    overpay = total - cash
+    overpay_pct = round(overpay / cash * 100, 1) if cash else 0
+    apr = round(((1 + _irr_monthly(cash, monthly, months)) ** 12 - 1) * 100, 1) if overpay > 0 else 0.0
+    return {
+        "cash_price": round(cash), "total_installment": round(total),
+        "monthly": round(monthly, 2), "months": months,
+        "overpay": round(overpay), "overpay_pct": overpay_pct, "effective_apr_pct": apr,
+        "verdict": ("тежко оскъпяване" if overpay_pct > 15 else
+                    "умерено оскъпяване" if overpay_pct > 5 else "почти без оскъпяване"),
+    }
+
+
+def _exec_check_price_sanity(args: dict) -> dict:
+    """Скам-сигнал: обявена цена срещу реалния пазар (нашите данни).
+    'Твърде евтино' е класически белег на фалшив магазин."""
+    name = (args.get("product_name") or "").strip()
+    try:
+        claimed = float(args.get("claimed_price") or 0)
+    except (TypeError, ValueError):
+        claimed = 0
+    if not name or claimed <= 0:
+        return {"error": "Подай product_name и claimed_price"}
+    tips = ("Белези на измама: цена под 60% от пазара · само предплащане/карта (без наложен платеж) · "
+            "липса на ЕИК/адрес/телефон · съвсем нов домейн · натиск 'само днес'. "
+            "Провери фирмата по ЕИК в Търговския регистър (напр. papagal.bg).")
+    try:
+        sb = get_supabase()
+        offers = (sb.table("electronics_offers").select("price, store")
+                  .ilike("raw_name", f"%{name}%").order("price").limit(60).execute().data or [])
+    except Exception:
+        offers = []
+    prices = sorted(float(o["price"]) for o in offers if o.get("price"))
+    if len(prices) < 3:
+        return {"known": False,
+                "message": "Нямаме достатъчно пазарни данни за този модел, за да преценя цената.",
+                "safety_tips": tips}
+    med0 = prices[len(prices) // 2]
+    # Изхвърли аксесоари/кабели (цени под 35% от медианата), които замърсяват дъното
+    core = [p for p in prices if p >= med0 * 0.35] or prices
+    low = core[0]
+    median = core[len(core) // 2]
+    if claimed < low * 0.6:
+        verdict = "scam_likely"
+        msg = ("Нереално ниска — %.0f лв е %d%% под най-ниската реална пазарна цена (%.0f лв). "
+               "Класически белег на измама." % (claimed, round((1 - claimed / low) * 100), low))
+    elif claimed < low * 0.85:
+        verdict = "suspicious"
+        msg = "Подозрително ниска — под пазарното дъно (%.0f лв). Провери магазина внимателно." % low
+    elif claimed <= median * 1.02:
+        verdict = "fair"
+        msg = "Реалистична цена (пазар: %.0f–%.0f лв)." % (low, median)
+    else:
+        verdict = "above_market"
+        msg = "Над средното (%.0f лв) — има по-евтино другаде." % median
+    return {"known": True, "verdict": verdict, "claimed": round(claimed),
+            "market_low": round(low), "market_median": round(median),
+            "message": msg, "safety_tips": tips}
+
+
 def _run_tool(tool_name: str, tool_input: dict) -> Any:
     if tool_name == "search_products":
         return _exec_search_products(tool_input)
@@ -1218,6 +1362,10 @@ def _run_tool(tool_name: str, tool_input: dict) -> Any:
         return _exec_get_buy_timing(tool_input)
     if tool_name == "estimate_tradein":
         return _exec_estimate_tradein(tool_input)
+    if tool_name == "check_price_sanity":
+        return _exec_check_price_sanity(tool_input)
+    if tool_name == "installment_cost":
+        return _exec_installment_cost(tool_input)
     return {"error": f"Unknown tool: {tool_name}"}
 
 
