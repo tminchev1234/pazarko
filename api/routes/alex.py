@@ -607,6 +607,11 @@ price_30d_ago, median). Използвай ги КОНКРЕТНО, с реал�
 • При въпрос за вноски/лизинг покажи РЕАЛНОТО оскъпяване + ефективен ГПР, не само месечната вноска.
   Пример: „24 вноски = общо 1340 лв за телефон, който е 999 в брой → +34% (ГПР ~28%). В брой спестяваш 341 лв."
 
+РЕАЛНА ЦЕНА НА УРЕД (ток) — извикай running_cost:
+• За хладилници/перални/климатици/съдомиялни/печки/ТВ — не гледай само цената на етикета.
+• Особено когато по-евтин модел е с лош клас: „Този хладилник е с 40 лв по-евтин, но клас E — плаща
+  +25 лв/година ток. За 5 г. по-скъпият клас A се изплаща и почваш да печелиш."
+
 ════════════════════════════════════════
 BUDGET DISTRIBUTOR — РАЗПРЕДЕЛЕНИЕ НА БЮДЖЕТ
 ════════════════════════════════════════
@@ -873,6 +878,25 @@ ALEX_TOOLS = [
                 "total_paid":      {"type": "number",  "description": "Обща сума за плащане (алтернатива на месечната)"}
             },
             "required": ["cash_price", "months"]
+        }
+    },
+    {
+        "name": "running_cost",
+        "description": (
+            "Оценява годишния разход за ток и 5-годишната РЕАЛНА цена на уред по енергиен клас. "
+            "Използвай при хладилници, перални, климатици, съдомиялни, готварски печки и телевизори — "
+            "когато потребителят сравнява два модела, или пита 'колко ток яде', 'изплаща ли се по-скъпият', "
+            "'реалната цена'. Особено при по-евтин модел с лош клас vs по-скъп с добър клас. "
+            "Подай product_name (класът се вади от името), или category + energy_class."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_name": {"type": "string", "description": "Име на уреда"},
+                "category":     {"type": "string", "description": "fridges/washing/ac/dishwasher/cooking/tvs (ако няма име)"},
+                "energy_class": {"type": "string", "description": "Енергиен клас A-G (ако е известен)"}
+            },
+            "required": []
         }
     }
 ]
@@ -1349,6 +1373,55 @@ def _exec_check_price_sanity(args: dict) -> dict:
             "message": msg, "safety_tips": tips}
 
 
+# Годишен разход за ток (kWh/год) по категория и енергиен клас — ориентировъчно, типична употреба
+_KWH_PRICE_BGN = 0.30   # битова цена на тока (лв/kWh, с мрежови такси)
+_ANNUAL_KWH = {
+    "fridges":    {"A": 100, "B": 140, "C": 175, "D": 215, "E": 270, "F": 330, "G": 400},
+    "washing":    {"A": 100, "B": 120, "C": 140, "D": 165, "E": 195, "F": 230, "G": 270},
+    "dishwasher": {"A": 170, "B": 200, "C": 235, "D": 275, "E": 320, "F": 370, "G": 430},
+    "ac":         {"A": 300, "B": 400, "C": 520, "D": 660, "E": 820, "F": 1000, "G": 1200},
+    "cooking":    {"A": 70,  "B": 90,  "C": 110, "D": 135, "E": 165, "F": 200, "G": 240},
+    "tvs":        {"A": 60,  "B": 90,  "C": 130, "D": 180, "E": 240, "F": 310, "G": 400},
+}
+
+
+def _parse_energy_class(name: str) -> Optional[str]:
+    """Изважда енергийния клас от името (напр. '...Клас E' → 'E')."""
+    m = re.search(r"[Кк]лас\s+([A-G])(\+{0,3})", name or "")
+    return (m.group(1) + m.group(2)) if m else None
+
+
+def _exec_running_cost(args: dict) -> dict:
+    """Годишен разход за ток + 5-годишна реална цена по енергиен клас."""
+    name = (args.get("product_name") or "").strip()
+    cat = (args.get("category") or "").strip()
+    cls = (args.get("energy_class") or "").strip().upper()
+    if not name and not (cat and cls):
+        return {"error": "Подай product_name (или category + energy_class)"}
+    if name and not (cat and cls):
+        try:
+            sb = get_supabase()
+            r = (sb.table("electronics_offers").select("raw_name, category, price")
+                 .ilike("raw_name", f"%{name}%").limit(5).execute().data or [])
+        except Exception:
+            r = []
+        if r:
+            cat = cat or (r[0].get("category") or "")
+            if not cls:
+                cls = _parse_energy_class(r[0].get("raw_name", "")) or ""
+    base = (cls[:1] or "").upper()
+    table = _ANNUAL_KWH.get(cat)
+    if not table or base not in table:
+        return {"known": False,
+                "message": "Няма енергиен клас/подходяща категория за оценка на тока за този продукт."}
+    kwh = table[base]
+    annual = round(kwh * _KWH_PRICE_BGN)
+    return {"known": True, "category": cat, "energy_class": cls or base,
+            "annual_kwh": kwh, "annual_cost_bgn": annual, "cost_5yr_bgn": annual * 5,
+            "kwh_price": _KWH_PRICE_BGN,
+            "note": "Приблизителна оценка по клас и типична употреба; при интензивна употреба е повече."}
+
+
 def _run_tool(tool_name: str, tool_input: dict) -> Any:
     if tool_name == "search_products":
         return _exec_search_products(tool_input)
@@ -1366,6 +1439,8 @@ def _run_tool(tool_name: str, tool_input: dict) -> Any:
         return _exec_check_price_sanity(tool_input)
     if tool_name == "installment_cost":
         return _exec_installment_cost(tool_input)
+    if tool_name == "running_cost":
+        return _exec_running_cost(tool_input)
     return {"error": f"Unknown tool: {tool_name}"}
 
 
