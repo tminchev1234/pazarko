@@ -2356,28 +2356,65 @@ async def alex_verdict_endpoint(
         return {"verdict": ""}
 
 
+def _resolve_product_url(sb, raw: str) -> Optional[str]:
+    """Намира нашия съхранен product_url от URL на страницата на магазина.
+    Толерира query-параметри, липсващ/наличен trailing slash, и променливия
+    slug на eMAG (стабилното там е /pd/КОД/). Ползва се от разширението."""
+    from urllib.parse import urlparse
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    p = urlparse(raw)
+    base = f"{p.scheme}://{p.netloc}{p.path}"           # без query/fragment
+    for c in (raw, base, base.rstrip("/"), base.rstrip("/") + "/"):
+        try:
+            r = sb.table("price_history").select("product_url").eq("product_url", c).limit(1).execute().data
+            if r:
+                return r[0]["product_url"]
+        except Exception:
+            pass
+    # eMAG: стабилен идентификатор /pd/КОД/
+    m = re.search(r"/pd/([A-Za-z0-9]+)", p.path)
+    if m:
+        try:
+            r = sb.table("price_history").select("product_url").ilike("product_url", f"%/pd/{m.group(1)}%").limit(1).execute().data
+            if r:
+                return r[0]["product_url"]
+        except Exception:
+            pass
+    # Последен сегмент от пътя (technomarket/zora/ardes slug с ID)
+    seg = [s for s in p.path.split("/") if s]
+    if seg and len(seg[-1]) >= 6:
+        try:
+            r = sb.table("price_history").select("product_url").ilike("product_url", f"%{seg[-1]}%").limit(1).execute().data
+            if r:
+                return r[0]["product_url"]
+        except Exception:
+            pass
+    return None
+
+
 @router.get("/alex/price-history")
 async def price_history(url: str = Query(..., description="Product URL")):
     """90-day price history + honest deal verdict, computed from OUR OWN
     accumulated price_history — not the retailer's claimed 'old price'.
     This is the anti-fake-discount signal: it catches 'was 999, now 799'
-    when 799 has actually been the usual price all along."""
+    when 799 has actually been the usual price all along.
+    URL matching is robust so the browser extension can pass a raw page URL."""
     cutoff = (datetime.now() - timedelta(days=95)).isoformat()
+    rows = []
     try:
         sb = get_supabase()
-        resp = (
-            sb.table("price_history")
-            .select("price, old_price, scraped_at")
-            .eq("product_url", url)
-            .gte("scraped_at", cutoff)
-            .order("scraped_at", desc=False)
-            .limit(200)
-            .execute()
-        )
-        rows = resp.data or []
+        prod = _resolve_product_url(sb, url)
+        if prod:
+            rows = (sb.table("price_history")
+                    .select("price, old_price, scraped_at")
+                    .eq("product_url", prod)
+                    .gte("scraped_at", cutoff)
+                    .order("scraped_at", desc=False)
+                    .limit(200).execute().data or [])
     except Exception as exc:
         logger.warning("[alex/price-history] %s", exc)
-        rows = []
 
     return {**_price_analysis(rows), "history": rows}
 
