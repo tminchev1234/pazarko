@@ -135,6 +135,20 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .home-picks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:8px}
 .home-picks-row2-head{display:flex;align-items:center;gap:12px;margin:24px 0 12px;font-size:16px;font-weight:700;color:var(--text)}
 .home-picks-row2-head::after{content:'';flex:1;height:1px;background:var(--border)}
+/* Rich section headers — всяка секция със своя идентичност */
+.hsec{display:flex;align-items:center;gap:13px;margin:38px 0 14px}
+.hsec .ic{flex:none;width:42px;height:42px;border-radius:12px;display:grid;place-items:center;font-size:21px;background:#eef2f7}
+.hsec .tx{min-width:0}
+.hsec .tt{font-size:17px;font-weight:800;letter-spacing:-.01em;line-height:1.15;color:var(--text)}
+.hsec .sb{font-size:12.5px;color:var(--muted);margin-top:2px;line-height:1.35}
+.hsec.blue .ic{background:var(--blue-lt);color:var(--blue)}
+.hsec.amber .ic{background:#fef3c7;color:var(--amber)}
+.hsec.green .ic{background:var(--green-lt);color:var(--green)}
+.hsec.slate .ic{background:#eef2f7;color:#475569}
+/* Специална лента за moat-секцията 'Наистина изгодни' */
+.hsec-band{background:linear-gradient(180deg,var(--green-lt),rgba(209,250,229,0));border:1px solid #a7f3d0;
+  border-radius:16px;padding:4px 16px 14px;margin-top:38px}
+.hsec-band .hsec{margin-top:16px}
 .home-pick-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:all .18s;box-shadow:var(--sh);display:flex;flex-direction:column}
 .home-pick-card:hover{transform:translateY(-3px);box-shadow:var(--sh-md);border-color:var(--blue)}
 .home-pick-img{width:100%;height:140px;background:#f9fafb;display:flex;align-items:center;justify-content:center;font-size:40px;position:relative;overflow:hidden}
@@ -901,21 +915,27 @@ async function renderHome() {
         <h2>⭐ Изборът на Alex</h2>
         <span style="font-size:12px;color:var(--muted)">Топ стойност тази седмица</span>
       </div>
-      <div class="home-picks-row2-head">📱 Техника</div>
+      <div class="hsec blue"><div class="ic">📱</div><div class="tx">
+        <div class="tt">Техника</div>
+        <div class="sb">Телефони, лаптопи, ТВ — подредени по реална стойност, не по реклама.</div></div></div>
       <div class="home-picks-grid" id="homePicksRow1">${skRow(5,'home-pick-card',140)}</div>
       <div id="homePicksRow2Wrap" style="display:none">
-        <div class="home-picks-row2-head">🏠 Бяла техника</div>
+        <div class="hsec slate"><div class="ic">🏠</div><div class="tx">
+          <div class="tt">Бяла техника</div>
+          <div class="sb">Хладилници, перални, климатици — с най-добро съотношение цена/качество.</div></div></div>
         <div class="home-picks-grid" id="homePicksRow2"></div>
       </div>
       <div id="homePicksRow3Wrap" style="display:none">
-        <div class="home-picks-row2-head">🔥 Топ намаления тази седмица</div>
+        <div class="hsec amber"><div class="ic">🔥</div><div class="tx">
+          <div class="tt">Топ намаления</div>
+          <div class="sb">Най-големите реални отстъпки тази седмица.</div></div></div>
         <div class="home-picks-grid" id="homePicksRow3"></div>
       </div>
 
-      <div id="homeRealWrap" style="display:none">
-        <div class="home-picks-row2-head">🟢 Наистина изгодни сега
-          <span style="font-weight:400;color:var(--muted);font-size:12px">— на най-ниската си цена от месеци, спрямо собствената история</span>
-        </div>
+      <div id="homeRealWrap" class="hsec-band" style="display:none">
+        <div class="hsec green"><div class="ic">🟢</div><div class="tx">
+          <div class="tt">Наистина изгодни сега</div>
+          <div class="sb">На най-ниската си цена от месеци — проверено с нашата 3-месечна ценова история, не с етикета.</div></div></div>
         <div class="home-picks-grid" id="homeRealGrid"></div>
       </div>
 
