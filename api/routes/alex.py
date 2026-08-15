@@ -1015,6 +1015,28 @@ def _price_analysis(rows: list[dict]) -> dict:
     tgt    = datetime.fromisoformat(series[-1][0][:10]) - timedelta(days=30)
     p30    = min(series, key=lambda x: abs((datetime.fromisoformat(x[0][:10]) - tgt).days))
 
+    # ── Прогноза купи/чакай — от собствения 90-дневен диапазон на продукта ──
+    p25       = srt[len(srt) // 4]                       # „зона на сделката"
+    deal_zone = sum(1 for p in prices if p <= p25 * 1.01) / len(prices)
+    conf      = "high" if days >= 40 else "medium" if days >= 20 else "low"
+    if len(prices) < 8:
+        forecast = {"action": "unknown"}
+    elif current <= p25 * 1.02:
+        forecast = {"action": "buy", "confidence": conf,
+                    "basis": "сега е в дъното на 90-дневния си диапазон"}
+    elif trend == "falling" and current > p25 * 1.05:
+        forecast = {"action": "wait", "confidence": conf, "target_price": round(p25, 2),
+                    "expected_saving_pct": round((current - p25) / current * 100),
+                    "basis": "цената пада в момента; обикновено стига до ~%.0f лв" % p25}
+    elif current >= median * 1.03 and deal_zone >= 0.10:
+        forecast = {"action": "wait", "confidence": conf, "target_price": round(p25, 2),
+                    "expected_saving_pct": round((current - p25) / current * 100),
+                    "basis": "над обичайното; пада до ~%.0f лв в ~%d%% от дните" % (p25, round(deal_zone * 100))}
+    elif current < median * 0.98:
+        forecast = {"action": "buy", "confidence": conf, "basis": "под обичайната си цена"}
+    else:
+        forecast = {"action": "neutral", "confidence": conf, "basis": "стабилна около обичайното"}
+
     return {
         "has_history":      True,
         "data_points":      len(prices),
@@ -1034,23 +1056,33 @@ def _price_analysis(rows: list[dict]) -> dict:
         "pct_above_low":    round((current / low - 1) * 100) if low else 0,
         "at_historical_min": current <= low * 1.03,
         "old_price_claim":  latest_old,
+        "forecast":         forecast,
     }
 
 
 def _buy_timing_advice(a: dict) -> str:
     s = a["deal_score"]
     if s == "lowest":
-        return f"Най-ниската цена, откакто следим продукта ({a['days_tracked']} дни) — добър момент."
-    if s == "good":
-        return f"Близо до най-ниската (дъно {a['low']:.0f} лв на {a['lowest_date']}) — разумен момент."
-    if s == "real":
-        return f"Реална отстъпка — под обичайната цена ({a['median']:.0f} лв)."
-    if s == "suspicious":
-        return ("Внимание: „намалението“ е привидно — цената е около обичайните "
+        base = f"Най-ниската цена, откакто следим продукта ({a['days_tracked']} дни) — добър момент."
+    elif s == "good":
+        base = f"Близо до най-ниската (дъно {a['low']:.0f} лв на {a['lowest_date']}) — разумен момент."
+    elif s == "real":
+        base = f"Реална отстъпка — под обичайната цена ({a['median']:.0f} лв)."
+    elif s == "suspicious":
+        base = ("Внимание: „намалението“ е привидно — цената е около обичайните "
                 f"{a['median']:.0f} лв през целия проследен период.")
-    if s == "high":
-        return f"Близо до собствения пик ({a['high']:.0f} лв) — по-добре изчакай."
-    return f"Обичайна цена. Най-ниско е било {a['low']:.0f} лв на {a['lowest_date']}."
+    elif s == "high":
+        base = f"Близо до собствения пик ({a['high']:.0f} лв) — по-добре изчакай."
+    else:
+        base = f"Обичайна цена. Най-ниско е било {a['low']:.0f} лв на {a['lowest_date']}."
+    f = a.get("forecast") or {}
+    act = f.get("action")
+    if act == "wait" and f.get("target_price"):
+        base += (f" Прогноза (увереност: {f.get('confidence', '')}): изчакай — "
+                 f"{f.get('basis', '')} (~{f.get('expected_saving_pct', 0)}% потенциал).")
+    elif act == "buy":
+        base += f" Прогноза: купи — {f.get('basis', '')}."
+    return base
 
 
 def _exec_get_buy_timing(args: dict) -> dict:

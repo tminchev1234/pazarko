@@ -761,8 +761,9 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
       <div class="vrd-ai-tag">💬 Alex казва:</div>
       <div class="vrd-text" id="vrdAiText"><span style="color:var(--muted);font-size:13px">Анализирам...</span></div>
       <div class="vrd-history" id="vrdHistory" style="display:none">
-        <div class="vrd-history-title">📈 Ценова история (30 дни)</div>
+        <div class="vrd-history-title">📈 Ценова история (до 3 месеца)</div>
         <div id="vrdSparkline"></div>
+        <div id="vrdForecast" style="margin-top:8px"></div>
       </div>
     </div>
     <div class="vrd-related" id="vrdRelated" style="display:none">
@@ -1672,6 +1673,7 @@ function showVerdict(prod) {
         const d = await apiFetch(`/alex/price-history?url=${encodeURIComponent(prod.url)}`);
         _renderDealBadge(d.deal_score, prod.old_price, d);
         _renderSparkline(d.history, prod.price);
+        _renderForecast(d.forecast);
       } catch {}
     })();
   }
@@ -1729,6 +1731,24 @@ function _renderDealBadge(score, oldPrice, info) {
   if (!m) return;   // "unknown" (too little history) → no badge, no lying
   el.textContent = m[0];
   el.className = 'vrd-deal-badge ' + m[1];
+}
+
+// Прогноза купи/чакай — от собствения ценови диапазон на продукта
+function _renderForecast(f) {
+  const el = document.getElementById('vrdForecast');
+  if (!el) return;
+  el.innerHTML = '';
+  if (!f || !f.action || f.action === 'unknown' || f.action === 'neutral') return;
+  const wait = f.action === 'wait';
+  const icon = wait ? '⏳' : '🛒';
+  const label = wait ? 'Прогноза: изчакай' : 'Прогноза: купи';
+  const color = wait ? '#d97706' : '#16a34a';
+  const confMap = { low: 'ниска', medium: 'средна', high: 'висока' };
+  let detail = f.basis || '';
+  if (wait && f.expected_saving_pct) detail += ` (~${f.expected_saving_pct}% потенциал)`;
+  if (f.confidence) detail += ` · увереност: ${confMap[f.confidence] || f.confidence}`;
+  el.innerHTML = `<div style="font-size:13px;font-weight:700;color:${color}">${icon} ${label}</div>`
+    + `<div style="font-size:12px;color:var(--muted)">${eh(detail)}</div>`;
 }
 
 function _renderSparkline(history, currentPrice) {
