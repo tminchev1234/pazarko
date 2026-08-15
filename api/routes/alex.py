@@ -2387,16 +2387,16 @@ _REAL_DEALS_CACHE: dict = {"ts": 0.0, "data": None}
 _REAL_DEALS_TTL = 6 * 3600
 
 
-@router.get("/alex/real-deals")
-async def real_deals(limit: int = Query(12, le=24)):
+def _compute_real_deals() -> list:
     """Продукти, които СЕГА са на/близо до собственото си 90-дневно дъно И под
     обичайната си цена — истински сделки от НАШАТА история, не обявени от
-    магазина отстъпки. Тежко сканиране → кеширано 6ч."""
+    магазина отстъпки. Кеширано 6ч. Ползва се от /alex/real-deals И от личния
+    купувач-агент (cron/deal-alerts) — затова агентът пише само при реално дъно."""
     import time
     now = time.time()
     cache = _REAL_DEALS_CACHE
     if cache["data"] is not None and now - cache["ts"] < _REAL_DEALS_TTL:
-        return {"results": cache["data"][:limit], "cached": True}
+        return cache["data"]
 
     try:
         sb = get_supabase()
@@ -2484,15 +2484,21 @@ async def real_deals(limit: int = Query(12, le=24)):
                     "low":          round(c["low"], 2),
                     "lowest_date":  c["low_ts"],
                 })
-                if len(result) >= 24:
+                if len(result) >= 150:
                     break
 
         cache["data"] = result
         cache["ts"]   = now
-        return {"results": result[:limit], "cached": False}
+        return result
     except Exception as exc:
         logger.warning("[real-deals] %s", exc)
-        return {"results": (cache["data"] or [])[:limit], "error": True}
+        return cache["data"] or []
+
+
+@router.get("/alex/real-deals")
+async def real_deals(limit: int = Query(12, le=24)):
+    """Публичен endpoint за началната секция 'Наистина изгодни сега'."""
+    return {"results": _compute_real_deals()[:limit]}
 
 
 # ─── Click tracking — outbound retailer link клик (за фунията) ────────────────
@@ -2702,16 +2708,10 @@ async def cron_deal_alerts(request: Request):
     if not subs:
         return {"ok": True, "subs": 0, "sent": 0}
 
-    # Пул от силните текущи оферти (веднъж), после match в Python
-    try:
-        pool = (sb.table("electronics_offers")
-                .select("raw_name, price, old_price, discount_pct, store, url, image_url")
-                .gte("discount_pct", 15)
-                .order("discount_pct", desc=True)
-                .limit(3000).execute().data or [])
-    except Exception as exc:
-        logger.error("[deal-cron] load offers failed: %s", exc)
-        pool = []
+    # Пул = РЕАЛНИТЕ дъна от НАШАТА история (не обявени от магазина отстъпки).
+    # Затова личният агент пише само когато е истински добър момент за покупка —
+    # това е доверието, което го отличава от обикновените price alerts.
+    pool = _compute_real_deals()
     pool_tok = [(_deal_tokens(o.get("raw_name", "")), o) for o in pool]
 
     from api.email_utils import send_deal_alert
@@ -2731,14 +2731,13 @@ async def cron_deal_alerts(request: Request):
         if not terms:
             continue
         need = 1 if len(terms) == 1 else max(2, (len(terms) + 1) // 2)
-        min_disc = int(s.get("min_discount") or 20)
 
         best = None
         for otok, o in pool_tok:
-            if (o.get("discount_pct") or 0) < min_disc:
-                continue
             matched = sum(1 for term in terms if _term_hits(term, otok))   # fuzzy (trigram + prefix)
             if matched >= need:
+                # реалните дъна вече са проверени срещу историята — избираме
+                # най-изгодния спрямо собствената му обичайна цена
                 if best is None or (o.get("discount_pct") or 0) > (best.get("discount_pct") or 0):
                     best = o
         if not best:
