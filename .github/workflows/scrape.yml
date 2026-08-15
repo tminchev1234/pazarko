@@ -47,6 +47,20 @@ jobs:
           API_BASE_URL:  ${{ secrets.API_BASE_URL }}
           SECRET_KEY:    ${{ secrets.SECRET_KEY }}
 
+      - name: Trigger личен купувач-агент (deal-alerts по реални дъна)
+        if: always()   # свежите цени вече са в базата — известяваме при реално дъно
+        run: |
+          echo "Triggering deal-alerts cron..."
+          code=$(curl -sS -o /tmp/da.txt -w "%{http_code}" -X POST \
+            "https://pazarko-1.onrender.com/api/alex/cron/deal-alerts" \
+            -H "X-Cron-Secret: $SECRET_KEY" --max-time 180 || echo "000")
+          echo "HTTP $code"; cat /tmp/da.txt || true
+          if [ "$code" = "403" ]; then
+            echo "::warning::403 — SECRET_KEY в GitHub не съвпада с Render. Изравни ги."
+          fi
+        env:
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+
       - name: Upload JSON artifacts (for debugging)
         if: always()
         uses: actions/upload-artifact@v4
