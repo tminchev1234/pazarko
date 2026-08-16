@@ -926,7 +926,7 @@ def _exec_search_products(args: dict) -> list[dict]:
             q = q.gte("price", args["min_price"])
         resp = q.order("price", desc=False).limit(limit).execute()
         if resp.data:
-            return _apply_blocklist(resp.data, args.get("category", ""))
+            return _fix_images(_apply_blocklist(resp.data, args.get("category", "")))
     except Exception as exc:
         logger.warning("[alex] Supabase search_products failed, using local JSON: %s", exc)
 
@@ -977,7 +977,7 @@ def _exec_get_prices(args: dict) -> list[dict]:
             q = q.eq("category", args["category"])
         resp = q.order("price", desc=False).limit(20).execute()
         if resp.data:
-            return resp.data
+            return _fix_images(resp.data)
     except Exception as exc:
         logger.warning("[alex] Supabase get_prices failed, using local JSON: %s", exc)
 
@@ -1040,7 +1040,7 @@ def _exec_get_top_deals(args: dict) -> list[dict]:
             # така „Избор на деня" награждава реална стойност (цена спрямо медиана +
             # марка), не 72% от завишена начална цена на боклук.
             clean.sort(key=alex_score, reverse=True)
-            return _dedup_deals(clean, limit)
+            return _fix_images(_dedup_deals(clean, limit))
     except Exception as exc:
         logger.warning("[alex] Supabase get_top_deals failed, using local JSON: %s", exc)
 
@@ -2698,6 +2698,81 @@ def _write_precomputed(key: str, value) -> None:
         logger.warning("[precompute] write %s failed: %s", key, exc)
 
 
+# ─── Поправка на снимки: генерични магазинни „няма снимка" → истинска или чист fallback ─
+_IMG_FIX_CACHE = {"ts": 0.0, "data": None}
+_IMG_FIX_TTL = 6 * 3600
+
+
+def _model_key(raw_name: Optional[str]) -> str:
+    toks = re.findall(r"[a-z0-9]{3,}", (raw_name or "").lower())[:6]
+    if len(toks) < 4:
+        return ""   # твърде обща — не рискувай грешна снимка, по-добре чист fallback
+    return " ".join(sorted(toks))
+
+
+def _build_image_fix() -> dict:
+    """Скенира офертите: генеричните placeholder снимки (един URL, споделен от >3
+    продукта) + карта модел→истинска снимка (за cross-fill от друг магазин)."""
+    try:
+        sb = get_supabase()
+        rows, step, off = [], 1000, 0
+        while True:
+            page = (sb.table("electronics_offers").select("raw_name, image_url")
+                    .range(off, off + step - 1).execute().data or [])
+            rows.extend(page)
+            if len(page) < step:
+                break
+            off += step
+            if off > 100000:
+                break
+        from collections import Counter
+        cnt = Counter(r.get("image_url") for r in rows if r.get("image_url"))
+        placeholders = [u for u, n in cnt.items() if u and n > 3]
+        ph_set = set(placeholders)
+        twins: dict = {}
+        for r in rows:
+            u = r.get("image_url")
+            if u and u not in ph_set:
+                k = _model_key(r.get("raw_name"))
+                if k:
+                    twins.setdefault(k, u)
+        return {"placeholders": placeholders, "twins": twins}
+    except Exception as exc:
+        logger.warning("[image-fix] build failed: %s", exc)
+        return {"placeholders": [], "twins": {}}
+
+
+def _get_image_fix() -> dict:
+    import time
+    now = time.time()
+    c = _IMG_FIX_CACHE
+    if c["data"] is not None and now - c["ts"] < _IMG_FIX_TTL:
+        return c["data"]
+    pc = _read_precomputed("image_fix")
+    raw = pc["value"] if pc and pc.get("value") else None
+    if not raw:
+        raw = _build_image_fix()   # live fallback (лек скан ~5k оферти), кеширан 6ч
+    data = {"placeholders": set(raw.get("placeholders") or []), "twins": raw.get("twins") or {}}
+    c["data"] = data
+    c["ts"] = now
+    return data
+
+
+def _fix_images(products: list) -> list:
+    """Замества генерична placeholder снимка с истинска на същия модел от друг
+    магазин; ако няма — маха я (frontend показва чист дизайнерски fallback)."""
+    fix = _get_image_fix()
+    ph = fix["placeholders"]
+    if not ph or not products:
+        return products
+    twins = fix["twins"]
+    for p in products:
+        img = p.get("image_url")
+        if img and img in ph:
+            p["image_url"] = twins.get(_model_key(p.get("raw_name")))
+    return products
+
+
 # ─── Наистина изгодни сега — продукти на/близо до собственото им 90-дневно дъно ─
 _REAL_DEALS_CACHE: dict = {"ts": 0.0, "data": None}
 _REAL_DEALS_TTL = 6 * 3600
@@ -2802,6 +2877,8 @@ def _compute_real_deals(force: bool = False) -> list:
                 if len(result) >= 150:
                     break
 
+        # Поправи генеричните снимки; в тази витрина махаме продуктите без реална снимка
+        result = [r for r in _fix_images(result) if r.get("image_url")]
         cache["data"] = result
         cache["ts"]   = now
         return result
@@ -2944,11 +3021,19 @@ async def cron_precompute(request: Request):
     secret = request.query_params.get("secret") or request.headers.get("X-Cron-Secret", "")
     if settings.secret_key and secret != settings.secret_key:
         raise HTTPException(status_code=403, detail="Forbidden")
+    import time
+    # Първо картата за поправка на снимки (real-deals я ползва при строене)
+    imgfix = _build_image_fix()
+    _write_precomputed("image_fix", imgfix)
+    _IMG_FIX_CACHE["data"] = {"placeholders": set(imgfix.get("placeholders") or []),
+                              "twins": imgfix.get("twins") or {}}
+    _IMG_FIX_CACHE["ts"] = time.time()
     rd = _compute_real_deals(force=True)
     fr = _compute_fake_report(force=True)
     _write_precomputed("real_deals", rd)
     _write_precomputed("fake_report", fr)
-    return {"ok": True, "real_deals": len(rd), "fake_report_judged": fr.get("judged")}
+    return {"ok": True, "real_deals": len(rd), "fake_report_judged": fr.get("judged"),
+            "placeholder_urls": len(imgfix.get("placeholders") or [])}
 
 
 # ─── Click tracking — outbound retailer link клик (за фунията) ────────────────
@@ -4064,6 +4149,8 @@ async def homepage_picks():
     except Exception:
         row1, row2, row3 = [], [], []
 
+    # Поправи генеричните снимки (frontend филтрира тези без image_url → чиста витрина)
+    row1, row2, row3 = _fix_images(row1), _fix_images(row2), _fix_images(row3)
     return {
         "row1": row1, "row2": row2, "row3": row3,
         "count": len(row1) + len(row2) + len(row3),
