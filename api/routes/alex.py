@@ -1992,40 +1992,52 @@ def _compute_medians() -> None:
 
 
 def alex_score(product: dict) -> float:
-    """Score a product 4.0–9.8 based on discount, price vs median, brand."""
-
+    """Pazarko Score (4.0–9.8) — ЧЕСТЕН: реалното дъно (от нашата история) качва,
+    ФИКТИВНАТА отстъпка ПАДА. Не вярва сляпо на обявената от магазина отстъпка."""
     score = 6.0
-    discount = product.get("discount_pct") or 0
     price    = product.get("price") or 0
     brand    = (product.get("brand") or "").lower()
     category = product.get("category") or ""
+    url      = product.get("url") or ""
 
-    # Discount bonus (up to +2.0)
-    if   discount >= 40: score += 2.0
-    elif discount >= 30: score += 1.5
-    elif discount >= 20: score += 1.0
-    elif discount >= 10: score += 0.5
+    # 1) Реален verdict от НАШАТА история (най-важното) — не етикета на магазина
+    verdict = _get_verdicts().get(url)
+    if   verdict == "lowest":     score += 2.0
+    elif verdict == "good":       score += 1.2
+    elif verdict == "real":       score += 1.0
+    elif verdict == "suspicious": score -= 1.5   # фиктивно „намаление" → НАКАЗАНИЕ
+    elif verdict == "high":       score -= 0.8
 
-    # Price position vs category median (cheaper = better)
+    # 2) Обявена отстъпка — само лек бонус и САМО ако нямаме история (може да е фалшива)
+    if verdict is None:
+        discount = product.get("discount_pct") or 0
+        if   discount >= 30: score += 0.6
+        elif discount >= 15: score += 0.3
+
+    # 3) Цена спрямо медианата на категорията (стойност)
     median = _CATEGORY_MEDIANS.get(category, 0)
     if median and price:
         ratio = price / median
-        if   ratio < 0.5:  score += 1.0
-        elif ratio < 0.75: score += 0.5
+        if   ratio < 0.5:  score += 0.8
+        elif ratio < 0.75: score += 0.4
         elif ratio > 2.5:  score -= 0.5
 
-    # Reputable brand bonus
+    # 4) Известна марка
     top_brands = {
         "samsung", "apple", "sony", "lg", "lenovo", "hp", "dell", "asus",
         "bose", "jbl", "sennheiser", "jabra", "xiaomi", "panasonic", "philips",
         "tcl", "hisense", "canon", "nikon", "logitech", "razer", "microsoft",
     }
     if brand in top_brands:
-        score += 0.3
+        score += 0.4
 
-    # Has image and URL
-    if product.get("image_url"): score += 0.1
-    if product.get("url"):       score += 0.1
+    # 5) Пълнота на спецификациите (реален, информативен продукт)
+    nspec = len(_extract_specs(product.get("raw_name", "")))
+    if   nspec >= 3: score += 0.3
+    elif nspec >= 1: score += 0.1
+
+    if product.get("image_url"):
+        score += 0.1
 
     return round(min(9.8, max(4.0, score)), 1)
 
@@ -2906,6 +2918,59 @@ def _write_precomputed(key: str, value) -> None:
         logger.warning("[precompute] write %s failed: %s", key, exc)
 
 
+# ─── Реален verdict на продукт (за честния Pazarko Score) — предкалкулиран ─────
+_VERDICTS_CACHE = {"ts": 0.0, "data": None}
+
+
+def _build_verdicts() -> dict:
+    """Скенира историята веднъж → deal_score за всеки продукт (url). Ползва се от
+    Pazarko Score, за да качва реалните дъна и НАКАЗВА фиктивните отстъпки."""
+    try:
+        sb = get_supabase()
+        cutoff = (datetime.now() - timedelta(days=95)).isoformat()
+        rows, step, off = [], 1000, 0
+        while True:
+            page = (sb.table("price_history").select("product_url, price, old_price, scraped_at")
+                    .gte("scraped_at", cutoff).order("id")
+                    .range(off, off + step - 1).execute().data or [])
+            rows.extend(page)
+            if len(page) < step:
+                break
+            off += step
+            if off > 200000:
+                break
+        byurl: dict = {}
+        for r in rows:
+            u = r.get("product_url")
+            if u:
+                byurl.setdefault(u, []).append(r)
+        out: dict = {}
+        for u, rs in byurl.items():
+            rs.sort(key=lambda x: x.get("scraped_at") or "")
+            a = _price_analysis(rs)
+            if a.get("has_history"):
+                out[u] = a["deal_score"]
+        return out
+    except Exception as exc:
+        logger.warning("[verdicts] build failed: %s", exc)
+        return {}
+
+
+def _get_verdicts() -> dict:
+    """Предкалкулираните verdict-и (url→deal_score). {} ако още не са смятани —
+    Score-ът тогава пада към чистите полета (без да блокира заявката с 52k scan)."""
+    import time
+    now = time.time()
+    c = _VERDICTS_CACHE
+    if c["data"] is not None and now - c["ts"] < 6 * 3600:
+        return c["data"]
+    pc = _read_precomputed("verdicts")
+    data = (pc["value"] if pc and pc.get("value") else {}) or {}
+    c["data"] = data
+    c["ts"] = now
+    return data
+
+
 # ─── Поправка на снимки: генерични магазинни „няма снимка" → истинска или чист fallback ─
 _IMG_FIX_CACHE = {"ts": 0.0, "data": None}
 _IMG_FIX_TTL = 6 * 3600
@@ -3230,18 +3295,24 @@ async def cron_precompute(request: Request):
     if settings.secret_key and secret != settings.secret_key:
         raise HTTPException(status_code=403, detail="Forbidden")
     import time
-    # Първо картата за поправка на снимки (real-deals я ползва при строене)
+    # Картата за поправка на снимки (real-deals я ползва при строене)
     imgfix = _build_image_fix()
     _write_precomputed("image_fix", imgfix)
     _IMG_FIX_CACHE["data"] = {"placeholders": set(imgfix.get("placeholders") or []),
                               "twins": imgfix.get("twins") or {}}
     _IMG_FIX_CACHE["ts"] = time.time()
+    # Реални verdict-и за честния Pazarko Score
+    verdicts = _build_verdicts()
+    _write_precomputed("verdicts", verdicts)
+    _VERDICTS_CACHE["data"] = verdicts
+    _VERDICTS_CACHE["ts"] = time.time()
     rd = _compute_real_deals(force=True)
     fr = _compute_fake_report(force=True)
     _write_precomputed("real_deals", rd)
     _write_precomputed("fake_report", fr)
     return {"ok": True, "real_deals": len(rd), "fake_report_judged": fr.get("judged"),
-            "placeholder_urls": len(imgfix.get("placeholders") or [])}
+            "placeholder_urls": len(imgfix.get("placeholders") or []),
+            "verdicts": len(verdicts)}
 
 
 # ─── Click tracking — outbound retailer link клик (за фунията) ────────────────
