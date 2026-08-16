@@ -47,6 +47,15 @@ jobs:
           API_BASE_URL:  ${{ secrets.API_BASE_URL }}
           SECRET_KEY:    ${{ secrets.SECRET_KEY }}
 
+      - name: Precompute тежките изгледи (real-deals, доклад)
+        if: always()   # свежите цени са в базата → предкалкулираме, за да не сканираме на всяка заявка
+        run: |
+          echo "Precomputing heavy views..."
+          curl -sS -X POST "https://pazarko-1.onrender.com/api/alex/cron/precompute" \
+            -H "X-Cron-Secret: $SECRET_KEY" --max-time 180 || echo "precompute trigger failed (non-fatal)"
+        env:
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+
       - name: Trigger личен купувач-агент (deal-alerts по реални дъна)
         if: always()   # свежите цени вече са в базата — известяваме при реално дъно
         run: |

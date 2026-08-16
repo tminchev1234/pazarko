@@ -2674,20 +2674,43 @@ async def price_history(url: str = Query(..., description="Product URL")):
     return {**_price_analysis(rows), "history": rows}
 
 
+# ─── Предкалкулиран кеш в таблица — маха тежкия scan от заявките при трафик ─────
+def _read_precomputed(key: str):
+    """Чете предкалкулиран резултат от computed_cache (малък ред, без scan).
+    None ако таблицата липсва/е празна → извикващият пада към live изчисление."""
+    try:
+        sb = get_supabase()
+        r = (sb.table("computed_cache").select("value, updated_at")
+             .eq("key", key).limit(1).execute().data or [])
+        return r[0] if r else None
+    except Exception:
+        return None
+
+
+def _write_precomputed(key: str, value) -> None:
+    try:
+        sb = get_supabase()
+        sb.table("computed_cache").upsert({
+            "key": key, "value": value,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).execute()
+    except Exception as exc:
+        logger.warning("[precompute] write %s failed: %s", key, exc)
+
+
 # ─── Наистина изгодни сега — продукти на/близо до собственото им 90-дневно дъно ─
 _REAL_DEALS_CACHE: dict = {"ts": 0.0, "data": None}
 _REAL_DEALS_TTL = 6 * 3600
 
 
-def _compute_real_deals() -> list:
+def _compute_real_deals(force: bool = False) -> list:
     """Продукти, които СЕГА са на/близо до собственото си 90-дневно дъно И под
-    обичайната си цена — истински сделки от НАШАТА история, не обявени от
-    магазина отстъпки. Кеширано 6ч. Ползва се от /alex/real-deals И от личния
-    купувач-агент (cron/deal-alerts) — затова агентът пише само при реално дъно."""
+    обичайната си цена. ТЕЖКО (scan ~52k реда) → в норма се чете предкалкулирано
+    от таблица; това е fallback/precompute изчислението. force=True за precompute."""
     import time
     now = time.time()
     cache = _REAL_DEALS_CACHE
-    if cache["data"] is not None and now - cache["ts"] < _REAL_DEALS_TTL:
+    if not force and cache["data"] is not None and now - cache["ts"] < _REAL_DEALS_TTL:
         return cache["data"]
 
     try:
@@ -2789,8 +2812,11 @@ def _compute_real_deals() -> list:
 
 @router.get("/alex/real-deals")
 async def real_deals(limit: int = Query(12, le=24)):
-    """Публичен endpoint за началната секция 'Наистина изгодни сега'."""
-    return {"results": _compute_real_deals()[:limit]}
+    """Публичен endpoint. Чете предкалкулираното (бързо, без scan);
+    fallback към live изчисление ако таблицата още не е пълна."""
+    pc = _read_precomputed("real_deals")
+    data = pc["value"] if pc and pc.get("value") is not None else _compute_real_deals()
+    return {"results": (data or [])[:limit]}
 
 
 # ─── Доклад: колко от обявените намаления са фиктивни ──────────────────────────
@@ -2798,14 +2824,13 @@ _FAKE_REPORT_CACHE: dict = {"ts": 0.0, "data": None}
 _FAKE_REPORT_TTL = 6 * 3600
 
 
-def _compute_fake_report() -> dict:
+def _compute_fake_report(force: bool = False) -> dict:
     """Сравнява обявените от магазините намаления срещу НАШАТА ценова история.
-    „Фиктивно" = текущата цена е около обичайната (не е реално по-ниска), ИЛИ
-    обявената „стара цена" никога не е съществувала в проследения период."""
+    ТЕЖКО (scan ~52k реда) → в норма се чете предкалкулирано; това е fallback/precompute."""
     import time
     now = time.time()
     c = _FAKE_REPORT_CACHE
-    if c["data"] is not None and now - c["ts"] < _FAKE_REPORT_TTL:
+    if not force and c["data"] is not None and now - c["ts"] < _FAKE_REPORT_TTL:
         return c["data"]
 
     empty = {"judged": 0, "fake": 0, "real": 0, "weak": 0, "fake_pct": None,
@@ -2906,8 +2931,24 @@ def _compute_fake_report() -> dict:
 
 @router.get("/alex/fake-discount-report")
 async def fake_discount_report():
-    """Данни за публичния доклад „Реалната цена" — колко намаления са фиктивни."""
-    return _compute_fake_report()
+    """Данни за публичния доклад „Реалната цена". Чете предкалкулираното; fallback към live."""
+    pc = _read_precomputed("fake_report")
+    return pc["value"] if pc and pc.get("value") is not None else _compute_fake_report()
+
+
+@router.post("/alex/cron/precompute")
+async def cron_precompute(request: Request):
+    """Предкалкулира тежките резултати в computed_cache — вика се от scrape workflow-а,
+    за да не се прави 52k-scan на всяка потребителска заявка."""
+    settings = get_settings()
+    secret = request.query_params.get("secret") or request.headers.get("X-Cron-Secret", "")
+    if settings.secret_key and secret != settings.secret_key:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    rd = _compute_real_deals(force=True)
+    fr = _compute_fake_report(force=True)
+    _write_precomputed("real_deals", rd)
+    _write_precomputed("fake_report", fr)
+    return {"ok": True, "real_deals": len(rd), "fake_report_judged": fr.get("judged")}
 
 
 # ─── Click tracking — outbound retailer link клик (за фунията) ────────────────
