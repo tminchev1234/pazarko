@@ -587,6 +587,18 @@ price_30d_ago, median). Използвай ги КОНКРЕТНО, с реал�
 Старият ще поевтинее с ~15-20%. Препоръчвам да изчакаш ако не бързаш."
 
 ════════════════════════════════════════
+СПЕЦИФИКАЦИИ — „КОЕ ДА КУПЯ" (не само цена)
+════════════════════════════════════════
+
+Продуктите носят spec-резюме (RAM, памет, екран, Hz, резолюция, панел, 5G, камера, обем, клас).
+Когато потребителят избира между модели — извикай compare_products и кажи КОНКРЕТНО за какво си
+заслужава да доплати, с реални числа:
+• „За +18% взимаш 2x памет (256 vs 128GB) и 120Hz — за игри/PS5 си заслужава."
+• „Разликата е само цвят/име — вземи по-евтиния."
+• „По-скъпият е с OLED вместо LCD, но за твоята употреба LCD стига."
+Не си измисляй спец, който липсва. Комбинирай със buy_timing (кога) и running_cost (ток) за пълна картина.
+
+════════════════════════════════════════
 ЗАЩИТА НА ПОТРЕБИТЕЛЯ (БГ) — права, измами, изплащане
 ════════════════════════════════════════
 
@@ -898,6 +910,24 @@ ALEX_TOOLS = [
             },
             "required": []
         }
+    },
+    {
+        "name": "compare_products",
+        "description": (
+            "Сравнява СПЕЦИФИКАЦИИТЕ на 2-3 продукта спрямо цената им — 'кое да купя'. "
+            "Използвай когато потребителят пита 'кой е по-добър', 'струва ли си да доплатя', "
+            "'сравни X и Y', 'коя разлика има', или избира между модели. Връща реални спецове "
+            "(RAM, памет, екран, Hz, резолюция, панел, 5G, камера, обем, енергиен клас) + цена."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_a": {"type": "string", "description": "Първи модел (напр. 'iPhone 16 128GB')"},
+                "product_b": {"type": "string", "description": "Втори модел"},
+                "product_c": {"type": "string", "description": "Трети модел (незадължително)"}
+            },
+            "required": ["product_a", "product_b"]
+        }
     }
 ]
 
@@ -926,7 +956,7 @@ def _exec_search_products(args: dict) -> list[dict]:
             q = q.gte("price", args["min_price"])
         resp = q.order("price", desc=False).limit(limit).execute()
         if resp.data:
-            return _fix_images(_apply_blocklist(resp.data, args.get("category", "")))
+            return _add_specs(_fix_images(_apply_blocklist(resp.data, args.get("category", ""))))
     except Exception as exc:
         logger.warning("[alex] Supabase search_products failed, using local JSON: %s", exc)
 
@@ -977,7 +1007,7 @@ def _exec_get_prices(args: dict) -> list[dict]:
             q = q.eq("category", args["category"])
         resp = q.order("price", desc=False).limit(20).execute()
         if resp.data:
-            return _fix_images(resp.data)
+            return _add_specs(_fix_images(resp.data))
     except Exception as exc:
         logger.warning("[alex] Supabase get_prices failed, using local JSON: %s", exc)
 
@@ -1386,9 +1416,175 @@ _ANNUAL_KWH = {
 
 
 def _parse_energy_class(name: str) -> Optional[str]:
-    """Изважда енергийния клас от името (напр. '...Клас E' → 'E')."""
-    m = re.search(r"[Кк]лас\s+([A-G])(\+{0,3})", name or "")
-    return (m.group(1) + m.group(2)) if m else None
+    """Изважда енергийния клас от името (напр. '...Клас E' → 'E'); толерира кирилско Е/А/В/С."""
+    m = re.search(r"[Кк]лас\s+([A-GА-Яа-я])(\+{0,3})", name or "")
+    if not m:
+        return None
+    c = {"А": "A", "В": "B", "С": "C", "Е": "E"}.get(m.group(1).upper(), m.group(1).upper())
+    return (c + m.group(2)) if c in "ABCDEFG" else None
+
+
+def _extract_specs(name: str) -> dict:
+    """Структурирани спецификации, извадени от името (нямаме ги в отделно поле):
+    RAM, памет, екран, резолюция, Hz, 5G, камера, обем, енергиен клас.
+    Това е ядрото на 'кое да купя' — сравнение на реални характеристики, не само цена."""
+    s = name or ""
+    low = s.lower()
+    out: dict = {}
+    _RAM_OK = {2, 3, 4, 6, 8, 12, 16, 24, 32, 64}
+    _STOR_OK = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096}
+    # RAM (GB RAM / RAM GB / 'X GB + Y GB' → първото е RAM); само стандартни стойности
+    m = (re.search(r"(\d+)\s?gb\s*(?:ram|рам)", low)
+         or re.search(r"ram\s*(\d+)\s?gb", low)
+         or re.search(r"(\d+)\s?gb\s*\+\s*\d+\s?gb", low))
+    if m and int(m.group(1)) in _RAM_OK:
+        out["ram_gb"] = int(m.group(1))
+    # Памет (TB → GB, или ROM/SSD/HDD, или второто число в 'X GB + Y GB', или ', X GB')
+    mt = re.search(r"(\d+)\s?tb", low)
+    if mt:
+        out["storage_gb"] = int(mt.group(1)) * 1024
+    else:
+        ms = (re.search(r"(?:ssd|hdd|rom|памет)\s*(\d+)\s?gb", low)
+              or re.search(r"(\d+)\s?gb\s*(?:ssd|hdd|rom)", low)
+              or re.search(r"\+\s*(\d+)\s?gb", low)
+              or re.search(r",\s*(\d+)\s?gb\b", low))
+        if ms and int(ms.group(1)) in _STOR_OK:
+            out["storage_gb"] = int(ms.group(1))
+        else:
+            # Самостоятелно 'X GB' (напр. 'iPhone 16 128GB') → ≥64 е памет, не RAM
+            for mm in re.finditer(r"(\d+)\s?gb\b", low):
+                v = int(mm.group(1))
+                if v >= 64 and v in _STOR_OK and v != out.get("ram_gb"):
+                    out["storage_gb"] = v
+                    break
+    # Екран: първо десетичен (6.56"), после цял (55") в разумни граници (без model-номера)
+    val = None
+    md = (re.search(r"(\d{1,2}[.,]\d{1,2})\s?[\"'”″]", s)
+          or re.search(r"(\d{1,2}[.,]\d{1,2})\s?(?:инч|inch)", low))
+    if md:
+        val = float(md.group(1).replace(",", "."))
+    else:
+        mint = re.search(r"(\d{2,3})\s?[\"'”″]", s) or re.search(r"(\d{2,3})\s?(?:инч|inch)", low)
+        if mint and 15 <= int(mint.group(1)) <= 110:
+            val = float(mint.group(1))
+    if val and 3 <= val <= 110:
+        out["screen_inch"] = val
+    # Опресняване
+    mh = re.search(r"(\d{2,3})\s?hz", low)
+    if mh:
+        out["refresh_hz"] = int(mh.group(1))
+    # Резолюция / панел
+    for kw, val in [("8k", "8K"), ("4k", "4K"), ("uhd", "4K"), ("qhd", "QHD"),
+                    ("full hd", "FHD"), ("fhd", "FHD")]:
+        if kw in low:
+            out["resolution"] = val
+            break
+    for p in ["oled", "qled", "amoled", "retina", "ips"]:
+        if p in low:
+            out["panel"] = p.upper()
+            break
+    if re.search(r"\b5g\b", low):
+        out["net_5g"] = True
+    mc = re.search(r"(\d{2,3})\s?mp", low)
+    if mc:
+        out["camera_mp"] = int(mc.group(1))
+    ml = re.search(r"(\d{2,4})\s?л\b", s)
+    if ml:
+        out["capacity_l"] = int(ml.group(1))
+    ec = _parse_energy_class(s)
+    if ec:
+        out["energy_class"] = ec
+    return out
+
+
+def _spec_summary(sp: dict) -> str:
+    """Компактно човешко резюме на спецовете (за да не тежи на токените)."""
+    parts = []
+    if sp.get("ram_gb"):
+        parts.append(f"{sp['ram_gb']}GB RAM")
+    if sp.get("storage_gb"):
+        st = sp["storage_gb"]
+        parts.append(f"{st // 1024}TB" if st >= 1024 and st % 1024 == 0 else f"{st}GB")
+    if sp.get("screen_inch"):
+        parts.append(f"{sp['screen_inch']:g}\"")
+    if sp.get("refresh_hz"):
+        parts.append(f"{sp['refresh_hz']}Hz")
+    if sp.get("resolution"):
+        parts.append(sp["resolution"])
+    if sp.get("panel"):
+        parts.append(sp["panel"])
+    if sp.get("net_5g"):
+        parts.append("5G")
+    if sp.get("camera_mp"):
+        parts.append(f"{sp['camera_mp']}MP")
+    if sp.get("capacity_l"):
+        parts.append(f"{sp['capacity_l']}л")
+    if sp.get("energy_class"):
+        parts.append(f"клас {sp['energy_class']}")
+    return " · ".join(parts)
+
+
+def _add_specs(products: list) -> list:
+    """Вкарва компактно спец-резюме в продуктите (за да ги ползва Alex при препоръка)."""
+    for p in products or []:
+        if isinstance(p, dict) and p.get("raw_name") and not p.get("specs"):
+            summ = _spec_summary(_extract_specs(p["raw_name"]))
+            if summ:
+                p["specs"] = summ
+    return products
+
+
+def _exec_compare_products(args: dict) -> dict:
+    """Сравнява спецификациите на 2-3 продукта спрямо цената им → 'кое да купя'."""
+    names = []
+    for k in ("product_a", "product_b", "product_c"):
+        v = (args.get(k) or "").strip()
+        if v:
+            names.append(v)
+    if isinstance(args.get("products"), list):
+        names += [str(x).strip() for x in args["products"] if str(x).strip()]
+    names = names[:3]
+    if len(names) < 2:
+        return {"error": "Подай поне два продукта (product_a и product_b)"}
+    try:
+        sb = get_supabase()
+    except Exception:
+        sb = None
+    _ACC = ("калъф", "case", "кабел", "протектор", "стойка", "зарядно", "адаптер",
+            "стъкло", "glass", "screen protector", "чанта", "торба")
+    items = []
+    for n in names:
+        row = None
+        if sb is not None:
+            try:
+                r = (sb.table("electronics_offers")
+                     .select("raw_name, price, category, store, url")
+                     .ilike("raw_name", f"%{n}%").order("price").limit(12).execute().data or [])
+                # махни аксесоари (калъфи/кабели) — иначе 'macbook air' връща калъф за 45 лв
+                real = [x for x in r if x.get("price")
+                        and not any(w in (x.get("raw_name") or "").lower() for w in _ACC)]
+                if real:
+                    ps = sorted(x["price"] for x in real)
+                    med = ps[len(ps) // 2]
+                    real = [x for x in real if x["price"] >= med * 0.4] or real
+                    row = min(real, key=lambda x: x["price"])
+                elif r:
+                    row = r[0]
+            except Exception:
+                row = None
+        if row:
+            sp = _extract_specs(row["raw_name"])
+            items.append({"query": n, "raw_name": row["raw_name"], "price": row.get("price"),
+                          "category": row.get("category"), "cheapest_store": row.get("store"),
+                          "url": row.get("url"), "specs": sp, "spec_summary": _spec_summary(sp)})
+        else:
+            items.append({"query": n, "found": False})
+    return {
+        "products": items,
+        "how_to_use": ("Сравни спецификациите спрямо разликата в цената и кажи КОНКРЕТНО за какво си "
+                       "заслужава да се доплати: 'за +18% взимаш 2x памет и 120Hz — за игри си заслужава', "
+                       "или 'разликата е само в цвета — вземи по-евтиния'. Ако липсва спец, не си измисляй."),
+    }
 
 
 def _exec_running_cost(args: dict) -> dict:
@@ -1441,6 +1637,8 @@ def _run_tool(tool_name: str, tool_input: dict) -> Any:
         return _exec_installment_cost(tool_input)
     if tool_name == "running_cost":
         return _exec_running_cost(tool_input)
+    if tool_name == "compare_products":
+        return _exec_compare_products(tool_input)
     return {"error": f"Unknown tool: {tool_name}"}
 
 
