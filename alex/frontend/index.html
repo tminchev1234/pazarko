@@ -49,12 +49,22 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .nav-cat{white-space:nowrap;padding:6px 12px;border-radius:6px;font-size:13px;color:#9ca3af;transition:all .15s;flex-shrink:0}
 .nav-cat:hover{color:#fff;background:rgba(255,255,255,.1)}
 .nav-cat.active{color:#fff;background:rgba(99,102,241,.3)}
-.nav-search{display:flex;align-items:center;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:8px;overflow:hidden;flex:1;max-width:360px;transition:border-color .15s}
-.nav-search:focus-within{border-color:rgba(99,102,241,.6);background:rgba(255,255,255,.11)}
-.nav-search input{background:none;border:none;outline:none;color:#fff;font-size:13px;padding:7px 10px;width:100%;font-family:inherit}
-.nav-search input::placeholder{color:#6b7280}
-.nav-search button{background:none;border:none;padding:7px 10px;color:#9ca3af;font-size:15px;cursor:pointer;flex-shrink:0;transition:color .15s}
-.nav-search button:hover{color:#fff}
+.nav-search{position:relative;display:flex;align-items:center;background:#fff;border:1px solid #fff;border-radius:8px;flex:1;max-width:380px;box-shadow:0 2px 10px rgba(0,0,0,.25);transition:box-shadow .15s,border-color .15s}
+.nav-search:focus-within{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.4)}
+.nav-search input{background:none;border:none;outline:none;color:#111827;font-size:13px;padding:8px 10px;width:100%;font-family:inherit}
+.nav-search input::placeholder{color:#9ca3af}
+.nav-search button{background:none;border:none;padding:8px 12px;color:#4f46e5;font-size:16px;cursor:pointer;flex-shrink:0;transition:color .15s}
+.nav-search button:hover{color:#7c3aed}
+/* ── Автодовършване ── */
+.nav-suggest{position:absolute;top:calc(100% + 6px);left:0;right:0;background:#fff;border:1px solid #e5e7eb;border-radius:10px;box-shadow:0 12px 32px rgba(0,0,0,.28);overflow:hidden;z-index:60;display:none}
+.nav-suggest.open{display:block}
+.nav-sg-item{display:flex;align-items:center;gap:9px;padding:9px 12px;font-size:13.5px;color:#1f2937;cursor:pointer;border-bottom:1px solid #f3f4f6}
+.nav-sg-item:last-child{border-bottom:none}
+.nav-sg-item:hover,.nav-sg-item.active{background:#eef2ff}
+.nav-sg-item .ic{font-size:14px;flex-shrink:0;opacity:.75}
+.nav-sg-item .tx{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav-sg-item .tx b{color:#4f46e5;font-weight:700}
+.nav-sg-hd{padding:6px 12px 3px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#9ca3af}
 .nav-devices{flex-shrink:0;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#9ca3af;font-size:17px;padding:6px 10px;border-radius:8px;cursor:pointer;transition:all .15s;line-height:1}
 .nav-devices:hover{background:rgba(255,255,255,.15);color:#fff}
 .nav-ask{flex-shrink:0;background:linear-gradient(135deg,#2563eb,#7c3aed);color:#fff;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;white-space:nowrap;transition:opacity .15s}
@@ -700,8 +710,10 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
     </a>
     <div class="nav-cats" id="navCats"></div>
     <form class="nav-search" onsubmit="navSearch(event)">
-      <input id="navSearchInput" type="search" placeholder="Търси продукт..." autocomplete="off" aria-label="Търсене">
+      <input id="navSearchInput" type="search" placeholder="Търси продукт..." autocomplete="off" aria-label="Търсене"
+        oninput="navSuggest(this.value)" onkeydown="navSuggestKey(event)" onfocus="navSuggest(this.value)">
       <button type="submit" title="Търси">🔍</button>
+      <div class="nav-suggest" id="navSuggest"></div>
     </form>
     <button class="nav-devices" onclick="openMyDevices()" title="Моята техника">📦</button>
     <button class="nav-ask" onclick="openChat()">💬 Попитай Alex</button>
@@ -2000,10 +2012,13 @@ let _nudgeShown   = localStorage.getItem('alex_nudge_shown') === '1';
 function toggleChat() { _chatOpen ? closeChat() : openChat(); }
 
 function navSearch(e) {
-  e.preventDefault();
-  const q = (document.getElementById('navSearchInput').value || '').trim();
+  if (e) e.preventDefault();
+  const inp = document.getElementById('navSearchInput');
+  const q = (inp.value || '').trim();
   if (!q) return;
-  document.getElementById('navSearchInput').value = '';
+  _navSuggestClose();
+  inp.value = '';
+  inp.blur();
   // Suppress category auto-seed so only the search query gets sent
   const savedCat = _chatCat;
   _chatCat = null;
@@ -2011,6 +2026,101 @@ function navSearch(e) {
   _chatCat = savedCat;
   setTimeout(() => sendChatText(`Намери ми "${q}" — в кой магазин е най-евтино и има ли по-добра алтернатива за тези пари?`), 350);
 }
+
+/* ── Автодовършване на търсачката ── */
+// Типове/категории (с икона) — покриват заявки като „хла“ → „хладилник“
+const _SUGGEST_TYPES = [
+  ['🧊','хладилник'],['🧊','фризер'],['📺','телевизор'],['💻','лаптоп'],['💻','компютър'],
+  ['📱','телефон'],['📱','смартфон'],['📱','таблет'],['🎧','слушалки'],['⌚','смарт часовник'],
+  ['🌀','пералня'],['🌀','сушилня'],['🍽️','съдомиялна'],['❄️','климатик'],['🔥','печка'],
+  ['🔥','фурна'],['🔥','котлон'],['☕','кафемашина'],['🧹','прахосмукачка'],['🧹','робот прахосмукачка'],
+  ['🍞','тостер'],['💨','аспиратор'],['🎮','конзола'],['🖨️','принтер'],['📷','фотоапарат'],
+  ['🎤','микрофон'],['🔊','тонколона'],['🖱️','мишка'],['⌨️','клавиатура'],['🖥️','монитор'],
+  ['🪒','самобръсначка'],['💧','бойлер'],['🌬️','вентилатор'],['♨️','ютия']
+];
+const _SUGGEST_BRANDS = ['Samsung','Apple','iPhone','Xiaomi','Huawei','LG','Sony','Bosch','Lenovo',
+  'HP','Dell','Asus','Acer','Philips','Tefal','Beko','Whirlpool','Gorenje','Electrolux','JBL','Nokia','Realme','Honor','Tesla','Motorola'];
+
+let _sgTimer=null, _sgIdx=-1, _sgLastQ='';
+
+function _esc(s){var d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML;}
+function _sgHi(text,q){ // удебели съвпадението
+  const t=_esc(text), ql=q.toLowerCase(), i=text.toLowerCase().indexOf(ql);
+  if(i<0||!q) return t;
+  return _esc(text.slice(0,i))+'<b>'+_esc(text.slice(i,i+q.length))+'</b>'+_esc(text.slice(i+q.length));
+}
+
+function navSuggest(val){
+  const q=(val||'').trim();
+  _sgIdx=-1;
+  if(q.length<2){ _navSuggestClose(); return; }
+  // 1) моментални предложения от типове + брандове (без заявка)
+  const ql=q.toLowerCase();
+  const local=[];
+  _SUGGEST_TYPES.forEach(([ic,w])=>{ if(w.toLowerCase().includes(ql)) local.push({ic,tx:w}); });
+  _SUGGEST_BRANDS.forEach(w=>{ if(w.toLowerCase().includes(ql)) local.push({ic:'🏷️',tx:w}); });
+  // подреди: започващите с q преди съдържащите
+  local.sort((a,b)=>{
+    const as=a.tx.toLowerCase().startsWith(ql)?0:1, bs=b.tx.toLowerCase().startsWith(ql)?0:1;
+    return as-bs || a.tx.length-b.tx.length;
+  });
+  _renderSuggest(q, local.slice(0,6), null);
+  // 2) живи продукти от базата (дебоунс)
+  clearTimeout(_sgTimer);
+  _sgLastQ=q;
+  _sgTimer=setTimeout(()=>{
+    fetch(API+'/alex/autocomplete?q='+encodeURIComponent(q))
+      .then(r=>r.json()).then(d=>{
+        if(_sgLastQ!==q) return; // остаряла заявка
+        _renderSuggest(q, local.slice(0,6), (d&&d.suggestions)||[]);
+      }).catch(()=>{});
+  },220);
+}
+
+function _renderSuggest(q, local, products){
+  const box=document.getElementById('navSuggest');
+  if(!box) return;
+  let html='';
+  if(local.length){
+    html+=local.map(s=>`<div class="nav-sg-item" data-q="${_esc(s.tx)}" onmousedown="event.preventDefault()" onclick="navSuggestPick('${_esc(s.tx).replace(/'/g,"\\'")}')"><span class="ic">${s.ic}</span><span class="tx">${_sgHi(s.tx,q)}</span></div>`).join('');
+  }
+  if(products&&products.length){
+    html+='<div class="nav-sg-hd">Продукти</div>';
+    html+=products.slice(0,6).map(p=>`<div class="nav-sg-item" data-q="${_esc(p)}" onmousedown="event.preventDefault()" onclick="navSuggestPick('${_esc(p).replace(/'/g,"\\'")}')"><span class="ic">🔎</span><span class="tx">${_sgHi(p,q)}</span></div>`).join('');
+  }
+  if(!html){ _navSuggestClose(); return; }
+  box.innerHTML=html;
+  box.classList.add('open');
+}
+
+function navSuggestPick(text){
+  const inp=document.getElementById('navSearchInput');
+  inp.value=text;
+  navSearch(null);
+}
+
+function navSuggestKey(e){
+  const box=document.getElementById('navSuggest');
+  if(!box||!box.classList.contains('open')) return;
+  const items=[].slice.call(box.querySelectorAll('.nav-sg-item'));
+  if(!items.length) return;
+  if(e.key==='ArrowDown'){ e.preventDefault(); _sgIdx=(_sgIdx+1)%items.length; }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); _sgIdx=(_sgIdx-1+items.length)%items.length; }
+  else if(e.key==='Enter'){ if(_sgIdx>=0){ e.preventDefault(); navSuggestPick(items[_sgIdx].getAttribute('data-q')); } return; }
+  else if(e.key==='Escape'){ _navSuggestClose(); return; }
+  else return;
+  items.forEach((it,i)=>it.classList.toggle('active',i===_sgIdx));
+}
+
+function _navSuggestClose(){
+  const box=document.getElementById('navSuggest');
+  if(box){ box.classList.remove('open'); }
+  _sgIdx=-1;
+}
+document.addEventListener('click',function(e){
+  const s=document.querySelector('.nav-search');
+  if(s && !s.contains(e.target)) _navSuggestClose();
+});
 
 function resetChat() {
   _chatMsgs = [];

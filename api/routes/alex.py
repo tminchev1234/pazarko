@@ -3289,6 +3289,34 @@ async def real_deals(limit: int = Query(12, le=24)):
     return {"results": (data or [])[:limit]}
 
 
+@router.get("/alex/autocomplete")
+async def autocomplete(q: str = Query("", max_length=60)):
+    """Предложения за търсачката — кратки етикети от реалните продукти (живи)."""
+    query = (q or "").strip()
+    if len(query) < 2:
+        return {"suggestions": []}
+    try:
+        sb = get_supabase()
+        rows = (sb.table("electronics_offers").select("raw_name")
+                .ilike("raw_name", f"%{query}%").limit(60).execute().data or [])
+    except Exception:
+        rows = []
+    seen: set = set()
+    out: list = []
+    for r in rows:
+        nm = r.get("raw_name") or ""
+        label = re.sub(r"^(смартфон|мобилен\s+телефон|телевизор|лаптоп|таблет|слушалки)\s*(gsm)?\s*[:\-]?\s*",
+                       "", nm, flags=re.IGNORECASE).strip()
+        label = " ".join(label.split()[:5]).strip(" ,.-")
+        key = label.lower()
+        if label and len(label) >= 2 and key not in seen:
+            seen.add(key)
+            out.append(label)
+        if len(out) >= 8:
+            break
+    return {"suggestions": out}
+
+
 # ─── Доклад: колко от обявените намаления са фиктивни ──────────────────────────
 _FAKE_REPORT_CACHE: dict = {"ts": 0.0, "data": None}
 _FAKE_REPORT_TTL = 6 * 3600
