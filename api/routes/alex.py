@@ -4612,11 +4612,13 @@ async def homepage_picks():
         sb = get_supabase()
 
         # Row 1 — tech picks (phones, laptops, tvs, tablets)
-        tech_raw = _hp_fetch_cats(sb, _HP_ROW1_CATS)
+        # Поправи снимките ПРЕДИ избора → 4-те избрани винаги са с реални снимки
+        # (иначе placeholder → нулиран → frontend филтърът показва 3)
+        tech_raw = [p for p in _fix_images(_hp_fetch_cats(sb, _HP_ROW1_CATS)) if p.get("image_url")]
         row1 = _hp_score_and_pick(tech_raw, _HP_ROW1_CATS)
 
         # Row 2 — white goods picks (washing, vacuum, ac, fridges)
-        app_raw = _hp_fetch_cats(sb, _HP_ROW2_CATS)
+        app_raw = [p for p in _fix_images(_hp_fetch_cats(sb, _HP_ROW2_CATS)) if p.get("image_url")]
         row2 = _hp_score_and_pick(app_raw, _HP_ROW2_CATS)
 
         # Row 3 — top deals this week (≥10% discount, not already shown, max 1 per store)
@@ -4632,7 +4634,7 @@ async def homepage_picks():
             .execute()
         )
         deals_cands: list[dict] = []
-        for p in (deals_r.data or []):
+        for p in _fix_images(deals_r.data or []):   # placeholder → нулиран; долу се филтрира по image_url
             if p.get("url", "") in shown_urls:
                 continue
             if not p.get("discount_pct"):
