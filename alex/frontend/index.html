@@ -685,6 +685,36 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
 .vrd-rel-price{font-size:15px;font-weight:800;margin-top:5px}
 .vrd-rel-cmp{font-size:10.5px;font-weight:700;margin-top:2px}
 .vrd-rel-store{font-size:10px;color:var(--muted);margin-top:2px}
+/* ── Card insights: спец-чипове, пили, сигнали, цени по магазини (0 токена) ── */
+.vrd-insights{margin:12px 0 4px;display:flex;flex-direction:column;gap:10px}
+.vrd-chips{display:flex;flex-wrap:wrap;gap:6px}
+.vrd-chip{font-size:11.5px;font-weight:600;color:#334155;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;padding:3px 9px;white-space:nowrap}
+.vrd-pills{display:flex;flex-wrap:wrap;gap:8px}
+.vrd-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:6px 11px;border-radius:9px;background:#f8fafc;border:1px solid var(--border);color:#334155}
+.vrd-pill b{font-weight:800}
+.vrd-pill.good{background:#f0fdf4;border-color:#bbf7d0;color:#15803d}
+.vrd-pill.warn{background:#fff7ed;border-color:#fed7aa;color:#c2410c}
+.vrd-pill.bad{background:#fef2f2;border-color:#fecaca;color:#dc2626}
+.vrd-signals{display:flex;flex-direction:column;gap:5px;margin-top:9px}
+.vrd-sig{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text2);line-height:1.35}
+.vrd-sig .sig-ic{flex:none;width:17px;text-align:center}
+.vrd-sig b{color:var(--text);font-weight:700}
+.vrd-cross{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+.vrd-cross-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.vrd-cross-sub{font-size:12px;color:var(--muted);margin-bottom:9px}
+.vrd-cross-sub b{color:#15803d}
+.vrd-cross-list{display:flex;flex-direction:column;gap:6px}
+.vrd-xrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;transition:border-color .12s}
+.vrd-xrow.best{border-color:#86efac;background:#f0fdf4}
+.vrd-xrow.here{box-shadow:inset 3px 0 0 #6366f1}
+.vrd-xrow .xs{display:flex;align-items:center;gap:8px;min-width:0}
+.vrd-xrow .xstore{font-size:13px;font-weight:600;color:var(--text)}
+.vrd-xrow .xtag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap}
+.vrd-xrow .xtag.best{background:#dcfce7;color:#15803d}
+.vrd-xrow .xtag.here{background:#eef2ff;color:#4f46e5}
+.vrd-xrow .xprice{font-size:15px;font-weight:800;white-space:nowrap}
+.vrd-xrow.best .xprice{color:#15803d}
+.vrd-xrow a.xprice{text-decoration:none}
 
 /* ── RESPONSIVE ── */
 @media(max-width:768px){
@@ -821,11 +851,14 @@ button{cursor:pointer;border:none;background:none;font-family:inherit}
     <div class="vrd-body">
       <div class="vrd-ai-tag">💬 Alex казва:</div>
       <div class="vrd-text" id="vrdAiText"><span style="color:var(--muted);font-size:13px">Анализирам...</span></div>
+      <div id="vrdInsights" class="vrd-insights" style="display:none"></div>
       <div class="vrd-history" id="vrdHistory" style="display:none">
         <div class="vrd-history-title">📈 Ценова история (до 3 месеца)</div>
         <div id="vrdSparkline"></div>
+        <div id="vrdSignals"></div>
         <div id="vrdForecast" style="margin-top:8px"></div>
       </div>
+      <div id="vrdCross" class="vrd-cross" style="display:none"></div>
     </div>
     <div class="vrd-related" id="vrdRelated" style="display:none">
       <div class="vrd-related-title">Свързани продукти</div>
@@ -1732,6 +1765,9 @@ function showVerdict(prod) {
     '<span style="color:var(--muted);font-size:13px">Alex анализира...</span>';
   document.getElementById('vrdHistory').style.display = 'none';
   document.getElementById('vrdSparkline').innerHTML = '';
+  const _sig = document.getElementById('vrdSignals'); if (_sig) _sig.innerHTML = '';
+  const _ins = document.getElementById('vrdInsights'); if (_ins) { _ins.innerHTML = ''; _ins.style.display = 'none'; }
+  const _crs = document.getElementById('vrdCross'); if (_crs) { _crs.innerHTML = ''; _crs.style.display = 'none'; }
   document.getElementById('vrdWatchForm').style.display = 'none';
   document.getElementById('vrdWatchBtn').textContent = '🔔 Проследи цената';
 
@@ -1767,8 +1803,17 @@ function showVerdict(prod) {
         const d = await apiFetch(`/alex/price-history?url=${encodeURIComponent(prod.url)}`);
         _renderDealBadge(d.deal_score, prod.old_price, d);
         _renderSparkline(d.history, prod.price);
+        _renderPriceSignals(d);
         _renderForecast(d.forecast);
       } catch { _renderSparkline(null, prod.price); }
+    })();
+    // Безплатни сигнали от таблиците (спецове, ток/год, ранг, наличност, цени по магазини)
+    (async () => {
+      try {
+        const params = new URLSearchParams({ url: prod.url, category: _cat });
+        const m = await apiFetch('/alex/card-meta?' + params);
+        _renderCardMeta(m, prod);
+      } catch {}
     })();
   } else {
     _renderSparkline(null, prod.price);   // без url — покажи честния placeholder
@@ -1926,6 +1971,90 @@ function _renderSparkline(history, currentPrice) {
       </div>
     </div>`;
   wrap.style.display = 'block';
+}
+
+// Безплатни сигнали от ценовата история (0 токена): процентил, честота на „намаления",
+// последна промяна на цената, историческо дъно.
+function _renderPriceSignals(d) {
+  const el = document.getElementById('vrdSignals');
+  if (!el || !d || !d.has_history) return;
+  const rows = [];
+  if (d.cheaper_than_pct != null && d.cheaper_than_pct >= 10) {
+    rows.push(`<div class="vrd-sig"><span class="sig-ic">📊</span><span>Сега е <b>по-евтино от ${d.cheaper_than_pct}%</b> от последните 3 месеца</span></div>`);
+  }
+  if (d.low != null && d.lowest_date) {
+    const dd = d.lowest_date.slice(5).split('-').reverse().join('.');
+    rows.push(`<div class="vrd-sig"><span class="sig-ic">🔻</span><span>Историческо дъно: <b>${fmt(d.low)}</b> (${dd})</span></div>`);
+  }
+  if (d.on_sale_pct != null && d.on_sale_pct >= 40) {
+    rows.push(`<div class="vrd-sig"><span class="sig-ic">🏷️</span><span>Стои с обявена „намалена" цена <b>${d.on_sale_pct}% от времето</b> — „отстъпката" е почти постоянна</span></div>`);
+  }
+  if (d.last_change_delta && Math.abs(d.last_change_delta) >= 1 && d.stable_days != null) {
+    const drop = d.last_change_delta < 0;
+    const ic = drop ? '📉' : '📈';
+    const verb = drop ? 'Падна' : 'Качи се';
+    rows.push(`<div class="vrd-sig"><span class="sig-ic">${ic}</span><span>${verb} с <b>${fmt(Math.abs(d.last_change_delta))}</b> преди ${d.stable_days} ${d.stable_days === 1 ? 'ден' : 'дни'}</span></div>`);
+  } else if (d.stable_days != null && d.stable_days >= 21) {
+    rows.push(`<div class="vrd-sig"><span class="sig-ic">➖</span><span>Цената е стабилна вече <b>${d.stable_days} дни</b></span></div>`);
+  }
+  el.innerHTML = rows.length ? `<div class="vrd-signals">${rows.join('')}</div>` : '';
+}
+
+// Безплатни данни от таблиците: спец-чипове, ток/година, ранг по стойност,
+// наличност, същ модел в други магазини.
+function _renderCardMeta(m, prod) {
+  if (!m) return;
+  const ins = document.getElementById('vrdInsights');
+  const blocks = [];
+
+  // Спец-чипове
+  if (m.specs && m.specs.length) {
+    blocks.push(`<div class="vrd-chips">${m.specs.map(s => `<span class="vrd-chip">${eh(s)}</span>`).join('')}</div>`);
+  }
+  // Пили: ток/година, ранг, наличност
+  const pills = [];
+  if (m.running_cost && m.running_cost.annual_eur) {
+    const rc = m.running_cost;
+    pills.push(`<span class="vrd-pill" title="Оценка по енергиен клас ${eh(rc.energy_class || '')}">⚡ ток ≈ <b>${rc.annual_eur} €/год.</b></span>`);
+  }
+  if (m.rank && m.rank.rank && m.rank.total) {
+    const top = m.rank.rank <= Math.max(3, m.rank.total * 0.1);
+    pills.push(`<span class="vrd-pill ${top ? 'good' : ''}">🏅 <b>#${m.rank.rank}</b> по стойност от ${m.rank.total}</span>`);
+  }
+  if (m.in_stock === true)  pills.push(`<span class="vrd-pill good">✅ В наличност</span>`);
+  if (m.in_stock === false) pills.push(`<span class="vrd-pill warn">⏳ Изчерпан</span>`);
+  if (pills.length) blocks.push(`<div class="vrd-pills">${pills.join('')}</div>`);
+
+  if (ins) {
+    ins.innerHTML = blocks.join('');
+    ins.style.display = blocks.length ? 'flex' : 'none';
+  }
+
+  // Същ модел в други магазини
+  const cross = m.cross_store;
+  const cel = document.getElementById('vrdCross');
+  if (cel && cross && cross.offers && cross.offers.length >= 2) {
+    const cheapest = cross.offers[0];
+    const here = cross.is_cheapest_here;
+    const sub = here
+      ? `Тук е <b>най-евтино</b> за този модел ✅`
+      : `Най-евтино в <b>${eh(sl(cross.cheapest_store))}</b> — ${fmt(cheapest.price)}`;
+    const rows = cross.offers.map((o, i) => {
+      const isBest = i === 0;
+      const isHere = o.store === (m.store || prod.store);
+      const tag = isBest ? '<span class="xtag best">най-евтино</span>'
+                : isHere ? '<span class="xtag here">тази оферта</span>' : '';
+      const price = o.url
+        ? `<a class="xprice" href="${ea(o.url)}" target="_blank" rel="noopener">${fmt(o.price)} →</a>`
+        : `<span class="xprice">${fmt(o.price)}</span>`;
+      return `<div class="vrd-xrow ${isBest ? 'best' : ''} ${isHere ? 'here' : ''}">
+        <div class="xs"><span class="xstore">${eh(sl(o.store))}</span>${tag}</div>${price}</div>`;
+    }).join('');
+    cel.innerHTML = `<div class="vrd-cross-title">🛒 Същият модел в ${cross.count_stores} магазина</div>
+      <div class="vrd-cross-sub">${sub}</div>
+      <div class="vrd-cross-list">${rows}</div>`;
+    cel.style.display = 'block';
+  }
 }
 
 function toggleWatchForm() {

@@ -1188,8 +1188,37 @@ def _price_analysis(rows: list[dict]) -> dict:
     else:
         forecast = {"action": "neutral", "confidence": conf, "basis": "стабилна около обичайното"}
 
+    # ── Безплатни сигнали от историята (0 токена) ──────────────────────────────
+    # Ценови процентил: сегашната е по-евтина от N% от наблюденията
+    cheaper_than_pct = round(100 * sum(1 for p in prices if p > current) / len(prices))
+    # Колко често е обявявана „на намаление" (има стара цена и реално е по-ниска)
+    disc_obs = tot_obs = 0
+    for r in rows:
+        if r.get("price") is None:
+            continue
+        tot_obs += 1
+        op = r.get("old_price")
+        try:
+            if op and float(r["price"]) < float(op) * 0.97:
+                disc_obs += 1
+        except (TypeError, ValueError):
+            pass
+    on_sale_pct = round(100 * disc_obs / tot_obs) if tot_obs else 0
+    # Последна промяна на цената + от колко дни е стабилна
+    thr = max(0.5, current * 0.005)
+    j = len(prices) - 1
+    while j > 0 and abs(prices[j - 1] - current) <= thr:
+        j -= 1
+    today_d = datetime.fromisoformat(series[-1][0][:10])
+    stable_days = (today_d - datetime.fromisoformat(series[j][0][:10])).days
+    last_change_delta = round(current - prices[j - 1], 2) if j > 0 else 0.0
+
     return {
         "has_history":      True,
+        "cheaper_than_pct": cheaper_than_pct,
+        "on_sale_pct":      on_sale_pct,
+        "stable_days":      stable_days,
+        "last_change_delta": last_change_delta,
         "data_points":      len(prices),
         "days_tracked":     days,
         "deal_score":       score,
@@ -2985,6 +3014,208 @@ async def price_history(url: str = Query(..., description="Product URL")):
         logger.warning("[alex/price-history] %s", exc)
 
     return {**_price_analysis(rows), "history": rows}
+
+
+# ─── Безплатни „card insights" от таблиците (0 токена) ─────────────────────────
+_BGN_PER_EUR = 1.9558
+
+
+def _spec_chips(sp: dict) -> list:
+    """Спецове от името → списък кратки чипове за картата."""
+    chips = []
+    if sp.get("ram_gb"):
+        chips.append(f"{sp['ram_gb']}GB RAM")
+    if sp.get("storage_gb"):
+        st = sp["storage_gb"]
+        chips.append(f"{st // 1024}TB" if st >= 1024 and st % 1024 == 0 else f"{st}GB")
+    if sp.get("screen_inch"):
+        chips.append(f"{sp['screen_inch']:g}\"")
+    if sp.get("refresh_hz"):
+        chips.append(f"{sp['refresh_hz']}Hz")
+    if sp.get("resolution"):
+        chips.append(sp["resolution"])
+    if sp.get("panel"):
+        chips.append(sp["panel"])
+    if sp.get("net_5g"):
+        chips.append("5G")
+    if sp.get("camera_mp"):
+        chips.append(f"{sp['camera_mp']}MP")
+    if sp.get("capacity_l"):
+        chips.append(f"{sp['capacity_l']} л")
+    if sp.get("energy_class"):
+        chips.append(f"⚡ {sp['energy_class']}")
+    return chips
+
+
+def _same_model_other_stores(sb, o: dict, specs: dict) -> Optional[dict]:
+    """Същият модел в други магазини — чисто DB, консервативно съвпадение
+    (същ бранд + отличителен моделен токен + съвпадащи памет/екран), за да
+    не показваме грешни съвпадения. None ако няма сигурно сравнение."""
+    name = o.get("raw_name") or ""
+    brand = (o.get("brand") or "").strip()
+    store = o.get("store")
+    url = o.get("url")
+    try:
+        mine_price = float(o.get("price") or 0)
+    except (TypeError, ValueError):
+        mine_price = 0
+    low = name.lower()
+    toks = re.findall(r"[a-z0-9]+", low)
+    stop = {"gb", "tb", "ram", "gsm", "hz", "mp", "dual", "sim", "android",
+            "5g", "nfc", "wifi", "bluetooth", "mah"}
+    mine_stor = specs.get("storage_gb")
+    mine_scr = specs.get("screen_inch")
+    # САМО истински моделен код (букви+цифри, ≥4, не спец като '256gb'/'90hz').
+    # Числа-само ('iPhone 17') НЕ ползваме — рискуват да смесят различни модели
+    # (17 vs 17 Pro) и да покажат грешна цена → по-добре да мълчим, отколкото да лъжем.
+    spec_tok = re.compile(r"^\d+(gb|tb|mah|hz|mp|w|ml|l|k)$")
+    model_toks = [t for t in toks
+                  if any(c.isdigit() for c in t) and any(c.isalpha() for c in t)
+                  and len(t) >= 4 and t not in stop and not spec_tok.match(t)]
+    if not model_toks:
+        return None
+    token = max(model_toks, key=len)
+    strong = True
+    try:
+        q = (sb.table("electronics_offers")
+             .select("raw_name, brand, price, store, url, image_url, in_stock")
+             .ilike("raw_name", f"%{token}%"))
+        if brand:
+            q = q.ilike("raw_name", f"%{brand}%")
+        rows = q.limit(120).execute().data or []
+    except Exception:
+        return None
+    seen: dict = {}
+    for r in rows:
+        rn = (r.get("raw_name") or "")
+        rl = rn.lower()
+        if brand and brand.lower() not in rl:            # същ бранд
+            continue
+        # пълен модел-подпис: кандидатът трябва да съдържа ВСИЧКИ силни токени
+        # (пълния SKU, напр. 'x1504va' + 'bq2911') → не смесва различни конфигурации
+        if not all(t in rl for t in model_toks):
+            continue
+        try:
+            pr = float(r.get("price") or 0)
+        except (TypeError, ValueError):
+            continue
+        if pr <= 0:
+            continue
+        if mine_price and pr < mine_price * 0.4:          # твърде евтино → аксесоар, не моделът
+            continue
+        rs = _extract_specs(rn)
+        stor_ok = bool(mine_stor and rs.get("storage_gb") and rs["storage_gb"] == mine_stor)
+        scr_ok = bool(mine_scr and rs.get("screen_inch") and abs(rs["screen_inch"] - mine_scr) <= 0.2)
+        if mine_stor and rs.get("storage_gb") and rs["storage_gb"] != mine_stor:
+            continue
+        if mine_scr and rs.get("screen_inch") and abs(rs["screen_inch"] - mine_scr) > 0.2:
+            continue
+        if not strong and not (stor_ok or scr_ok):   # слаб токен → иска потвърден спец
+            continue
+        st = r.get("store")
+        if st not in seen or pr < seen[st]["price"]:
+            seen[st] = {"store": st, "price": round(pr, 2), "url": r.get("url"),
+                        "image_url": r.get("image_url"), "in_stock": r.get("in_stock")}
+    if len(seen) < 2:                                     # нужни са ≥2 магазина за сравнение
+        return None
+    offers = sorted(seen.values(), key=lambda x: x["price"])
+    # Отсей конфигурационни аутлайъри: същ моделен КОД, но различен CPU/RAM дава
+    # огромен разброс (напр. лаптоп €549 vs €1385). Котвим към цената на ТЕКУЩИЯ
+    # продукт (това, което потребителят гледа), за да не показваме подвеждащо
+    # „по-евтино" за реално различна конфигурация.
+    anchor = mine_price if mine_price > 0 else offers[len(offers) // 2]["price"]
+    offers = [o2 for o2 in offers if anchor * 0.6 <= o2["price"] <= anchor * 1.6]
+    seen = {o2["store"]: o2 for o2 in offers}
+    if len(seen) < 2:
+        return None
+    cheapest = offers[0]
+    return {
+        "offers": offers[:5],
+        "cheapest_store": cheapest["store"],
+        "is_cheapest_here": cheapest["store"] == store,
+        "count_stores": len(seen),
+    }
+
+
+_CAT_RANK_CACHE: dict = {}
+
+
+def _category_value_ranks(sb, cat: str):
+    """Ранг по Pazarko Score в категорията (url→ранг), кеширан 1 ч в паметта.
+    alex_score е евтин (речникови справки + кеширани verdict-и), категориите са
+    ≤~1200 реда → без token/тежък scan. Ранг 1 = най-добра стойност."""
+    import time
+    now = time.time()
+    c = _CAT_RANK_CACHE.get(cat)
+    if c and now - c["ts"] < 3600:
+        return c["ranks"], c["total"]
+    cofs, step, offp = [], 1000, 0
+    while len(cofs) < 2000:
+        page = (sb.table("electronics_offers")
+                .select("url, price, brand, discount_pct, category")
+                .eq("category", cat).range(offp, offp + step - 1).execute().data or [])
+        cofs.extend(page)
+        if len(page) < step:
+            break
+        offp += step
+    scored = sorted(((alex_score(x), x.get("url")) for x in cofs), key=lambda t: -t[0])
+    ranks: dict = {}
+    for i, (_s, u) in enumerate(scored):
+        if u and u not in ranks:
+            ranks[u] = i + 1
+    _CAT_RANK_CACHE[cat] = {"ts": now, "ranks": ranks, "total": len(cofs)}
+    return ranks, len(cofs)
+
+
+@router.get("/alex/card-meta")
+async def card_meta(url: str = Query(...), category: str = Query("")):
+    """Безплатни сигнали за картата от Supabase (0 токена): спецове от името,
+    ток/година, ранг по стойност в категорията, наличност, същ модел в др. магазини."""
+    try:
+        sb = get_supabase()
+        off = (sb.table("electronics_offers")
+               .select("raw_name, brand, category, price, discount_pct, store, url, in_stock")
+               .eq("url", url).limit(1).execute().data or [])
+    except Exception as exc:
+        logger.warning("[card-meta] %s", exc)
+        return {}
+    if not off:
+        return {}
+    o = off[0]
+    name = o.get("raw_name") or ""
+    cat = o.get("category") or category or ""
+    specs = _extract_specs(name)
+
+    # Ток/година (уреди) — в €, за да пасва на цените в картата
+    running = None
+    rc = _exec_running_cost({"product_name": name, "category": cat,
+                             "energy_class": specs.get("energy_class", "")})
+    if rc.get("known"):
+        annual_eur = round(rc["annual_kwh"] * _KWH_PRICE_BGN / _BGN_PER_EUR)
+        running = {"annual_eur": annual_eur, "cost_5yr_eur": annual_eur * 5,
+                   "energy_class": rc["energy_class"], "annual_kwh": rc["annual_kwh"]}
+
+    # Ранг по стойност (Pazarko Score) в категорията — смятан на живо, кеширан
+    rank = None
+    if cat:
+        try:
+            ranks, total = _category_value_ranks(sb, cat)
+            r = ranks.get(url)
+            if r and total >= 5:
+                rank = {"rank": r, "total": total}
+        except Exception:
+            pass
+
+    cross = _same_model_other_stores(sb, o, specs)
+
+    return {
+        "specs": _spec_chips(specs),
+        "running_cost": running,
+        "rank": rank,
+        "in_stock": o.get("in_stock"),
+        "cross_store": cross,
+        "store": o.get("store"),
+    }
 
 
 # ─── Предкалкулиран кеш в таблица — маха тежкия scan от заявките при трафик ─────
