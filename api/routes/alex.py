@@ -938,6 +938,21 @@ ALEX_TOOLS = [
             },
             "required": ["product_a", "product_b"]
         }
+    },
+    {
+        "name": "suggest_alternative",
+        "description": (
+            "Намира по-добра СТОЙНОСТ в същата категория (по-висок Pazarko Score, сходна цена). "
+            "Използвай когато потребителят се колебае за продукт, или той е надценен/на пика си, "
+            "или пита 'има ли по-добро', 'какво друго', 'струва ли си този'. Предлага честно, не притиска."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "product_name": {"type": "string", "description": "Продуктът, който обмислят"}
+            },
+            "required": ["product_name"]
+        }
     }
 ]
 
@@ -1597,6 +1612,58 @@ def _exec_compare_products(args: dict) -> dict:
     }
 
 
+def _exec_suggest_alternative(args: dict) -> dict:
+    """Намира по-добра СТОЙНОСТ в същата категория (по-висок Pazarko Score, сходна цена)."""
+    name = (args.get("product_name") or "").strip()
+    if not name:
+        return {"error": "Подай product_name"}
+    acc = ("калъф", "case", "кабел", "протектор", "стойка", "зарядно", "адаптер", "стъкло", "glass", "чанта")
+    try:
+        sb = get_supabase()
+        r = (sb.table("electronics_offers")
+             .select("raw_name, price, category, brand, discount_pct, old_price, image_url, url, store")
+             .ilike("raw_name", f"%{name}%").order("price").limit(12).execute().data or [])
+    except Exception:
+        return {"known": False, "message": "Грешка при търсене."}
+    real = [x for x in r if x.get("price") and not any(w in (x.get("raw_name") or "").lower() for w in acc)]
+    if not real:
+        return {"known": False, "message": "Не намерих този продукт в данните."}
+    base = min(real, key=lambda x: x["price"])
+    cat = base.get("category")
+    price = float(base["price"])
+    base_score = alex_score(base)
+    try:
+        pool = (sb.table("electronics_offers")
+                .select("raw_name, price, category, brand, discount_pct, old_price, image_url, url, store")
+                .eq("category", cat).gte("price", price * 0.7).lte("price", price * 1.3)
+                .not_.is_("image_url", "null").limit(120).execute().data or [])
+    except Exception:
+        pool = []
+    scored = []
+    for p in pool:
+        if p.get("url") == base.get("url"):
+            continue
+        if any(w in (p.get("raw_name") or "").lower() for w in acc):
+            continue
+        s = alex_score(p)
+        if s > base_score + 0.2:
+            scored.append((s, p))
+    scored.sort(key=lambda x: -x[0])
+    alts = [{"raw_name": p.get("raw_name"), "price": p.get("price"), "store": p.get("store"),
+             "url": p.get("url"), "score": s,
+             "specs": _spec_summary(_extract_specs(p.get("raw_name", "")))}
+            for s, p in scored[:3]]
+    return {
+        "known": True,
+        "chosen": {"raw_name": base.get("raw_name"), "price": round(price), "score": base_score,
+                   "specs": _spec_summary(_extract_specs(base.get("raw_name", "")))},
+        "alternatives": alts,
+        "how_to_use": ("Ако alternatives е празно — избраният е добра стойност, кажи го уверено. "
+                       "Иначе предложи по-добрата стойност ЧЕСТНО: 'за подобна цена този има по-висок "
+                       "Pazarko Score (по-добра реална сделка/спецове)'. Не притискай — само информирай."),
+    }
+
+
 def _exec_running_cost(args: dict) -> dict:
     """Годишен разход за ток + 5-годишна реална цена по енергиен клас."""
     name = (args.get("product_name") or "").strip()
@@ -1649,6 +1716,8 @@ def _run_tool(tool_name: str, tool_input: dict) -> Any:
         return _exec_running_cost(tool_input)
     if tool_name == "compare_products":
         return _exec_compare_products(tool_input)
+    if tool_name == "suggest_alternative":
+        return _exec_suggest_alternative(tool_input)
     return {"error": f"Unknown tool: {tool_name}"}
 
 
