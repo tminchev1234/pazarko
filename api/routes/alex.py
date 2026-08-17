@@ -1477,6 +1477,7 @@ _KWH_PRICE_BGN = 0.30   # битова цена на тока (лв/kWh, с мр
 _ANNUAL_KWH = {
     "fridges":    {"A": 100, "B": 140, "C": 175, "D": 215, "E": 270, "F": 330, "G": 400},
     "washing":    {"A": 100, "B": 120, "C": 140, "D": 165, "E": 195, "F": 230, "G": 270},
+    "dryers":     {"A": 180, "B": 230, "C": 290, "D": 360, "E": 440, "F": 530, "G": 630},
     "dishwasher": {"A": 170, "B": 200, "C": 235, "D": 275, "E": 320, "F": 370, "G": 430},
     "ac":         {"A": 300, "B": 400, "C": 520, "D": 660, "E": 820, "F": 1000, "G": 1200},
     "cooking":    {"A": 70,  "B": 90,  "C": 110, "D": 135, "E": 165, "F": 200, "G": 240},
@@ -2089,6 +2090,7 @@ _CATEGORY_MEDIANS: dict[str, float] = {
     "gaming":     200.0,
     "fridges":    580.0,
     "washing":    560.0,
+    "dryers":     620.0,
     "ac":         850.0,
     "vacuum":     180.0,
     "cooking":    450.0,
@@ -2185,12 +2187,13 @@ _HOME_PICKS_TS: float = 0.0
 
 _HOME_CATEGORIES = [
     "phones", "laptops", "tvs", "headphones", "tablets", "gaming",
-    "fridges", "washing", "ac", "vacuum",
+    "fridges", "washing", "dryers", "ac", "vacuum",
 ]
 _CAT_LABELS = {
     "phones": "Телефони", "headphones": "Слушалки", "laptops": "Лаптопи",
     "tvs": "Телевизори", "tablets": "Таблети", "gaming": "Гейминг",
-    "fridges": "Хладилници", "washing": "Перални", "ac": "Климатици",
+    "fridges": "Хладилници", "washing": "Перални", "dryers": "Сушилни",
+    "ac": "Климатици",
     "vacuum": "Прахосмукачки", "cooking": "Печки", "dishwasher": "Съдомиялни",
 }
 
@@ -2204,12 +2207,31 @@ _CAT_MIN_PRICE = {
     "gaming":      40.0,
     "fridges":    200.0,
     "washing":    250.0,
+    "dryers":     250.0,
     "ac":         400.0,
     "vacuum":      60.0,
     "cooking":    150.0,
     "dishwasher": 250.0,
     "cameras":    150.0,
+    "dryers":     250.0,
 }
+
+# Сушилните исторически влизаха в кофата „перални" (washing) — грешно за AI-описанието,
+# свързаните продукти и ранга. Разпознаваме ги по име и ги преместваме в 'dryers'.
+# Прецизно: само чисти сушилни (Miele T-серия = сушилня), НЕ комбо „пералня със сушилня".
+_DRYER_RE = re.compile(
+    r"(сушилн|tumble|\bdryer\b|trockner|\bmiele\s+t[wc]\w*|\baeg\s+t\w*\d)", re.IGNORECASE)
+
+
+def _eff_category(name: str, category: str) -> str:
+    """Ефективна категория: чиста сушилня, представена като 'washing', → 'dryers'.
+    Комбо „пералня със сушилня" остава при пералните (има 'перал' в името).
+    Прилага се и при запис (скрейп), и при четене (карта) → коректно веднага."""
+    cat = (category or "").strip()
+    nm = (name or "").lower()
+    if cat in ("washing", "appliances", "") and "перал" not in nm and _DRYER_RE.search(nm):
+        return "dryers"
+    return cat
 
 # ── Segment config: 3 price tiers per category ────────────────────────────────
 SEGMENT_CONFIG: dict[str, list[dict]] = {
@@ -2929,11 +2951,13 @@ async def alex_verdict_endpoint(
     if not settings.anthropic_api_key:
         return {"verdict": ""}
 
+    eff_cat = _eff_category(name, category)
+    cat_label = _CAT_LABELS.get(eff_cat, eff_cat)
     prompt = (
         f"Ти си Alex — независим AI съветник за електроника в България.\n"
         f"Дай кратко мнение (2-3 изречения, максимум 60 думи) за:\n\n"
         f"Продукт: {name}\nЦена: €{price:.2f}\nМагазин: {store}\n"
-        + (f"Категория: {category}\n" if category else "")
+        + (f"Тип продукт: {cat_label} (описвай го точно като този тип, не гадай)\n" if cat_label else "")
         + "\nБъди директен. Кажи дали си заслужава, за кого е подходящ, и ключовото предимство. "
           "НЕ повтаряй цената или магазина в отговора."
     )
@@ -3183,7 +3207,7 @@ async def card_meta(url: str = Query(...), category: str = Query("")):
         return {}
     o = off[0]
     name = o.get("raw_name") or ""
-    cat = o.get("category") or category or ""
+    cat = _eff_category(name, o.get("category") or category or "")
     specs = _extract_specs(name)
 
     # Ток/година (уреди) — в €, за да пасва на цените в картата
@@ -4412,16 +4436,16 @@ async def related_products(
     exclude_url: str   = Query(""),
     limit:       int   = Query(6),
 ):
-    """Return related products: same category, price ±40%, different URL."""
+    """Return related products: same category, price ±40%, different URL.
+    Подрежда по Pazarko Score, смятан на живо (няма съхранена alex_score колона)."""
     limit = min(limit, 12)
     try:
         sb = get_supabase()
         q = (
             sb.table("electronics_offers")
-            .select("raw_name, brand, category, price, old_price, discount_pct, store, image_url, url, alex_score")
+            .select("raw_name, brand, category, price, old_price, discount_pct, store, image_url, url")
             .eq("category", category)
-            .order("alex_score", desc=True)
-            .limit(40)
+            .limit(80)
         )
         min_p = _CAT_MIN_PRICE.get(category, 0)
         if price:
@@ -4431,6 +4455,9 @@ async def related_products(
         resp = q.execute()
         raw = [r for r in (resp.data or []) if r.get("url") != exclude_url]
         results = _apply_blocklist(raw, category)
+        for r in results:
+            r["alex_score"] = round(alex_score(r), 1)
+        results.sort(key=lambda x: x.get("alex_score", 0), reverse=True)
         return {"results": results[:limit]}
     except Exception as exc:
         logger.warning("[related] DB failed, using local: %s", exc)
@@ -4438,13 +4465,15 @@ async def related_products(
         min_p = _CAT_MIN_PRICE.get(category, 0)
         results = [
             o for o in offers
-            if o.get("category") == category
+            if _eff_category(o.get("raw_name", ""), o.get("category")) == category
             and o.get("url") != exclude_url
             and (not price or abs(float(o.get("price", 0)) - price) / max(price, 1) <= 0.4)
             and (float(o.get("price", 0)) >= min_p)
         ]
         results = _apply_blocklist(results, category)
-        results.sort(key=lambda x: x.get("alex_score", 0) or 0, reverse=True)
+        for r in results:
+            r["alex_score"] = round(alex_score(r), 1)
+        results.sort(key=lambda x: x.get("alex_score", 0), reverse=True)
         return {"results": results[:limit]}
 
 
@@ -4480,7 +4509,8 @@ _CAT_LABELS = {
     "phones": "Смартфони", "laptops": "Лаптопи", "tvs": "Телевизори",
     "headphones": "Слушалки", "tablets": "Таблети", "gaming": "Геймърско",
     "cameras": "Фотоапарати", "appliances": "Уреди", "cooking": "Готварски уреди",
-    "washing": "Перални", "fridges": "Хладилници", "vacuum": "Прахосмукачки",
+    "washing": "Перални", "dryers": "Сушилни", "fridges": "Хладилници",
+    "vacuum": "Прахосмукачки",
     "ac": "Климатици", "dishwasher": "Съдомиялни", "accessories": "Аксесоари",
 }
 

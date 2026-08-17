@@ -49,7 +49,7 @@ TECHNOMARKET_CATEGORIES = [
     # ── Бяла техника ─────────────────────────────────────────────────
     ("/produkti/hladilnici",          "fridges",     "Хладилници"),
     ("/produkti/peralni",             "washing",     "Перални машини"),
-    ("/produkti/sushilni",            "washing",     "Сушилни"),
+    ("/produkti/sushilni",            "dryers",      "Сушилни"),
     ("/produkti/klimatici",           "ac",          "Климатици"),
     ("/produkti/prahosmukachki",      "vacuum",      "Прахосмукачки"),
     ("/produkti/gotvarki",            "cooking",     "Готварки"),

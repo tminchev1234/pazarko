@@ -36,7 +36,7 @@ EMAG_CATEGORIES = [
     # ── Бяла техника (специфични категории — преди общите!) ──────────
     ("hladilnici",                          "fridges",      "Хладилници"),
     ("peralni-masini",                      "washing",      "Перални машини"),
-    ("sushilni-masini",                     "washing",      "Сушилни машини"),
+    ("sushilni-masini",                     "dryers",       "Сушилни машини"),
     ("klimatici",                           "ac",           "Климатици"),
     ("prahosmukachki",                      "vacuum",       "Прахосмукачки"),
     ("roboti-prahosmukachki",               "vacuum",       "Роботи-прахосмукачки"),

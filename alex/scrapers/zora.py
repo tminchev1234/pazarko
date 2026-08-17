@@ -34,7 +34,7 @@ ZORA_CATEGORIES = [
     # ── Бяла техника (специфични първо) ──────────────────────────────
     ("/category/khladilnitsi",           "fridges",     "Хладилници"),
     ("/category/peralni-masini",         "washing",     "Перални машини"),
-    ("/category/susilni",                "washing",     "Сушилни"),
+    ("/category/susilni",                "dryers",      "Сушилни"),
     ("/category/gotvarski-pecki",        "cooking",     "Готварски печки"),
     ("/category/mikrovalnovi-furni",     "cooking",     "Микровълнови"),
     ("/category/prakhosmukachki",        "vacuum",      "Прахосмукачки"),

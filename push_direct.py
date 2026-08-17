@@ -6,12 +6,26 @@ Usage:
 import json
 import logging
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+# Предпазна мрежа: сушилни, попаднали в 'washing' (напр. Miele TWC…), → 'dryers'.
+# Комбо „пералня със сушилня" остава при пералните. Огледало на _eff_category в alex.py.
+_DRYER_RE = re.compile(
+    r"(сушилн|tumble|\bdryer\b|trockner|\bmiele\s+t[wc]\w*|\baeg\s+t\w*\d)", re.IGNORECASE)
+
+
+def _reclass_cat(name: str, category):
+    cat = (category or "").strip()
+    nm = (name or "").lower()
+    if cat in ("washing", "appliances", "") and "перал" not in nm and _DRYER_RE.search(nm):
+        return "dryers"
+    return category
 
 FILES = [
     ("emag_offers.json",        "emag"),
@@ -47,6 +61,9 @@ def main():
             continue
 
         data = json.loads(path.read_text(encoding="utf-8"))
+        # Прекатегоризирай сушилните преди запис (и в история, и в оферти)
+        for row in data:
+            row["category"] = _reclass_cat(row.get("raw_name", ""), row.get("category"))
         logger.info("Pushing %d from %s ...", len(data), fname)
 
         # 1. Append to price_history (never delete)

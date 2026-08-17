@@ -49,7 +49,7 @@ TECHNOMIX_CATEGORIES = [
     # ── Бяла техника ────────────────────────────────────────────────
     ("/hladilnici",              "fridges",     "Хладилници"),
     ("/peralni-masini",          "washing",     "Перални машини"),
-    ("/sushilni",                "washing",     "Сушилни"),
+    ("/sushilni",                "dryers",      "Сушилни"),
     ("/klimatici",               "ac",          "Климатици"),
     ("/prahosmukachki",          "vacuum",      "Прахосмукачки"),
     ("/gotvarki",                "cooking",     "Готварки"),
