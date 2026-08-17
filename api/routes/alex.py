@@ -366,6 +366,11 @@ SPEAK                   → пълен отговор с таблица и пр�
 SPEAK_WITH_CONSTRAINTS  → отговор + ясна забележка за ограничение на данните
 ASK_FIRST               → само 1-2 въпроса, без таблица и без търсене
 
+⛔ ВАЖНО: тези имена (SPEAK / SPEAK_WITH_CONSTRAINTS / ASK_FIRST) са ВЪТРЕШНИ режими —
+НИКОГА не ги изписвай в отговора към потребителя, нито като етикет, нито като префикс.
+Просто действай според тях. При ограничени данни напиши забележката на ЕСТЕСТВЕН български
+(напр. „Намерих само 2 модела — данните са ограничени за този диапазон").
+
 ════════════════════════════════════════
 АБСОЛЮТНИ ПРАВИЛА (нарушението е грешка)
 ════════════════════════════════════════
@@ -999,9 +1004,19 @@ def _exec_search_products(args: dict) -> list[dict]:
 def _apply_blocklist(products: list[dict], category: str) -> list[dict]:
     """Filter out category-specific blocked product types (e.g. feature phones)."""
     words = [w.lower() for w in _CAT_BLOCKLIST.get(category, [])]
-    if not words:
-        return products
-    return [p for p in products if not any(w in p.get("raw_name", "").lower() for w in words)]
+    out = products
+    if words:
+        out = [p for p in out if not any(w in p.get("raw_name", "").lower() for w in words)]
+    if category == "phones":
+        # Простите телефони (NOKIA 105, MyPhone, Energizer…) нямат GB памет в името
+        # и са с малък екран → махни ги от смартфон резултатите
+        kept = []
+        for p in out:
+            sp = _extract_specs(p.get("raw_name", ""))
+            if sp.get("storage_gb") or sp.get("ram_gb") or (sp.get("screen_inch") or 0) >= 5:
+                kept.append(p)
+        out = kept
+    return out
 
 
 def _log_search(query: str, category: str | None = None) -> None:
@@ -1482,6 +1497,15 @@ def _extract_specs(name: str) -> dict:
                 if v >= 64 and v in _STOR_OK and v != out.get("ram_gb"):
                     out["storage_gb"] = v
                     break
+    # Формат 'X/Y' (напр. '128/4' или '8/256') → по-голямото е памет, по-малкото RAM
+    msl = re.search(r"\b(\d{1,4})\s*/\s*(\d{1,4})\b", low)
+    if msl:
+        big, small = max(int(msl.group(1)), int(msl.group(2))), min(int(msl.group(1)), int(msl.group(2)))
+        if out.get("storage_gb") is None and big in _STOR_OK:
+            out["storage_gb"] = big
+        if out.get("ram_gb") is None and small in _RAM_OK:
+            out["ram_gb"] = small
+
     # Екран: първо десетичен (6.56"), после цял (55") в разумни граници (без model-номера)
     val = None
     md = (re.search(r"(\d{1,2}[.,]\d{1,2})\s?[\"'”″]", s)
