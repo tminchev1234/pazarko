@@ -3196,38 +3196,41 @@ def _compute_real_deals(force: bool = False) -> list:
         for u, a in agg.items():
             if len(a["prices"]) < 6 or len(a["days"]) < 5:
                 continue
-            if a["max"] <= a["min"] * 1.06:           # must actually move
+            if a["max"] <= a["min"] * 1.035:          # цената трябва да мърда (по-меко → и уреди)
                 continue
             cur = a["cur"]
-            if cur > a["min"] * 1.02:                 # must be at/near its own low
+            if cur > a["min"] * 1.04:                 # близо до собственото си дъно
                 continue
             srt = sorted(a["prices"]); median = srt[len(srt) // 2]
-            if median <= cur * 1.05:                  # must be meaningfully below its usual
+            if median <= cur * 1.03:                  # под типичната си цена (по-меко → повече категории)
                 continue
             cands.append({"url": u, "cur": cur, "low": a["min"],
                           "median": median, "low_ts": a["low_ts"],
                           "below": (median - cur) / median})
         cands.sort(key=lambda x: -x["below"])
-        top = cands[:40]
+        top = cands[:400]                              # голям пул → всички категории влизат
 
         result = []
         if top:
             meta = {}
-            offs = (sb.table("electronics_offers")
-                    .select("url, raw_name, price, store, image_url, category")
-                    .in_("url", [c["url"] for c in top]).execute().data or [])
-            for o in offs:
-                meta[o["url"]] = o
+            urls = [c["url"] for c in top]
+            for i in range(0, len(urls), 200):         # in_ на партиди
+                offs = (sb.table("electronics_offers")
+                        .select("url, raw_name, price, store, image_url, category")
+                        .in_("url", urls[i:i + 200]).execute().data or [])
+                for o in offs:
+                    meta[o["url"]] = o
+            enriched = []
             for c in top:
                 m = meta.get(c["url"])
                 if not m or not m.get("image_url"):
                     continue
                 price  = float(m.get("price") or c["cur"])
                 median = c["median"]
-                if median <= price:                   # still a saving vs its usual?
+                if median <= price:                    # still a saving vs its usual?
                     continue
                 cat = m.get("category") or ""
-                result.append({
+                enriched.append({
                     "raw_name":     m.get("raw_name", ""),
                     "url":          c["url"],
                     "store":        m.get("store", ""),
@@ -3239,9 +3242,33 @@ def _compute_real_deals(force: bool = False) -> list:
                     "discount_pct": round((median - price) / median * 100),
                     "low":          round(c["low"], 2),
                     "lowest_date":  c["low_ts"],
+                    "_below":       c["below"],
                 })
-                if len(result) >= 150:
+            # Поправи снимките ПРЕДИ подредбата (иначе placeholder→нулиран→изпада и чупи round-robin)
+            enriched = [e for e in _fix_images(enriched) if e.get("image_url")]
+            # РАЗНООБРАЗИЕ: групирай по категория, сортирай всяка по най-голяма отстъпка
+            # спрямо типичната цена, после round-robin (1 от всяка категория, после 2…)
+            from collections import defaultdict as _dd
+            bycat: dict = _dd(list)
+            for e in enriched:
+                bycat[e["category"]].append(e)
+            for c in bycat:
+                bycat[c].sort(key=lambda x: -x["_below"])
+            cat_order = sorted(bycat.keys(), key=lambda c: -bycat[c][0]["_below"])
+            rnd = 0
+            while len(result) < 150:
+                added = False
+                for c in cat_order:
+                    if rnd < len(bycat[c]):
+                        result.append(bycat[c][rnd])
+                        added = True
+                        if len(result) >= 150:
+                            break
+                rnd += 1
+                if not added:
                     break
+            for e in result:
+                e.pop("_below", None)
 
         # Поправи генеричните снимки; в тази витрина махаме продуктите без реална снимка
         result = [r for r in _fix_images(result) if r.get("image_url")]
