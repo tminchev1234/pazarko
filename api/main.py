@@ -7,7 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 
@@ -44,6 +44,16 @@ async def alex_redirect():
 async def serve_report():
     """Публичен доклад 'Реалната цена' — колко намаления са фиктивни."""
     return FileResponse("alex/frontend/report.html")
+
+@app.get("/vodach", response_class=HTMLResponse)
+async def serve_guides():
+    """SEO водачи — индекс на честните класации по категории."""
+    return alex.render_guide_index()
+
+@app.get("/vodach/{category}", response_class=HTMLResponse)
+async def serve_guide(category: str):
+    """SEO водач за категория — класация по реална стойност (Pazarko Score)."""
+    return alex.render_guide(category)
 
 @app.get("/alex/")
 async def serve_alex_home():

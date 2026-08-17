@@ -3315,6 +3315,112 @@ async def cron_precompute(request: Request):
             "verdicts": len(verdicts)}
 
 
+# ─── SEO водачи: server-rendered класации по реална стойност (безплатен трафик) ─
+_GUIDE_CATS = ["phones", "laptops", "tvs", "headphones", "tablets", "gaming",
+               "fridges", "washing", "ac", "vacuum"]
+
+_GUIDE_CSS = (
+    "body{margin:0;background:#f3f4f6;color:#111827;font-family:system-ui,-apple-system,"
+    "'Segoe UI',Roboto,sans-serif}.w{max-width:860px;margin:0 auto;padding:28px 18px 60px}"
+    "a{color:#2563eb;text-decoration:none}h1{font-size:clamp(24px,4.4vw,34px);letter-spacing:-.02em;"
+    "margin:10px 0 8px;line-height:1.12}.lede{color:#4b5563;font-size:15px;line-height:1.55;max-width:62ch}"
+    ".eb{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#2563eb}"
+    ".row{display:flex;gap:14px;align-items:center;background:#fff;border:1px solid #e5e7eb;border-radius:14px;"
+    "padding:12px 14px;margin:10px 0;box-shadow:0 1px 2px rgba(0,0,0,.05)}.rk{font-size:20px;font-weight:800;"
+    "color:#9aa6b4;width:26px;text-align:center;flex:none}.im{width:66px;height:66px;object-fit:contain;"
+    "background:#fff;border-radius:8px;flex:none}.bd{flex:1;min-width:0}.nm{font-weight:700;font-size:15px;"
+    "line-height:1.25}.mt{font-size:12.5px;color:#6b7280;margin-top:3px}.pr{font-size:18px;font-weight:800}"
+    ".sc{flex:none;text-align:center}.scn{font-size:20px;font-weight:800;color:#059669}.scl{font-size:10px;"
+    "color:#9aa6b4;text-transform:uppercase;letter-spacing:.05em}.vb{display:inline-block;font-size:11px;"
+    "font-weight:700;padding:2px 8px;border-radius:6px;margin-top:4px}.g{background:#d1fae5;color:#059669}"
+    ".r{background:#fee2e2;color:#dc2626}.cta{display:block;text-align:center;background:#111827;color:#fff;"
+    "border-radius:14px;padding:20px;margin-top:26px;font-weight:700}.idx{display:grid;"
+    "grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:20px}"
+    ".idx a{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;font-weight:700;color:#111827}"
+    ".ft{margin-top:34px;color:#9aa6b4;font-size:12px}"
+)
+
+
+def _guide_page(title: str, desc: str, body: str) -> str:
+    from html import escape
+    return (f'<!doctype html><html lang="bg"><head><meta charset="utf-8">'
+            f'<meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<title>{escape(title)}</title><meta name="description" content="{escape(desc)}">'
+            f'<link rel="canonical" href="https://pazarko-1.onrender.com/vodach">'
+            f'<style>{_GUIDE_CSS}</style></head><body><div class="w">{body}'
+            f'<div class="ft">Класацията е по <b>реална стойност</b> (Pazarko Score) — цена спрямо '
+            f'собствената ценова история, не спрямо обявени намаления. Данните се обновяват ежедневно.</div>'
+            f'</div></body></html>')
+
+
+def render_guide_index() -> str:
+    from html import escape
+    links = "".join(
+        f'<a href="/vodach/{c}">{escape(_CAT_LABELS.get(c, c))} →</a>'
+        for c in _GUIDE_CATS
+    )
+    body = (f'<div class="eb">Pazarko · водачи</div>'
+            f'<h1>Кое си заслужава да купиш — честни класации</h1>'
+            f'<p class="lede">Подреждаме продуктите по <b>реална стойност</b>, а не по обявени '
+            f'намаления. Всяка класация ползва нашата ежедневна ценова история, за да отсее '
+            f'фалшивите „оферти". Избери категория:</p><div class="idx">{links}</div>'
+            f'<a class="cta" href="/alex/">💬 Или питай Alex директно за твоя случай →</a>')
+    return _guide_page("Водачи за покупка — честни класации по реална стойност · Pazarko",
+                       "Честни класации на електрониката в България, подредени по реална стойност "
+                       "(не по фалшиви намаления). Ежедневна ценова история.", body)
+
+
+def render_guide(category: str) -> str:
+    from html import escape
+    from datetime import datetime as _dt
+    label = _CAT_LABELS.get(category, category)
+    if category not in _GUIDE_CATS:
+        return _guide_page("Няма такъв водач · Pazarko", "Няма такъв водач.",
+                           f'<h1>Няма такъв водач</h1><p><a href="/vodach">← Всички водачи</a></p>')
+    try:
+        sb = get_supabase()
+        rows = (sb.table("electronics_offers")
+                .select("raw_name, brand, price, old_price, discount_pct, store, image_url, url, category")
+                .eq("category", category).limit(400).execute().data or [])
+    except Exception:
+        rows = []
+    rows = [r for r in rows if r.get("image_url") and r.get("price")]
+    rows = [r for r in _fix_images(rows) if r.get("image_url")]
+    for r in rows:
+        r["_score"] = alex_score(r)
+    rows.sort(key=lambda r: -r["_score"])
+    top = rows[:15]
+    verd = _get_verdicts()
+    VB = {"lowest": ("🏆 Най-ниска цена", "g"), "good": ("🟢 Близо до дъното", "g"),
+          "real": ("✅ Реална отстъпка", "g"), "suspicious": ("⚠️ Фиктивно намаление", "r"),
+          "high": ("🔴 Близо до пика", "r")}
+    cards = []
+    for i, p in enumerate(top, 1):
+        sp = _spec_summary(_extract_specs(p.get("raw_name", "")))
+        v = verd.get(p.get("url") or "")
+        vb = VB.get(v)
+        vbadge = f'<span class="vb {vb[1]}">{vb[0]}</span>' if vb else ""
+        cards.append(
+            f'<div class="row"><div class="rk">{i}</div>'
+            f'<img class="im" src="{escape(p.get("image_url") or "")}" alt="{escape(p.get("raw_name") or "")}" loading="lazy">'
+            f'<div class="bd"><div class="nm">{escape((p.get("raw_name") or "")[:80])}</div>'
+            f'<div class="mt">{escape(sp)}{" · " if sp else ""}{escape(p.get("store") or "")}</div>{vbadge}</div>'
+            f'<div class="sc"><div class="pr">{p.get("price"):.0f} лв</div>'
+            f'<div class="scn">{p["_score"]:.1f}</div><div class="scl">Score</div></div></div>')
+    year = _dt.now().year
+    body = (f'<div class="eb"><a href="/vodach">Водачи</a> · Pazarko</div>'
+            f'<h1>Най-добрите {escape(label.lower())} по реална стойност — {year}</h1>'
+            f'<p class="lede">Топ {len(top)} {escape(label.lower())} според <b>Pazarko Score</b> — '
+            f'подреждаме по реална стойност (цена спрямо собствената им ценова история, марка, '
+            f'спецификации), не по обявени намаления. Фиктивните „оферти" падат надолу.</p>'
+            f'{"".join(cards) if cards else "<p>Няма данни в момента.</p>"}'
+            f'<a class="cta" href="/alex/">💬 Не си сигурен кой е за теб? Питай Alex →</a>')
+    return _guide_page(
+        f"Най-добрите {label.lower()} — класация по реална стойност {year} · Pazarko",
+        f"Топ {label.lower()} в България, подредени по реална стойност (Pazarko Score), не по "
+        f"фалшиви намаления. Реални цени, спецификации, ценова история. {year}.", body)
+
+
 # ─── Click tracking — outbound retailer link клик (за фунията) ────────────────
 class ClickEvent(BaseModel):
     url:        str
