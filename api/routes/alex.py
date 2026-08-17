@@ -4590,12 +4590,24 @@ def _hp_score_and_pick(products: list[dict], categories: list[str]) -> list[dict
         result[cat] = p
         store_count[store] = store_count.get(store, 0) + 1
 
-    return [result[c] for c in categories if c in result]
+    out = [result[c] for c in categories if c in result]
+    # Гарантирай 4 — ако категория липсва (няма данни), допълни с най-добрия останал продукт
+    if len(out) < 4:
+        used = {p.get("url") for p in out}
+        for p in products:
+            if p.get("url") in used:
+                continue
+            out.append(p)
+            used.add(p.get("url"))
+            if len(out) >= 4:
+                break
+    return out[:4]
 
 
 @router.get("/alex/homepage-picks")
 async def homepage_picks():
-    """Three rows: tech categories, appliance categories, top deals."""
+    """Three rows: tech categories, appliance categories, top deals + day pick."""
+    day_pick = None
     try:
         sb = get_supabase()
 
@@ -4631,16 +4643,40 @@ async def homepage_picks():
             if (p.get("discount_pct") or 0) >= 10 and p.get("image_url"):
                 p["cat_label"] = _CAT_LABELS.get(p.get("category", ""), p.get("category", ""))
                 deals_cands.append(p)
-        deals_cands.sort(key=lambda x: x.get("discount_pct", 0), reverse=True)
+        # Обедини обявените намаления с РЕАЛНИТЕ дъна (разнообразни категории)
+        seen_u = {p.get("url") for p in deals_cands}
+        for rp in _compute_real_deals():
+            if rp.get("url") not in seen_u and rp.get("image_url"):
+                deals_cands.append(rp)
+                seen_u.add(rp.get("url"))
+        deals_cands.sort(key=lambda x: x.get("discount_pct", 0) or 0, reverse=True)
+        # 'Оферта на деня' — детерминирано, ротира през топ-10 по ден от годината
+        if deals_cands:
+            di = datetime.now().timetuple().tm_yday % min(10, len(deals_cands))
+            day_pick = deals_cands[di]
+        dp_url = day_pick.get("url") if day_pick else None
+        # Row3: разнообразие — първо макс 1/категория, после допълни до 4 (макс 2/категория)
         row3: list[dict] = []
-        row3_store_cnt: dict[str, int] = {}
-        for p in deals_cands:
-            store = p.get("store", "")
-            if row3_store_cnt.get(store, 0) >= 3:
-                continue
-            row3.append(p)
-            row3_store_cnt[store] = row3_store_cnt.get(store, 0) + 1
-            if len(row3) >= 5:
+        row3_urls: set = set()
+        cat_cnt: dict[str, int] = {}
+        store_cnt: dict[str, int] = {}
+        for cap in (1, 2):
+            for p in deals_cands:
+                if len(row3) >= 4:
+                    break
+                u = p.get("url", "")
+                if u == dp_url or u in row3_urls:
+                    continue
+                cat = p.get("category", "")
+                if cat_cnt.get(cat, 0) >= cap:
+                    continue
+                if store_cnt.get(p.get("store", ""), 0) >= 2:
+                    continue
+                row3.append(p)
+                row3_urls.add(u)
+                cat_cnt[cat] = cat_cnt.get(cat, 0) + 1
+                store_cnt[p.get("store", "")] = store_cnt.get(p.get("store", ""), 0) + 1
+            if len(row3) >= 4:
                 break
 
     except Exception:
@@ -4648,8 +4684,10 @@ async def homepage_picks():
 
     # Поправи генеричните снимки (frontend филтрира тези без image_url → чиста витрина)
     row1, row2, row3 = _fix_images(row1), _fix_images(row2), _fix_images(row3)
+    day_pick = (_fix_images([day_pick])[0] if day_pick else None)
     return {
         "row1": row1, "row2": row2, "row3": row3,
+        "day_pick": day_pick,
         "count": len(row1) + len(row2) + len(row3),
     }
 
