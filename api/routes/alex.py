@@ -3624,37 +3624,50 @@ def _term_hits(term: str, offer_tokens: set) -> bool:
 
 
 class DealSubscribeRequest(BaseModel):
-    email:    str
-    query:    str
-    category: Optional[str] = None
-    consent:  bool = False
+    email:     str
+    query:     str = ""
+    category:  Optional[str] = None
+    max_price: Optional[float] = None   # бюджет: 'известявай ме за X под Y лв'
+    consent:   bool = False
 
 
 @router.post("/alex/deal-subscribe")
 async def deal_subscribe(req: DealSubscribeRequest):
-    """Абонамент за силна оферта по това, което е търсил потребителят."""
+    """Абонамент за реална сделка — по търсене, ИЛИ по категория+бюджет."""
     import secrets
     email = (req.email or "").strip().lower()
     query = (req.query or "").strip()
+    cat = (req.category or "").strip()[:80]
     if "@" not in email or len(email) < 5:
         return {"ok": False, "error": "Невалиден имейл"}
-    if len(query) < 2:
-        return {"ok": False, "error": "Липсва търсене"}
+    if len(query) < 2 and not cat:
+        return {"ok": False, "error": "Липсва търсене или категория"}
     if not req.consent:
         return {"ok": False, "error": "Нужно е съгласие за известия"}
+    row = {
+        "email":       email,
+        "query":       (query or cat)[:200],
+        "category":    cat or None,
+        "min_discount": 20,
+        "active":      True,
+        "unsub_token": secrets.token_urlsafe(24),
+    }
+    if req.max_price and req.max_price > 0:
+        row["max_price"] = float(req.max_price)
     try:
         sb = get_supabase()
-        sb.table("deal_subscriptions").insert({
-            "email":       email,
-            "query":       query[:200],
-            "category":    (req.category or "").strip()[:80] or None,
-            "min_discount": 20,
-            "active":      True,
-            "unsub_token": secrets.token_urlsafe(24),
-        }).execute()
+        try:
+            sb.table("deal_subscriptions").insert(row).execute()
+        except Exception as e1:
+            if "max_price" in str(e1).lower() and "max_price" in row:
+                # колоната още не съществува (migration 006) → запази без бюджета
+                row.pop("max_price", None)
+                sb.table("deal_subscriptions").insert(row).execute()
+            else:
+                raise
     except Exception as exc:
         s = str(exc).lower()
-        if "duplicate" in s or "23505" in s:          # вече абониран
+        if "duplicate" in s or "23505" in s:
             return {"ok": True, "already": True}
         logger.warning("[deal-subscribe] %s", exc)
         return {"ok": False, "error": "Възникна грешка"}
@@ -3716,19 +3729,25 @@ async def cron_deal_alerts(request: Request):
                     continue
             except Exception:
                 pass
+        cat = (s.get("category") or "").strip()
+        try:
+            budget = float(s.get("max_price")) if s.get("max_price") else None
+        except (TypeError, ValueError):
+            budget = None
         terms = _deal_tokens(s.get("query", ""))
-        if not terms:
+        if not terms and not cat:
             continue
         need = 1 if len(terms) == 1 else max(2, (len(terms) + 1) // 2)
 
         best = None
         for otok, o in pool_tok:
-            matched = sum(1 for term in terms if _term_hits(term, otok))   # fuzzy (trigram + prefix)
-            if matched >= need:
-                # реалните дъна вече са проверени срещу историята — избираме
-                # най-изгодния спрямо собствената му обичайна цена
-                if best is None or (o.get("discount_pct") or 0) > (best.get("discount_pct") or 0):
-                    best = o
+            if budget and (o.get("price") or 0) > budget:        # ценови таван (бюджет)
+                continue
+            # съвпадение по ТЪРСЕНЕ (fuzzy) ИЛИ по КАТЕГОРИЯ+бюджет
+            hit = (terms and sum(1 for t in terms if _term_hits(t, otok)) >= need) \
+                or (cat and o.get("category") == cat)
+            if hit and (best is None or (o.get("discount_pct") or 0) > (best.get("discount_pct") or 0)):
+                best = o
         if not best:
             continue
 
