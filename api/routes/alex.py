@@ -3172,23 +3172,44 @@ def _category_value_ranks(sb, cat: str):
     now = time.time()
     c = _CAT_RANK_CACHE.get(cat)
     if c and now - c["ts"] < 3600:
-        return c["ranks"], c["total"]
+        return c
     cofs, step, offp = [], 1000, 0
     while len(cofs) < 2000:
         page = (sb.table("electronics_offers")
-                .select("url, price, brand, discount_pct, category")
+                .select("url, raw_name, price, brand, discount_pct, category, store, image_url")
                 .eq("category", cat).range(offp, offp + step - 1).execute().data or [])
         cofs.extend(page)
         if len(page) < step:
             break
         offp += step
-    scored = sorted(((alex_score(x), x.get("url")) for x in cofs), key=lambda t: -t[0])
+    scored = sorted(((round(alex_score(x), 1), x) for x in cofs), key=lambda t: -t[0])
     ranks: dict = {}
-    for i, (_s, u) in enumerate(scored):
+    top: list = []
+    for i, (s, x) in enumerate(scored):
+        u = x.get("url")
         if u and u not in ranks:
             ranks[u] = i + 1
-    _CAT_RANK_CACHE[cat] = {"ts": now, "ranks": ranks, "total": len(cofs)}
-    return ranks, len(cofs)
+        if len(top) < 20:
+            top.append({"rank": i + 1, "raw_name": x.get("raw_name"), "price": x.get("price"),
+                        "image_url": x.get("image_url"), "url": u, "store": x.get("store"),
+                        "score": s})
+    entry = {"ts": now, "ranks": ranks, "total": len(cofs), "top": top}
+    _CAT_RANK_CACHE[cat] = entry
+    return entry
+
+
+@router.get("/alex/top-value")
+async def top_value(category: str = Query(...), limit: int = Query(12, le=20)):
+    """Топ продукти по стойност (Pazarko Score) в категорията — за кликаемия ранг."""
+    try:
+        sb = get_supabase()
+        rc = _category_value_ranks(sb, category)
+    except Exception as exc:
+        logger.warning("[top-value] %s", exc)
+        return {"results": [], "total": 0}
+    return {"results": (rc.get("top") or [])[:limit],
+            "total": rc.get("total", 0),
+            "cat_label": _CAT_LABELS.get(category, category)}
 
 
 @router.get("/alex/card-meta")
@@ -3223,10 +3244,10 @@ async def card_meta(url: str = Query(...), category: str = Query("")):
     rank = None
     if cat:
         try:
-            ranks, total = _category_value_ranks(sb, cat)
-            r = ranks.get(url)
-            if r and total >= 5:
-                rank = {"rank": r, "total": total}
+            rc = _category_value_ranks(sb, cat)
+            r = rc["ranks"].get(url)
+            if r and rc["total"] >= 5:
+                rank = {"rank": r, "total": rc["total"], "category": cat}
         except Exception:
             pass
 
