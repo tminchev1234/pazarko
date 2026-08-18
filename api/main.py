@@ -55,9 +55,13 @@ async def serve_guide(category: str):
     """SEO водач за категория — класация по реална стойност (Pazarko Score)."""
     return alex.render_guide(category)
 
+# HTML е целият (нехеширан) app → без кеш, за да виждат потребителите ъпдейтите веднага
+_NO_CACHE = {"Cache-Control": "no-cache, must-revalidate"}
+
+
 @app.get("/alex/")
 async def serve_alex_home():
-    return FileResponse("alex/frontend/index.html")
+    return FileResponse("alex/frontend/index.html", headers=_NO_CACHE)
 
 @app.get("/alex/{full_path:path}")
 async def serve_alex_spa(full_path: str):
@@ -65,7 +69,7 @@ async def serve_alex_spa(full_path: str):
     static = Path("alex/frontend") / full_path
     if static.exists() and static.is_file():
         return FileResponse(static)
-    return FileResponse("alex/frontend/index.html")
+    return FileResponse("alex/frontend/index.html", headers=_NO_CACHE)
 
 # Serve frontends
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
