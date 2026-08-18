@@ -3071,10 +3071,60 @@ def _spec_chips(sp: dict) -> list:
     return chips
 
 
+# ── Модел-подпис за телефони (модели тип „дума+число": Galaxy S25, Redmi Note 15) ──
+# Точно сравнение на МНОЖЕСТВОТО идентичностни токени → 'S25' ≠ 'S25 Ultra' ≠
+# 'iPhone 16 Pro'. Спецове/цветове/маркетинг се махат, за да пасват различните
+# изписвания между магазините.
+_MODEL_WORDS = {
+    "ultra", "pro", "plus", "max", "lite", "fe", "note", "mini", "air", "neo", "edge",
+    "find", "reno", "redmi", "poco", "pixel", "galaxy", "nord", "magic", "nova", "mate",
+    "spark", "narzo", "fold", "flip", "tab", "book", "iphone", "ipad", "watch", "band",
+}
+_SIG_SKIP = {
+    "5g", "4g", "3g", "lte", "nfc", "wifi", "gsm", "ds", "dual", "sim", "eu", "gb", "tb",
+    "ram", "rom", "bluetooth", "android", "smart", "мобилен", "телефон", "смартфон",
+    "таблет", "инч", "см", "cm", "kg", "мм", "mm", "hd", "uhd", "нов", "нова",
+}
+_SIG_SPEC_RE = re.compile(r"^\d+(gb|tb|mah|hz|mp|w|ml|k|nm)$")
+_SPEC_NUMS = {2, 3, 4, 6, 8, 12, 16, 24, 32, 64, 128, 256, 512, 1024, 2048, 4096}
+
+
+def _ident_sig(name: str) -> set:
+    """Идентичностни токени на модела: моделни числа/кодове + фамилни/вариантни думи
+    (galaxy, note, pro…) + къс суфикс след число (Reno 14 'F'). Маха спецове, цветове,
+    служебни думи → еднакво множество за един и същ модел в различни магазини."""
+    toks = re.findall(r"[a-z0-9]+", (name or "").lower())
+    sig: set = set()
+    prev_kept_digit = False
+    prev_family = False
+    for t in toks:
+        has_d = any(c.isdigit() for c in t)
+        keep = False
+        if t in _SIG_SKIP or _SIG_SPEC_RE.match(t):
+            keep = False
+        elif has_d:
+            # чисто число-спец (памет/RAM) се маха — освен ако е след фамилна дума
+            # (Redmi 12, iPhone 16 → числото е моделно, не спец)
+            if t.isdigit() and int(t) in _SPEC_NUMS and not prev_family:
+                keep = False
+            else:
+                keep = True
+        elif t in _MODEL_WORDS:
+            keep = True
+        elif len(t) <= 3 and prev_kept_digit:
+            keep = True   # суфикс като 'F' / 'FS' след моделно число
+        if keep:
+            sig.add(t)
+        prev_kept_digit = keep and has_d
+        prev_family = t in _MODEL_WORDS
+    return sig
+
+
 def _same_model_other_stores(sb, o: dict, specs: dict) -> Optional[dict]:
-    """Същият модел в други магазини — чисто DB, консервативно съвпадение
-    (същ бранд + отличителен моделен токен + съвпадащи памет/екран), за да
-    не показваме грешни съвпадения. None ако няма сигурно сравнение."""
+    """Същият модел в други магазини — чисто DB, консервативно съвпадение.
+    Два пътя: (1) истински SKU код (букви+цифри ≥4, напр. X1504VA, 50Q7F2, CH720N)
+    → substring на целия код; (2) телефон тип „дума+число" (Galaxy S25) → точен
+    модел-подпис. И двата искат същ бранд + съвпадаща памет/екран. None ако несигурно."""
     name = o.get("raw_name") or ""
     brand = (o.get("brand") or "").strip()
     store = o.get("store")
@@ -3096,10 +3146,17 @@ def _same_model_other_stores(sb, o: dict, specs: dict) -> Optional[dict]:
     model_toks = [t for t in toks
                   if any(c.isdigit() for c in t) and any(c.isalpha() for c in t)
                   and len(t) >= 4 and t not in stop and not spec_tok.match(t)]
-    if not model_toks:
-        return None
-    token = max(model_toks, key=len)
-    strong = True
+    if model_toks:
+        mode = "sku"                       # лаптопи/ТВ/слушалки — код-съвпадение
+        token = max(model_toks, key=len)
+        mine_sig = None
+    else:
+        mode = "sig"                       # телефони — модел-подпис
+        mine_sig = _ident_sig(name)
+        digit_toks = [t for t in mine_sig if any(c.isdigit() for c in t)]
+        if not digit_toks:
+            return None                    # няма моделно число → твърде общо, мълчим
+        token = max(digit_toks, key=len)
     try:
         q = (sb.table("electronics_offers")
              .select("raw_name, brand, price, store, url, image_url, in_stock")
@@ -3115,10 +3172,15 @@ def _same_model_other_stores(sb, o: dict, specs: dict) -> Optional[dict]:
         rl = rn.lower()
         if brand and brand.lower() not in rl:            # същ бранд
             continue
-        # пълен модел-подпис: кандидатът трябва да съдържа ВСИЧКИ силни токени
-        # (пълния SKU, напр. 'x1504va' + 'bq2911') → не смесва различни конфигурации
-        if not all(t in rl for t in model_toks):
-            continue
+        # Съвпадение по избрания път:
+        #  sku → кандидатът съдържа ВСИЧКИ кодови токени (пълния SKU) като substring
+        #  sig → идентичностното МНОЖЕСТВО е ИДЕНТИЧНО (S25 ≠ S25 Ultra ≠ 16 Pro)
+        if mode == "sku":
+            if not all(t in rl for t in model_toks):
+                continue
+        else:
+            if _ident_sig(rn) != mine_sig:
+                continue
         try:
             pr = float(r.get("price") or 0)
         except (TypeError, ValueError):
@@ -3128,13 +3190,10 @@ def _same_model_other_stores(sb, o: dict, specs: dict) -> Optional[dict]:
         if mine_price and pr < mine_price * 0.4:          # твърде евтино → аксесоар, не моделът
             continue
         rs = _extract_specs(rn)
-        stor_ok = bool(mine_stor and rs.get("storage_gb") and rs["storage_gb"] == mine_stor)
-        scr_ok = bool(mine_scr and rs.get("screen_inch") and abs(rs["screen_inch"] - mine_scr) <= 0.2)
+        # памет/екран трябва да съвпадат, ако и двете са известни (различна конфигурация → не)
         if mine_stor and rs.get("storage_gb") and rs["storage_gb"] != mine_stor:
             continue
         if mine_scr and rs.get("screen_inch") and abs(rs["screen_inch"] - mine_scr) > 0.2:
-            continue
-        if not strong and not (stor_ok or scr_ok):   # слаб токен → иска потвърден спец
             continue
         st = r.get("store")
         if st not in seen or pr < seen[st]["price"]:
