@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Alex — AI Съветник по Електроника</title>
 <meta name="description" content="Alex е твоят AI експерт по електроника в България. Реални цени от eMAG, Технополис, Техномаркет, Зора, Озон и още.">
+<!-- Характерен шрифт с кирилица (Manrope); system fallback ако е блокиран -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <!-- Google вход през Clerk — същата инстанция като академията/компаньона -->
 <script
   data-clerk-publishable-key="pk_test_aG9uZXN0LWNhdHRsZS0yMy5jbGVyay5hY2NvdW50cy5kZXYk"
@@ -34,10 +38,11 @@
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;line-height:1.6;background:var(--bg);color:var(--text);min-height:100vh}
+body{font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:15px;line-height:1.6;background:var(--bg);color:var(--text);min-height:100vh;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 img{display:block;max-width:100%}
 a{color:inherit;text-decoration:none}
 button{cursor:pointer;border:none;background:none;font-family:inherit}
+input,textarea,select{font-family:inherit}
 
 /* ── NAV ── */
 .nav{position:sticky;top:0;z-index:100;background:var(--nav-bg);box-shadow:0 1px 3px rgba(0,0,0,.3)}
