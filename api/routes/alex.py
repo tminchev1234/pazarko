@@ -3331,6 +3331,11 @@ def _model_key(raw_name: Optional[str]) -> str:
     return " ".join(sorted(toks))
 
 
+# Промо/warranty бадж overlay-и (напр. .../badge-2025/…charger….webp) — това НЕ е
+# снимка на продукта. Скрейпърът понякога ги хваща вместо реалната снимка.
+_BAD_IMG_RE = re.compile(r"badge", re.IGNORECASE)
+
+
 def _build_image_fix() -> dict:
     """Скенира офертите: генеричните placeholder снимки (един URL, споделен от >3
     продукта) + карта модел→истинска снимка (за cross-fill от друг магазин)."""
@@ -3348,12 +3353,14 @@ def _build_image_fix() -> dict:
                 break
         from collections import Counter
         cnt = Counter(r.get("image_url") for r in rows if r.get("image_url"))
-        placeholders = [u for u, n in cnt.items() if u and n > 3]
+        # генерични (споделени от >3) ИЛИ промо-баджове → третирай като „няма снимка"
+        placeholders = [u for u, n in cnt.items()
+                        if u and (n > 3 or _BAD_IMG_RE.search(u))]
         ph_set = set(placeholders)
         twins: dict = {}
         for r in rows:
             u = r.get("image_url")
-            if u and u not in ph_set:
+            if u and u not in ph_set and not _BAD_IMG_RE.search(u):
                 k = _model_key(r.get("raw_name"))
                 if k:
                     twins.setdefault(k, u)
@@ -3382,14 +3389,14 @@ def _get_image_fix() -> dict:
 def _fix_images(products: list) -> list:
     """Замества генерична placeholder снимка с истинска на същия модел от друг
     магазин; ако няма — маха я (frontend показва чист дизайнерски fallback)."""
+    if not products:
+        return products
     fix = _get_image_fix()
     ph = fix["placeholders"]
-    if not ph or not products:
-        return products
     twins = fix["twins"]
     for p in products:
         img = p.get("image_url")
-        if img and img in ph:
+        if img and (img in ph or _BAD_IMG_RE.search(img)):
             p["image_url"] = twins.get(_model_key(p.get("raw_name")))
     return products
 

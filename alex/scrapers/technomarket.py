@@ -197,9 +197,16 @@ def _parse_page(soup: BeautifulSoup, page_url: str) -> list[dict]:
         if href and not href.startswith('http'):
             href = BASE_URL + href
 
-        # Image
-        img_el = card.select_one('a.product-image img[src]')
-        img = img_el['src'] if img_el else ""
+        # Image — избягвай промо/warranty бадж overlay-и (…/badge-2025/…);
+        # вземи реалната продуктова снимка (често lazy в data-src).
+        img = ""
+        img_candidates = card.select('a.product-image img') or card.select('img')
+        for im in img_candidates:
+            cand = (im.get('data-src') or im.get('data-original')
+                    or im.get('data-lazy-src') or im.get('src') or "").strip()
+            if cand and 'badge' not in cand.lower() and 'placeholder' not in cand.lower():
+                img = cand
+                break
 
         products.append({
             "name": name, "price": price, "old_price": old_price,
