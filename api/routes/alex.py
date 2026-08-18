@@ -3257,6 +3257,27 @@ def _category_value_ranks(sb, cat: str):
     return entry
 
 
+@router.get("/alex/current-prices")
+async def current_prices(urls: str = Query(..., description="Comma-separated product URLs")):
+    """Текущи цени + наличност за списък продукти (за 'Запазени' — спад от както запази).
+    Чисто DB, 0 токена."""
+    url_list = [u for u in (urls or "").split(",") if u][:60]
+    if not url_list:
+        return {"prices": {}}
+    out: dict = {}
+    try:
+        sb = get_supabase()
+        rows = (sb.table("electronics_offers")
+                .select("url, price, in_stock, image_url")
+                .in_("url", url_list).execute().data or [])
+        for r in rows:
+            out[r["url"]] = {"price": r.get("price"), "in_stock": r.get("in_stock"),
+                             "image_url": r.get("image_url")}
+    except Exception as exc:
+        logger.warning("[current-prices] %s", exc)
+    return {"prices": out}
+
+
 @router.get("/alex/top-value")
 async def top_value(category: str = Query(...), limit: int = Query(12, le=20)):
     """Топ продукти по стойност (Pazarko Score) в категорията — за кликаемия ранг."""

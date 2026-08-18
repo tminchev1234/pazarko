@@ -774,6 +774,18 @@ input,textarea,select{font-family:inherit}
 .tv-store{font-size:11px;color:var(--muted);margin-top:2px}
 .tv-price{flex:none;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .tv-foot{padding:12px 8px 4px;text-align:center;font-size:11.5px;color:var(--faint,#94a3b8)}
+/* ── Запазени / наскоро гледани ── */
+.nav-badge{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:#ef4444;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;line-height:1}
+.vrd-btn-row{display:flex;gap:8px}
+.vrd-btn-row .vrd-watch-btn{width:auto;flex:1}
+.vrd-save-btn.saved{border-style:solid;border-color:#f59e0b;color:#b45309;background:#fffbeb}
+.vrd-saved-note{font-size:12.5px;color:#334155;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:9px 12px;margin-bottom:10px;line-height:1.4}
+.vrd-saved-note b{font-weight:800}
+.sv-sec-hd{font-size:12px;font-weight:800;letter-spacing:.04em;color:#475569;padding:8px 8px 6px;text-transform:uppercase}
+.sv-empty{padding:16px 12px;color:var(--muted);font-size:13px;text-align:center;line-height:1.5}
+.tv-row .sv-chg{font-size:11px;font-weight:800;margin-left:6px}
+.sv-rm{flex:none;width:28px;height:28px;border-radius:8px;border:1px solid var(--border);color:#9ca3af;font-size:13px;cursor:pointer;background:#fff}
+.sv-rm:hover{color:#dc2626;border-color:#fecaca;background:#fef2f2}
 
 /* ── RESPONSIVE ── */
 @media(max-width:768px){
@@ -836,6 +848,7 @@ input,textarea,select{font-family:inherit}
       <button type="submit" title="Търси">🔍</button>
       <div class="nav-suggest" id="navSuggest"></div>
     </form>
+    <button class="nav-devices" id="navSavedBtn" onclick="openSaved()" title="Запазени и наскоро гледани" style="position:relative">🔖<span id="navSavedCount" class="nav-badge" style="display:none"></span></button>
     <button class="nav-devices" onclick="openMyDevices()" title="Моята техника">📦</button>
     <button class="nav-ask" onclick="openChat()">💬 Попитай Alex</button>
     <button id="navLogin" onclick="alexAuth()" title="Вход с Google"
@@ -923,8 +936,12 @@ input,textarea,select{font-family:inherit}
       <div class="vrd-related-title">Свързани продукти</div>
       <div class="vrd-related-scroll" id="vrdRelScroll"></div>
     </div>
+    <div id="vrdSavedNote" style="display:none"></div>
     <div class="vrd-watch-row" id="vrdWatchRow">
-      <button class="vrd-watch-btn" id="vrdWatchBtn" onclick="toggleWatchForm()">🔔 Проследи цената</button>
+      <div class="vrd-btn-row">
+        <button class="vrd-watch-btn vrd-save-btn" id="vrdSaveBtn" onclick="toggleSave()">🔖 Запази</button>
+        <button class="vrd-watch-btn" id="vrdWatchBtn" onclick="toggleWatchForm()">🔔 Проследи цената</button>
+      </div>
       <div class="vrd-watch-form" id="vrdWatchForm" style="display:none">
         <input class="vrd-watch-input" id="wfEmail" type="email" placeholder="твоят@имейл.com">
         <div style="display:flex;gap:8px;align-items:center">
@@ -938,6 +955,17 @@ input,textarea,select{font-family:inherit}
       <a class="vrd-go" id="vrdGoBtn" href="#" target="_blank" rel="noopener">Виж в магазина →</a>
       <button class="vrd-close-btn" onclick="closeVerdict()">Затвори</button>
     </div>
+  </div>
+</div>
+
+<!-- Запазени + Наскоро разгледани -->
+<div class="tv-ov" id="savedOv" onclick="if(event.target===this)closeSaved()">
+  <div class="tv-modal">
+    <div class="tv-head">
+      <div class="tv-title">🔖 Запазени и наскоро гледани</div>
+      <button class="tv-close" onclick="closeSaved()">✕</button>
+    </div>
+    <div class="tv-body" id="savedBody"></div>
   </div>
 </div>
 
@@ -1853,6 +1881,9 @@ function showVerdict(prod) {
   ov.style.display = 'flex';
   document.body.style.overflow = 'hidden';
 
+  _pushRecent(prod);      // наскоро гледани
+  _refreshSaveBtn();      // състояние на „Запази" + спад откакто запази
+
   const _cat = prod.category || _catSlug || '';
 
   // Load verdict + price history in parallel
@@ -2193,6 +2224,118 @@ function closeTopValue() {
   const ov = document.getElementById('tvOv');
   if (ov) ov.classList.remove('open');
   // ако vrd-модалът е отворен, запази скрола заключен; иначе върни
+  if (document.getElementById('vrdOv').style.display !== 'flex') document.body.style.overflow = '';
+}
+
+// ═══════════════════════════════════════
+// ЗАПАЗЕНИ + НАСКОРО ГЛЕДАНИ (localStorage — 0 сървър)
+// ═══════════════════════════════════════
+function _lsGet(k) { try { return JSON.parse(localStorage.getItem(k)) || []; } catch { return []; } }
+function _lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+function _slim(p) {
+  return { raw_name: p.raw_name, price: p.price, old_price: p.old_price,
+    discount_pct: p.discount_pct, store: p.store, image_url: p.image_url,
+    url: p.url, category: p.category || '', cat_label: p.cat_label || '' };
+}
+function _pushRecent(p) {
+  if (!p || !p.url) return;
+  let r = _lsGet('pz_recent').filter(x => x.url !== p.url);
+  r.unshift(Object.assign(_slim(p), { ts: Date.now() }));
+  _lsSet('pz_recent', r.slice(0, 16));
+}
+function _isSaved(url) { return _lsGet('pz_saved').some(x => x.url === url); }
+function toggleSave() {
+  const p = _vrdProd; if (!p || !p.url) return;
+  let s = _lsGet('pz_saved');
+  if (s.some(x => x.url === p.url)) s = s.filter(x => x.url !== p.url);
+  else s.unshift(Object.assign(_slim(p), { savedPrice: p.price, savedAt: Date.now() }));
+  _lsSet('pz_saved', s);
+  _refreshSaveBtn();
+  _updateSavedBadge();
+}
+function _updateSavedBadge() {
+  const b = document.getElementById('navSavedCount');
+  if (!b) return;
+  const n = _lsGet('pz_saved').length;
+  b.textContent = n; b.style.display = n ? 'flex' : 'none';
+}
+function _refreshSaveBtn() {
+  const btn = document.getElementById('vrdSaveBtn');
+  const note = document.getElementById('vrdSavedNote');
+  if (!btn || !_vrdProd) return;
+  const saved = _isSaved(_vrdProd.url);
+  btn.innerHTML = saved ? '🔖 Запазено ✓' : '🔖 Запази';
+  btn.classList.toggle('saved', saved);
+  if (!note) return;
+  if (saved) {
+    const rec = _lsGet('pz_saved').find(x => x.url === _vrdProd.url);
+    const sp = rec && rec.savedPrice, cur = _vrdProd.price;
+    let chg = '';
+    if (sp && cur) {
+      const d = Math.round((cur - sp) * 100) / 100;
+      chg = d < 0 ? ` · <b style="color:#16a34a">▼ ${fmt(Math.abs(d))} по-евтино</b> откакто запази`
+          : d > 0 ? ` · <span style="color:#dc2626">▲ ${fmt(d)} по-скъпо</span> откакто запази`
+          : ' · без промяна';
+    }
+    const dt = rec && rec.savedAt ? new Date(rec.savedAt).toLocaleDateString('bg-BG') : '';
+    note.innerHTML = `<div class="vrd-saved-note">🔖 Запазена${dt ? ' на ' + dt : ''} за ${sp ? fmt(sp) : '—'}${chg}</div>`;
+    note.style.display = 'block';
+  } else { note.innerHTML = ''; note.style.display = 'none'; }
+}
+
+async function openSaved() {
+  const ov = document.getElementById('savedOv');
+  const body = document.getElementById('savedBody');
+  if (!ov || !body) return;
+  ov.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  const saved = _lsGet('pz_saved');
+  const recent = _lsGet('pz_recent').filter(r => !saved.some(s => s.url === r.url));
+  const render = (priceMap) => {
+    let html = `<div class="sv-sec-hd">🔖 Запазени (${saved.length})</div>`;
+    html += saved.length ? saved.map(p => _svRow(p, true, priceMap)).join('')
+      : '<div class="sv-empty">Още нямаш запазени.<br>Отвори продукт и натисни „🔖 Запази" — ще следим спада на цената.</div>';
+    html += `<div class="sv-sec-hd" style="margin-top:14px">🕘 Наскоро разгледани</div>`;
+    html += recent.length ? recent.slice(0, 12).map(p => _svRow(p, false, null)).join('')
+      : '<div class="sv-empty">Празно.</div>';
+    body.innerHTML = html;
+  };
+  render(null);   // моментално от кеша
+  // после — живи цени за спада „откакто запази"
+  if (saved.length) {
+    try {
+      const urls = saved.map(s => s.url).filter(Boolean).join(',');
+      const d = await apiFetch('/alex/current-prices?urls=' + encodeURIComponent(urls));
+      render(d.prices || {});
+    } catch {}
+  }
+}
+function _svRow(p, showSaved, priceMap) {
+  const obj = ea(JSON.stringify(_slim(p)));
+  const live = priceMap && priceMap[p.url] ? priceMap[p.url].price : null;
+  const shown = live != null ? live : p.price;
+  let chg = '';
+  if (showSaved && p.savedPrice && live != null) {
+    const d = Math.round((live - p.savedPrice) * 100) / 100;
+    if (d < 0) chg = `<span class="sv-chg" style="color:#16a34a">▼ ${fmt(Math.abs(d))}</span>`;
+    else if (d > 0) chg = `<span class="sv-chg" style="color:#dc2626">▲ ${fmt(d)}</span>`;
+  }
+  const rm = showSaved ? `<button class="sv-rm" title="Премахни" onclick="event.stopPropagation();_removeSaved('${ea(p.url)}')">✕</button>` : '';
+  return `<div class="tv-row" onclick="closeSaved();setTimeout(()=>showVerdict(${obj}),60)">
+    <div class="tv-img">${p.image_url ? `<img src="${ea(p.image_url)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='📦'">` : '📦'}</div>
+    <div class="tv-info"><div class="tv-name">${eh(p.raw_name || '')}</div>
+      <div class="tv-store">${eh(sl(p.store))}</div></div>
+    <div class="tv-price">${fmt(shown)}${chg}</div>${rm}
+  </div>`;
+}
+function _removeSaved(url) {
+  _lsSet('pz_saved', _lsGet('pz_saved').filter(x => x.url !== url));
+  _updateSavedBadge();
+  openSaved();   // пре-рендер
+}
+function closeSaved() {
+  const ov = document.getElementById('savedOv');
+  if (ov) ov.classList.remove('open');
   if (document.getElementById('vrdOv').style.display !== 'flex') document.body.style.overflow = '';
 }
 
@@ -3421,6 +3564,7 @@ function tradeInDevice(deviceName) {
   }
   window.addEventListener('load', function(){ initClerk(0); });
 })();
+window.addEventListener('load', function(){ try { _updateSavedBadge(); } catch(e){} });
 </script>
 </body>
 </html>
