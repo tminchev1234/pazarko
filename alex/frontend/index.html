@@ -759,8 +759,12 @@ input,textarea,select{font-family:inherit}
 .tv-close:hover{background:#f3f4f6}
 .tv-body{overflow-y:auto;padding:8px 12px 16px}
 .tv-load{padding:28px;text-align:center;color:var(--muted);font-size:14px}
-.tv-row{display:flex;align-items:center;gap:12px;padding:10px 10px;border-radius:12px;cursor:pointer;transition:background .12s}
+.tv-row{display:flex;align-items:center;gap:12px;padding:10px 10px;border-radius:12px;cursor:pointer;transition:background .12s;border:1px solid transparent}
 .tv-row:hover{background:#eef2ff}
+/* Текущо разглежданата оферта — откроена */
+.tv-row.current{background:#eef2ff;border-color:#c7d2fe;box-shadow:inset 3px 0 0 #6366f1}
+.tv-row.current:hover{background:#e0e7ff}
+.tv-badge-now{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:#4f46e5;background:#e0e7ff;border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle}
 .tv-rank{flex:none;width:34px;text-align:center;font-size:15px;font-weight:900;color:#64748b;font-variant-numeric:tabular-nums}
 .tv-rank.top{font-size:20px}
 .tv-img{flex:none;width:48px;height:48px;border-radius:9px;background:#f9fafb;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:20px}
@@ -1869,7 +1873,7 @@ function showVerdict(prod) {
       try {
         const d = await apiFetch(`/alex/price-history?url=${encodeURIComponent(prod.url)}`);
         _renderDealBadge(d.deal_score, prod.old_price, d);
-        _renderSparkline(d.history, prod.price);
+        _renderSparkline(d.history, prod.price, d.deal_score);
         _renderPriceSignals(d);
         _renderForecast(d.forecast);
       } catch { _renderSparkline(null, prod.price); }
@@ -1974,7 +1978,7 @@ function _renderForecast(f) {
     + `<div style="font-size:12px;color:var(--muted)">${eh(detail)}</div>`;
 }
 
-function _renderSparkline(history, currentPrice) {
+function _renderSparkline(history, currentPrice, dealScore) {
   const wrap = document.getElementById('vrdHistory');
   const cont = document.getElementById('vrdSparkline');
   if (!wrap || !cont) return;
@@ -2005,18 +2009,28 @@ function _renderSparkline(history, currentPrice) {
     + prices.map((p, i) => `L ${px(i).toFixed(1)},${py(p).toFixed(1)}`).join(' ')
     + ` L ${px(n - 1).toFixed(1)},${H - pad} L ${px(0).toFixed(1)},${H - pad} Z`;
 
-  // Цвят по позиция на ТЕКУЩАТА цена спрямо диапазона (близо до дъното = зелено)
-  const rel = (cur - minP) / range;                 // 0 = на дъното, 1 = на върха
-  const col = rel <= 0.15 ? '#16a34a' : rel >= 0.85 ? '#dc2626' : '#6366f1';
-  const gid = 'sg' + Math.floor(rel * 1000);
+  // Цвят + описание от ЕДИННИЯ backend deal_score → съгласувано с бейджа и прогнозата
+  // (описателно за ПОЗИЦИЯТА; купи/изчакай казва само прогнозата → без противоречие).
+  const SC = {
+    lowest:     ['#16a34a', '#dcfce7', '🏆 На историческото си дъно'],
+    good:       ['#16a34a', '#dcfce7', '🟢 Близо до дъното'],
+    real:       ['#16a34a', '#dcfce7', '✅ Под обичайната цена'],
+    suspicious: ['#d97706', '#fef3c7', '⚠️ Това е обичайната цена'],
+    high:       ['#dc2626', '#fee2e2', '🔺 Близо до върха на диапазона'],
+    typical:    ['#6366f1', '#eef2ff', '≈ Обичайна цена'],
+  };
+  const sc2 = SC[dealScore];
+  // fallback (unknown deal_score) → описателно по позиция, БЕЗ препоръка
+  const rel = (cur - minP) / range;
+  const col = sc2 ? sc2[0] : (rel <= 0.15 ? '#16a34a' : rel >= 0.85 ? '#dc2626' : '#6366f1');
+  const gid = 'sg' + (dealScore || Math.floor(rel * 100));
 
   const iMin = prices.indexOf(minP);
   const curX = px(n - 1), curY = py(cur), minX = px(iMin), minY = py(minP);
 
-  let verdict = '';
-  if (rel <= 0.15)      verdict = `<span class="vrd-spark-verdict" style="background:#dcfce7;color:#16a34a">🏆 Сега е на/близо до дъното</span>`;
-  else if (rel >= 0.85) verdict = `<span class="vrd-spark-verdict" style="background:#fee2e2;color:#dc2626">🔴 Сега е близо до върха — изчакай</span>`;
-  else                  verdict = `<span class="vrd-spark-verdict" style="background:#eef2ff;color:#4f46e5">≈ Сега е в средата на диапазона</span>`;
+  const verdict = sc2
+    ? `<span class="vrd-spark-verdict" style="background:${sc2[1]};color:${sc2[0]}">${sc2[2]}</span>`
+    : `<span class="vrd-spark-verdict" style="background:#eef2ff;color:#4f46e5">${rel <= 0.15 ? '🟢 Близо до дъното' : rel >= 0.85 ? '🔺 Близо до върха' : '≈ В средата на диапазона'}</span>`;
 
   cont.innerHTML = `
     <div class="vrd-spark-card">
@@ -2156,16 +2170,18 @@ async function showTopValue(category) {
     if (ttl) ttl.textContent = `🏅 Топ по стойност — ${d.cat_label || ''}`;
     const items = d.results || [];
     if (!items.length) { body.innerHTML = '<div class="tv-load">Няма данни.</div>'; return; }
+    const curUrl = (_vrdProd && _vrdProd.url) || '';
     body.innerHTML = items.map(p => {
       const medal = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : `#${p.rank}`;
+      const isCur = curUrl && p.url === curUrl;
       const obj = ea(JSON.stringify({
         raw_name: p.raw_name, price: p.price, store: p.store,
         image_url: p.image_url, url: p.url, category,
       }));
-      return `<div class="tv-row" onclick="closeTopValue();setTimeout(()=>showVerdict(${obj}),60)">
+      return `<div class="tv-row ${isCur ? 'current' : ''}" onclick="closeTopValue();setTimeout(()=>showVerdict(${obj}),60)">
         <div class="tv-rank ${p.rank <= 3 ? 'top' : ''}">${medal}</div>
         <div class="tv-img">${p.image_url ? `<img src="${ea(p.image_url)}" alt="" loading="lazy" onerror="this.parentElement.innerHTML='📦'">` : '📦'}</div>
-        <div class="tv-info"><div class="tv-name">${eh(p.raw_name || '')}</div>
+        <div class="tv-info"><div class="tv-name">${eh(p.raw_name || '')}${isCur ? ' <span class="tv-badge-now">разглеждаш</span>' : ''}</div>
           <div class="tv-store">${eh(sl(p.store))}</div></div>
         <div class="tv-price">${fmt(p.price)}</div>
       </div>`;
