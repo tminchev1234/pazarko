@@ -3120,6 +3120,17 @@ def _ident_sig(name: str) -> set:
     return sig
 
 
+def _connectivity(name: str) -> Optional[str]:
+    """Разграничава клетъчна (4G/5G/LTE) от WiFi-only версия — при таблети това е
+    различен продукт с различна цена (напр. Galaxy Tab A11 4G ≠ WiFi)."""
+    low = (name or "").lower()
+    if re.search(r"\b(4g|5g|lte|cellular)\b", low):
+        return "cell"
+    if re.search(r"wi[\s\-]?fi", low):
+        return "wifi"
+    return None
+
+
 def _same_model_other_stores(sb, o: dict, specs: dict) -> Optional[dict]:
     """Същият модел в други магазини — чисто DB, консервативно съвпадение.
     Два пътя: (1) истински SKU код (букви+цифри ≥4, напр. X1504VA, 50Q7F2, CH720N)
@@ -3139,6 +3150,7 @@ def _same_model_other_stores(sb, o: dict, specs: dict) -> Optional[dict]:
             "5g", "nfc", "wifi", "bluetooth", "mah"}
     mine_stor = specs.get("storage_gb")
     mine_scr = specs.get("screen_inch")
+    mine_conn = _connectivity(name)
     # САМО истински моделен код (букви+цифри, ≥4, не спец като '256gb'/'90hz').
     # Числа-само ('iPhone 17') НЕ ползваме — рискуват да смесят различни модели
     # (17 vs 17 Pro) и да покажат грешна цена → по-добре да мълчим, отколкото да лъжем.
@@ -3190,11 +3202,13 @@ def _same_model_other_stores(sb, o: dict, specs: dict) -> Optional[dict]:
         if mine_price and pr < mine_price * 0.4:          # твърде евтино → аксесоар, не моделът
             continue
         rs = _extract_specs(rn)
-        # памет/екран трябва да съвпадат, ако и двете са известни (различна конфигурация → не)
+        # памет/екран/свързаност трябва да съвпадат, ако и двете са известни
         if mine_stor and rs.get("storage_gb") and rs["storage_gb"] != mine_stor:
             continue
         if mine_scr and rs.get("screen_inch") and abs(rs["screen_inch"] - mine_scr) > 0.2:
             continue
+        if mine_conn and _connectivity(rn) and _connectivity(rn) != mine_conn:
+            continue                       # 4G/5G ≠ WiFi → различен продукт
         st = r.get("store")
         if st not in seen or pr < seen[st]["price"]:
             seen[st] = {"store": st, "price": round(pr, 2), "url": r.get("url"),
