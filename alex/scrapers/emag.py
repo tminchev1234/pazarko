@@ -269,11 +269,23 @@ def _extract_brand(name: str) -> str:
         "Nintendo", "Xbox", "PlayStation", "Logitech", "Razer", "SteelSeries",
         "Canon", "Nikon", "Fujifilm", "GoPro", "DJI",
     ]
-    name_lower = name.lower()
+    import re as _re
+    low = name.lower()
+    # Върни бранда, който се появява НАЙ-РАНО в името (като цяла дума), а не първия
+    # в списъка — иначе „Smart Google TV" бие „TCL" (TCL е в началото на името).
+    best, best_pos = None, 10 ** 9
     for brand in known_brands:
-        if name_lower.startswith(brand.lower()) or f" {brand.lower()} " in name_lower:
-            return brand
-    # Fall back to first word
+        m = _re.search(r"(?<![a-zа-я])" + _re.escape(brand.lower()) + r"(?![a-zа-я])", low)
+        if m and m.start() < best_pos:
+            best, best_pos = brand, m.start()
+    if best:
+        return best
+    # fallback: първата смислена дума (прескочи типовата дума „Телевизор/Смартфон…")
+    _skip = {"телевизор", "смартфон", "мобилен", "телефон", "лаптоп", "таблет",
+             "слушалки", "пералня", "хладилник", "климатик", "прахосмукачка"}
+    for tok in name.split():
+        if tok.lower() not in _skip:
+            return tok
     return name.split()[0] if name else ""
 
 

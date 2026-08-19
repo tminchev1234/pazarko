@@ -20,6 +20,33 @@ _DRYER_RE = re.compile(
     r"(сушилн|tumble|\bdryer\b|trockner|\bmiele\s+t[wc]\w*|\baeg\s+t\w*\d)", re.IGNORECASE)
 
 
+_KNOWN_BRANDS = ["Samsung", "Apple", "Sony", "Huawei", "Xiaomi", "OnePlus", "Google", "LG",
+    "Philips", "Bose", "JBL", "Sennheiser", "AKG", "Jabra", "Lenovo", "HP", "Dell", "Asus",
+    "Acer", "MSI", "Toshiba", "Panasonic", "Hisense", "TCL", "Grundig", "Bosch", "Miele",
+    "Whirlpool", "Electrolux", "Indesit", "Beko", "Gorenje", "AEG", "Sharp", "Nintendo",
+    "Xbox", "PlayStation", "Logitech", "Razer", "SteelSeries", "Canon", "Nikon", "Fujifilm",
+    "GoPro", "DJI", "METZ", "Realme", "Motorola", "Nokia", "Honor", "Oppo", "Poco", "Nothing"]
+_BRAND_SKIP = {"телевизор", "смартфон", "мобилен", "телефон", "лаптоп", "таблет", "слушалки",
+               "пералня", "хладилник", "климатик", "прахосмукачка", "сушилня"}
+
+
+def _fix_brand(name: str, current):
+    """Брандът = най-РАНО появяващият се известен бранд в името (не първия в списъка),
+    иначе първата смислена дума. Поправя 'Smart Google TV' → TCL и 'Телевизор' → реалния бранд."""
+    low = (name or "").lower()
+    best, bp = None, 10 ** 9
+    for b in _KNOWN_BRANDS:
+        m = re.search(r"(?<![a-zа-я])" + re.escape(b.lower()) + r"(?![a-zа-я])", low)
+        if m and m.start() < bp:
+            best, bp = b, m.start()
+    if best:
+        return best
+    for tok in (name or "").split():
+        if tok.lower() not in _BRAND_SKIP:
+            return tok
+    return current
+
+
 def _reclass_cat(name: str, category):
     cat = (category or "").strip()
     nm = (name or "").lower()
@@ -64,6 +91,7 @@ def main():
         # Прекатегоризирай сушилните преди запис (и в история, и в оферти)
         for row in data:
             row["category"] = _reclass_cat(row.get("raw_name", ""), row.get("category"))
+            row["brand"] = _fix_brand(row.get("raw_name", ""), row.get("brand"))
         logger.info("Pushing %d from %s ...", len(data), fname)
 
         # 1. Append to price_history (never delete)
