@@ -1503,12 +1503,26 @@ def _extract_specs(name: str) -> dict:
     out: dict = {}
     _RAM_OK = {2, 3, 4, 6, 8, 12, 16, 24, 32, 64}
     _STOR_OK = {16, 32, 64, 128, 256, 512, 1024, 2048, 4096}
-    # RAM (GB RAM / RAM GB / 'X GB + Y GB' → първото е RAM); само стандартни стойности
+    # RAM (GB RAM / RAM GB / 'X GB + Y GB' / 'XGB/YGB' → първото е RAM); само стандартни
     m = (re.search(r"(\d+)\s?gb\s*(?:ram|рам)", low)
          or re.search(r"ram\s*(\d+)\s?gb", low)
-         or re.search(r"(\d+)\s?gb\s*\+\s*\d+\s?gb", low))
+         or re.search(r"(\d+)\s?gb\s*\+\s*\d+\s?gb", low)
+         or re.search(r"(\d{1,3})\s?gb\s*/\s*\d{1,4}\s?(?:gb|tb)", low))  # '24GB/512GB'
     if m and int(m.group(1)) in _RAM_OK:
         out["ram_gb"] = int(m.group(1))
+    # Процесорен клас (лаптопи) — разграничава i5/i7/Core 3/Ultra 5/Ryzen 5 варианти
+    m_i = re.search(r"\b(i[3579])\b", low)
+    m_ultra = re.search(r"\bcore\s*ultra\s*(\d)\b", low) or re.search(r"\bultra\s*(\d)\b", low)
+    m_core = re.search(r"\bcore\s*(\d)\b", low)
+    m_ryzen = re.search(r"\bryzen\s*(\d)\b", low)
+    if m_i:
+        out["cpu"] = m_i.group(1)                     # i5, i7
+    elif m_ultra:
+        out["cpu"] = "ultra" + m_ultra.group(1)
+    elif m_core:
+        out["cpu"] = "core" + m_core.group(1)         # Core 3
+    elif m_ryzen:
+        out["cpu"] = "ryzen" + m_ryzen.group(1)
     # Памет (TB → GB, или ROM/SSD/HDD, или второто число в 'X GB + Y GB', или ', X GB')
     mt = re.search(r"(\d+)\s?tb", low)
     if mt:
@@ -3151,6 +3165,8 @@ def _same_model_other_stores(sb, o: dict, specs: dict) -> Optional[dict]:
     mine_stor = specs.get("storage_gb")
     mine_scr = specs.get("screen_inch")
     mine_conn = _connectivity(name)
+    mine_ram = specs.get("ram_gb")
+    mine_cpu = specs.get("cpu")
     # САМО истински моделен код (букви+цифри, ≥4, не спец като '256gb'/'90hz').
     # Числа-само ('iPhone 17') НЕ ползваме — рискуват да смесят различни модели
     # (17 vs 17 Pro) и да покажат грешна цена → по-добре да мълчим, отколкото да лъжем.
@@ -3209,6 +3225,17 @@ def _same_model_other_stores(sb, o: dict, specs: dict) -> Optional[dict]:
             continue
         if mine_conn and _connectivity(rn) and _connectivity(rn) != mine_conn:
             continue                       # 4G/5G ≠ WiFi → различен продукт
+        if mine_ram and rs.get("ram_gb") and rs["ram_gb"] != mine_ram:
+            continue                       # различна RAM конфигурация (24GB ≠ 8GB)
+        if mine_cpu and rs.get("cpu") and rs["cpu"] != mine_cpu:
+            continue                       # различен процесор (i5 ≠ Core 3 ≠ i7)
+        # Конфигурируем продукт (лаптоп: имаме RAM/CPU) → искай ПОТВЪРДЕНА конфигурация,
+        # не просто „непротиворечаща". Базов SKU без специфики (Ардес „PV15250") се пропуска.
+        if mode == "sku" and (mine_ram or mine_cpu):
+            ram_ok = bool(mine_ram and rs.get("ram_gb") == mine_ram)
+            cpu_ok = bool(mine_cpu and rs.get("cpu") == mine_cpu)
+            if not (ram_ok or cpu_ok):
+                continue
         st = r.get("store")
         if st not in seen or pr < seen[st]["price"]:
             seen[st] = {"store": st, "price": round(pr, 2), "url": r.get("url"),
