@@ -3214,10 +3214,12 @@ def _same_model_other_stores(sb, o: dict, specs: dict) -> Optional[dict]:
         if brand and brand.lower() not in rl:            # същ бранд
             continue
         # Съвпадение по избрания път:
-        #  sku → кандидатът съдържа ВСИЧКИ кодови токени (пълния SKU) като substring
+        #  sku → кандидатът съдържа ВСИЧКИ кодови токени като ЦЕЛИ ДУМИ (BQ244 ≠ BQ2444;
+        #        substring мачване смесва различни SKU конфигурации)
         #  sig → идентичностното МНОЖЕСТВО е ИДЕНТИЧНО (S25 ≠ S25 Ultra ≠ 16 Pro)
         if mode == "sku":
-            if not all(t in rl for t in model_toks):
+            rl_toks = set(re.findall(r"[a-z0-9]+", rl))
+            if not all(t in rl_toks for t in model_toks):
                 continue
         else:
             if _ident_sig(rn) != mine_sig:
@@ -3298,15 +3300,31 @@ def _category_value_ranks(sb, cat: str):
         offp += step
     scored = sorted(((round(alex_score(x), 1), x) for x in cofs), key=lambda t: -t[0])
     ranks: dict = {}
-    top: list = []
     for i, (s, x) in enumerate(scored):
         u = x.get("url")
         if u and u not in ranks:
             ranks[u] = i + 1
-        if len(top) < 20:
-            top.append({"rank": i + 1, "raw_name": x.get("raw_name"), "price": x.get("price"),
-                        "image_url": x.get("image_url"), "url": u, "store": x.get("store"),
-                        "score": s})
+    # Топ-листата за показване — разнообразие по магазин (макс 3/магазин),
+    # после допълни без ограничение. Рангът остава истинската позиция по стойност.
+    top: list = []
+    picked: set = set()
+    scnt: dict = {}
+    for cap in (3, 999):
+        for s, x in scored:
+            if len(top) >= 12:
+                break
+            u = x.get("url")
+            if not u or u in picked:
+                continue
+            st = x.get("store") or ""
+            if scnt.get(st, 0) >= cap:
+                continue
+            top.append({"rank": ranks.get(u), "raw_name": x.get("raw_name"), "price": x.get("price"),
+                        "image_url": x.get("image_url"), "url": u, "store": st, "score": s})
+            picked.add(u)
+            scnt[st] = scnt.get(st, 0) + 1
+        if len(top) >= 12:
+            break
     entry = {"ts": now, "ranks": ranks, "total": len(cofs), "top": top}
     _CAT_RANK_CACHE[cat] = entry
     return entry
