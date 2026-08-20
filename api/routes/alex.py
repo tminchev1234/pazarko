@@ -4988,6 +4988,61 @@ async def category_hot_deals(
 _HP_ROW1_CATS = ["phones", "laptops", "tvs", "tablets"]
 _HP_ROW2_CATS = ["washing", "vacuum", "ac", "fridges"]
 
+# 'Оферта на деня' — желани „герой" категории (ротират по ден) + разпознаваеми марки
+_DAY_PICK_CATS = ["phones", "laptops", "tvs", "tablets"]
+_DAY_PICK_BRANDS = {"samsung", "apple", "sony", "lg", "xiaomi", "lenovo", "hp", "dell", "asus",
+    "acer", "huawei", "tcl", "hisense", "philips", "panasonic", "google", "honor", "realme",
+    "oppo", "motorola", "nothing", "msi"}
+
+
+def _pick_day_offer(sb, shown_urls: set):
+    """Герой-продукт за деня: свестен телефон/лаптоп/ТВ/таблет на РЕАЛНО дъно (от нашата
+    история), а не най-голямата процентна отстъпка. Категорията ротира по ден → разнообразие.
+    Фиктивните намаления се изключват; отстъпката е само лек фактор."""
+    yday = datetime.now().timetuple().tm_yday
+    verdicts = _get_verdicts()
+    n = len(_DAY_PICK_CATS)
+    order = _DAY_PICK_CATS[yday % n:] + _DAY_PICK_CATS[:yday % n]   # днешната категория първо
+    for cat in order:
+        minp = max(_CAT_MIN_PRICE.get(cat, 0), 1)
+        try:
+            rows = (sb.table("electronics_offers")
+                    .select("raw_name, brand, category, price, old_price, discount_pct, store, image_url, url")
+                    .eq("category", cat).not_.is_("old_price", "null")
+                    .gte("price", minp).limit(250).execute().data or [])
+        except Exception:
+            rows = []
+        cands = []
+        for p in _fix_images(rows):
+            u = p.get("url", "")
+            if not p.get("image_url") or u in shown_urls:
+                continue
+            old = float(p.get("old_price") or 0)
+            cur = float(p.get("price") or 0)
+            disc = p.get("discount_pct") or (round((1 - cur / old) * 100, 1) if old > cur > 0 else 0)
+            if disc < 8:
+                continue                       # трябва да е реална оферта
+            v = verdicts.get(u)
+            if v == "suspicious":
+                continue                       # фиктивно намаление → никога „оферта на деня"
+            score = 0.0
+            if v in ("lowest", "good", "real"):
+                score += 4.0                   # истинско дъно — нашият честен сигнал
+            if (p.get("brand") or "").lower() in _DAY_PICK_BRANDS:
+                score += 1.2                   # разпознаваема марка = по-желан продукт
+            score += min(disc, 40) / 40.0      # лек дял на отстъпката, не доминиращ
+            p["discount_pct"] = disc
+            p["cat_label"] = _CAT_LABELS.get(cat, cat)
+            p["_hero"] = score
+            cands.append(p)
+        if cands:
+            cands.sort(key=lambda x: -x["_hero"])
+            top = cands[:6]
+            pick = top[(yday // n) % len(top)]  # ротира и самия продукт през дните
+            pick.pop("_hero", None)
+            return pick
+    return None
+
 
 _HP_STORES = ["emag", "technopolis", "technomarket", "zora", "ozone", "ardes"]
 
@@ -5117,10 +5172,11 @@ async def homepage_picks():
                 deals_cands.append(rp)
                 seen_u.add(rp.get("url"))
         deals_cands.sort(key=lambda x: x.get("discount_pct", 0) or 0, reverse=True)
-        # 'Оферта на деня' — детерминирано, ротира през топ-10 по ден от годината
-        if deals_cands:
-            di = datetime.now().timetuple().tm_yday % min(10, len(deals_cands))
-            day_pick = deals_cands[di]
+        # 'Оферта на деня' — герой продукт от желана категория на реално дъно (ротира по ден).
+        # Fallback към най-голямата обявена оферта само ако няма подходящ герой.
+        day_pick = _pick_day_offer(sb, shown_urls)
+        if day_pick is None and deals_cands:
+            day_pick = deals_cands[datetime.now().timetuple().tm_yday % min(10, len(deals_cands))]
         dp_url = day_pick.get("url") if day_pick else None
         # Row3: разнообразие — първо макс 1/категория, после допълни до 4 (макс 2/категория)
         row3: list[dict] = []
