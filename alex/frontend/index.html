@@ -692,6 +692,12 @@ input,textarea,select{font-family:inherit}
 .vrd-rel-store{font-size:10px;color:var(--muted);margin-top:2px}
 /* ── Card insights: спец-чипове, пили, сигнали, цени по магазини (0 токена) ── */
 .vrd-insights{margin:12px 0 4px;display:flex;flex-direction:column;gap:10px}
+.vrd-rating{display:flex;align-items:center;gap:8px}
+.vrd-rating b{font-size:15px;font-weight:800;color:#0f172a}
+.vrd-rev-count{font-size:12px;color:var(--muted)}
+.vrd-stars{position:relative;display:inline-block;font-size:15px;line-height:1;letter-spacing:1px;white-space:nowrap}
+.vrd-stars-bg{color:#e2e8f0}
+.vrd-stars-fg{position:absolute;left:0;top:0;overflow:hidden;color:#f59e0b}
 .vrd-chips{display:flex;flex-wrap:wrap;gap:6px}
 .vrd-chip{font-size:11.5px;font-weight:600;color:#334155;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;padding:3px 9px;white-space:nowrap}
 .vrd-pills{display:flex;flex-wrap:wrap;gap:8px}
@@ -2114,10 +2120,23 @@ function _renderPriceSignals(d) {
 
 // Безплатни данни от таблиците: спец-чипове, ток/година, ранг по стойност,
 // наличност, същ модел в други магазини.
+function _starHtml(r) {
+  const pct = Math.max(0, Math.min(100, r / 5 * 100));
+  return `<span class="vrd-stars"><span class="vrd-stars-bg">★★★★★</span>`
+       + `<span class="vrd-stars-fg" style="width:${pct}%">★★★★★</span></span>`;
+}
+
 function _renderCardMeta(m, prod) {
   if (!m) return;
   const ins = document.getElementById('vrdInsights');
   const blocks = [];
+
+  // Рейтинг/ревюта (когато има данни) — над всичко останало
+  if (m.rating && m.rating_count) {
+    blocks.push(`<div class="vrd-rating">${_starHtml(m.rating)}`
+      + `<b>${Number(m.rating).toFixed(2)}</b>`
+      + `<span class="vrd-rev-count">${Number(m.rating_count).toLocaleString('bg-BG')} ревюта</span></div>`);
+  }
 
   // Ранг по стойност — акцент + кликаем (отваря топ по стойност в категорията)
   if (m.rank && m.rank.rank && m.rank.total) {

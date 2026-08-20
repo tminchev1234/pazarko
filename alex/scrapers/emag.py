@@ -92,11 +92,18 @@ cards.forEach(card => {
     const linkEl = card.querySelector('a[href*="/pd/"], a[href*="/p/"]') || nameEl?.closest('a');
     const link = linkEl?.href || '';
 
+    // Rating — .star-rating-container → .average-rating (число) + "(NNN)" брой ревюта
+    let rating = null, ratingCount = null;
+    const avgEl = card.querySelector('.average-rating');
+    if (avgEl) { const v = parseFloat((avgEl.textContent || '').replace(',', '.')); if (v > 0 && v <= 5) rating = v; }
+    const rtEl = card.querySelector('.star-rating-text');
+    if (rtEl) { const m = (rtEl.textContent || '').match(/\((\d+)\)/); if (m) ratingCount = parseInt(m[1]); }
+
     const key = name + '|' + priceRaw;
     if (seen.has(key)) return;
     seen.add(key);
 
-    products.push({ name, priceRaw, oldRaw, img, link });
+    products.push({ name, priceRaw, oldRaw, img, link, rating, ratingCount });
 });
 
 return JSON.stringify(products);
@@ -225,6 +232,8 @@ def scrape_emag(headless: bool = True, max_categories: int = 99,
                             "image_url":    p.get("img", ""),
                             "url":          p.get("link", url),
                             "in_stock":     True,
+                            "rating":       p.get("rating"),
+                            "rating_count": p.get("ratingCount"),
                             "scraped_at":   scraped_at,
                         })
 

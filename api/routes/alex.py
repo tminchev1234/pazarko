@@ -2177,6 +2177,19 @@ def alex_score(product: dict) -> float:
     if product.get("image_url"):
         score += 0.1
 
+    # 6) Ревюта/рейтинг (само при достатъчно ревюта, за да не е шум)
+    try:
+        rating = float(product.get("rating") or 0)
+        rcount = int(product.get("rating_count") or 0)
+    except (TypeError, ValueError):
+        rating, rcount = 0.0, 0
+    if rating and rcount >= 10:
+        if   rating >= 4.5: score += 0.8
+        elif rating >= 4.2: score += 0.5
+        elif rating >= 3.8: score += 0.2
+        elif rating < 3.2:  score -= 0.5
+        if rcount >= 200:   score += 0.2   # много ревюта = висока увереност/популярност
+
     return round(min(9.8, max(4.0, score)), 1)
 
 
@@ -3275,8 +3288,9 @@ def _category_value_ranks(sb, cat: str):
         return c
     cofs, step, offp = [], 1000, 0
     while len(cofs) < 2000:
+        # select('*') е толерантно към липсващи колони (rating/rating_count преди миграция)
         page = (sb.table("electronics_offers")
-                .select("url, raw_name, price, brand, discount_pct, category, store, image_url")
+                .select("*")
                 .eq("category", cat).range(offp, offp + step - 1).execute().data or [])
         cofs.extend(page)
         if len(page) < step:
@@ -3340,7 +3354,7 @@ async def card_meta(url: str = Query(...), category: str = Query("")):
     try:
         sb = get_supabase()
         off = (sb.table("electronics_offers")
-               .select("raw_name, brand, category, price, discount_pct, store, url, in_stock")
+               .select("*")
                .eq("url", url).limit(1).execute().data or [])
     except Exception as exc:
         logger.warning("[card-meta] %s", exc)
@@ -3381,6 +3395,8 @@ async def card_meta(url: str = Query(...), category: str = Query("")):
         "in_stock": o.get("in_stock"),
         "cross_store": cross,
         "store": o.get("store"),
+        "rating": o.get("rating"),
+        "rating_count": o.get("rating_count"),
     }
 
 
