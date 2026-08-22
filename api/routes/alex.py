@@ -2152,13 +2152,13 @@ def alex_score(product: dict) -> float:
         if   discount >= 30: score += 0.6
         elif discount >= 15: score += 0.3
 
-    # 3) Цена спрямо медианата на категорията (стойност)
+    # 3) Цена спрямо медианата — САМО наказание за надценени; НЯМА бонус за „евтино"
+    #    (евтиното не е стойност само по себе си — иначе бюджетните доминират класацията).
     median = _CATEGORY_MEDIANS.get(category, 0)
     if median and price:
         ratio = price / median
-        if   ratio < 0.5:  score += 0.8
-        elif ratio < 0.75: score += 0.4
-        elif ratio > 2.5:  score -= 0.5
+        if   ratio > 2.5: score -= 0.5
+        elif ratio > 1.8: score -= 0.2
 
     # 4) Известна марка
     top_brands = {
@@ -3304,17 +3304,21 @@ def _category_value_ranks(sb, cat: str):
         u = x.get("url")
         if u and u not in ranks:
             ranks[u] = i + 1
-    # Топ-листата — истинските топ по стойност, подредени 1,2,3… (чиста номерация)
+    # Топ-листата — топ по стойност, БЕЗ дублирани модели (различни цветове/конфиг на
+    # един модел заемат 1 слот) и с чиста позиционна номерация 1,2,3…
     top: list = []
-    seen_t: set = set()
+    seen_models: set = set()
     for s, x in scored:
         if len(top) >= 12:
             break
         u = x.get("url")
-        if not u or u in seen_t:
+        if not u:
             continue
-        seen_t.add(u)
-        top.append({"rank": ranks.get(u), "raw_name": x.get("raw_name"), "price": x.get("price"),
+        key = frozenset(_ident_sig(x.get("raw_name") or "")) or u
+        if key in seen_models:
+            continue
+        seen_models.add(key)
+        top.append({"rank": len(top) + 1, "raw_name": x.get("raw_name"), "price": x.get("price"),
                     "image_url": x.get("image_url"), "url": u, "store": x.get("store"), "score": s})
     entry = {"ts": now, "ranks": ranks, "total": len(cofs), "top": top}
     _CAT_RANK_CACHE[cat] = entry
