@@ -1590,6 +1590,45 @@ def _extract_specs(name: str) -> dict:
     return out
 
 
+_CPU_LABELS = {
+    "i3": "Intel Core i3", "i5": "Intel Core i5", "i7": "Intel Core i7", "i9": "Intel Core i9",
+    "ultra5": "Intel Core Ultra 5", "ultra7": "Intel Core Ultra 7", "ultra9": "Intel Core Ultra 9",
+    "core3": "Intel Core 3", "core5": "Intel Core 5", "core7": "Intel Core 7",
+    "ryzen3": "AMD Ryzen 3", "ryzen5": "AMD Ryzen 5", "ryzen7": "AMD Ryzen 7", "ryzen9": "AMD Ryzen 9",
+}
+
+
+def _spec_table(sp: dict) -> list:
+    """Описани технически характеристики (етикет + стойност) за картата —
+    вместо само чипове потребителят вижда реална мини-спецификация."""
+    def _mem(gb):
+        return f"{gb // 1024} TB" if gb >= 1024 and gb % 1024 == 0 else f"{gb} GB"
+    rows: list = []
+    if sp.get("cpu"):
+        rows.append(("Процесор", _CPU_LABELS.get(sp["cpu"], str(sp["cpu"]).upper())))
+    if sp.get("ram_gb"):
+        rows.append(("RAM памет", f"{sp['ram_gb']} GB"))
+    if sp.get("storage_gb"):
+        rows.append(("Вградена памет", _mem(sp["storage_gb"])))
+    if sp.get("screen_inch"):
+        rows.append(("Екран", f"{sp['screen_inch']:g}\""))
+    if sp.get("resolution"):
+        rows.append(("Резолюция", sp["resolution"]))
+    if sp.get("refresh_hz"):
+        rows.append(("Опресняване", f"{sp['refresh_hz']} Hz"))
+    if sp.get("panel"):
+        rows.append(("Панел", sp["panel"]))
+    if sp.get("camera_mp"):
+        rows.append(("Камера", f"{sp['camera_mp']} MP"))
+    if sp.get("net_5g"):
+        rows.append(("Мрежа", "5G"))
+    if sp.get("capacity_l"):
+        rows.append(("Обем", f"{sp['capacity_l']} л"))
+    if sp.get("energy_class"):
+        rows.append(("Енергиен клас", sp["energy_class"]))
+    return [{"label": l, "value": v} for l, v in rows]
+
+
 def _spec_summary(sp: dict) -> str:
     """Компактно човешко резюме на спецовете (за да не тежи на токените)."""
     parts = []
@@ -2990,6 +3029,7 @@ async def alex_verdict_endpoint(
         f"Продукт: {name}\nЦена: €{price:.2f}\nМагазин: {store}\n"
         + (f"Тип продукт: {cat_label} (описвай го точно като този тип, не гадай)\n" if cat_label else "")
         + "\nБъди директен. Кажи дали си заслужава, за кого е подходящ, и ключовото предимство. "
+          "Завърши с ясна препоръка в едно изречение — купи или има по-добри за тези пари. "
           "НЕ повтаряй цената или магазина в отговора."
     )
 
@@ -3304,10 +3344,21 @@ def _category_value_ranks(sb, cat: str):
         offp += step
     scored = sorted(((round(alex_score(x), 1), x) for x in cofs), key=lambda t: -t[0])
     ranks: dict = {}
+    score_by_url: dict = {}
+    scored_min: list = []          # компактен списък за „по-добра стойност за парите"
     for i, (s, x) in enumerate(scored):
         u = x.get("url")
-        if u and u not in ranks:
+        if not u:
+            continue
+        if u not in ranks:
             ranks[u] = i + 1
+        if u not in score_by_url:
+            score_by_url[u] = s
+            scored_min.append({
+                "url": u, "score": s, "price": x.get("price"),
+                "raw_name": x.get("raw_name"), "store": x.get("store"),
+                "image_url": x.get("image_url"), "sig": _ident_sig(x.get("raw_name") or ""),
+            })
     # Топ-листата — топ по стойност, БЕЗ дублирани модели (различни цветове/конфиг на
     # един модел заемат 1 слот) и с чиста позиционна номерация 1,2,3…
     top: list = []
@@ -3324,9 +3375,59 @@ def _category_value_ranks(sb, cat: str):
         seen_models.add(key)
         top.append({"rank": len(top) + 1, "raw_name": x.get("raw_name"), "price": x.get("price"),
                     "image_url": x.get("image_url"), "url": u, "store": x.get("store"), "score": s})
-    entry = {"ts": now, "ranks": ranks, "total": len(cofs), "top": top}
+    entry = {"ts": now, "ranks": ranks, "total": len(cofs), "top": top,
+             "scored_min": scored_min, "score_by_url": score_by_url}
     _CAT_RANK_CACHE[cat] = entry
     return entry
+
+
+def _better_value(sb, cat: str, url: str, my_name: str, my_price) -> dict:
+    """0-токенов отговор на „има ли по-добър за тези пари": намира модели в същата
+    категория с по-висок Pazarko Score при подобна ИЛИ по-ниска цена (≤ +10%).
+    Празен списък → на тези пари каталогът няма по-добре оценен модел (честна
+    претенция, не хвалба). Изключва същия модел (различни цветове/конфиг)."""
+    try:
+        entry = _category_value_ranks(sb, cat)
+    except Exception:
+        return {}
+    my_score = (entry.get("score_by_url") or {}).get(url)
+    if my_score is None:
+        return {}
+    try:
+        my_price = float(my_price or 0)
+    except (TypeError, ValueError):
+        my_price = 0
+    if not my_price:
+        return {}
+    hi, lo = my_price * 1.10, my_price * 0.75   # „за тези пари" = подобен ценови клас
+    my_sig = _ident_sig(my_name or "")
+    alts, seen = [], set()
+    for it in (entry.get("scored_min") or []):
+        if it["url"] == url or it["score"] <= my_score:
+            continue
+        p = it.get("price")
+        try:
+            p = float(p or 0)
+        except (TypeError, ValueError):
+            p = 0
+        if not p or p > hi or p < lo:
+            continue
+        sig = it.get("sig") or set()
+        if sig and sig == my_sig:
+            continue                       # същият модел (друг цвят/памет)
+        key = frozenset(sig) or it["url"]
+        if key in seen:
+            continue
+        seen.add(key)
+        alts.append({
+            "raw_name": it.get("raw_name"), "price": it.get("price"),
+            "store": it.get("store"), "url": it["url"],
+            "image_url": it.get("image_url"), "score": it["score"],
+            "cheaper": bool(p < my_price),
+        })
+        if len(alts) >= 3:
+            break
+    return {"is_best": not alts, "alternatives": alts, "my_score": my_score}
 
 
 @router.get("/alex/current-prices")
@@ -3405,12 +3506,24 @@ async def card_meta(url: str = Query(...), category: str = Query("")):
 
     cross = _same_model_other_stores(sb, o, specs)
 
+    # „Има ли по-добър за тези пари" — 0 токена, от Pazarko Score в категорията
+    better = None
+    if cat:
+        try:
+            bv = _better_value(sb, cat, url, name, o.get("price"))
+            if bv:
+                better = bv
+        except Exception:
+            pass
+
     return {
         "specs": _spec_chips(specs),
+        "specs_table": _spec_table(specs),
         "running_cost": running,
         "rank": rank,
         "in_stock": o.get("in_stock"),
         "cross_store": cross,
+        "better_value": better,
         "store": o.get("store"),
         "rating": o.get("rating"),
         "rating_count": o.get("rating_count"),
