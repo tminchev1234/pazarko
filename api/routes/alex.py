@@ -2152,13 +2152,17 @@ def alex_score(product: dict) -> float:
         if   discount >= 30: score += 0.6
         elif discount >= 15: score += 0.3
 
-    # 3) Цена спрямо медианата — САМО наказание за надценени; НЯМА бонус за „евтино"
-    #    (евтиното не е стойност само по себе си — иначе бюджетните доминират класацията).
+    # 3) Bang-for-buck: НАКАЗВАЙ ултра-премиума (над медианата), БЕЗ бонус за евтино.
+    #    „Стойност" = много за парите; кой скъп флагман да купиш и без нас се знае.
+    #    НО реалната сделка (verdict 'lowest'/'good' = +2.0/+1.2 по-горе) може да върне
+    #    топ-клас горе, ако наистина е паднал — точно това искаме.
     median = _CATEGORY_MEDIANS.get(category, 0)
     if median and price:
         ratio = price / median
-        if   ratio > 2.5: score -= 0.5
-        elif ratio > 1.8: score -= 0.2
+        if   ratio > 3.5: score -= 2.0
+        elif ratio > 2.5: score -= 1.4
+        elif ratio > 1.8: score -= 0.8
+        elif ratio > 1.3: score -= 0.3
 
     # 4) Известна марка
     top_brands = {
