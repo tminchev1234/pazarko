@@ -3304,27 +3304,18 @@ def _category_value_ranks(sb, cat: str):
         u = x.get("url")
         if u and u not in ranks:
             ranks[u] = i + 1
-    # Топ-листата за показване — разнообразие по магазин (макс 3/магазин),
-    # после допълни без ограничение. Рангът остава истинската позиция по стойност.
+    # Топ-листата — истинските топ по стойност, подредени 1,2,3… (чиста номерация)
     top: list = []
-    picked: set = set()
-    scnt: dict = {}
-    for cap in (3, 999):
-        for s, x in scored:
-            if len(top) >= 12:
-                break
-            u = x.get("url")
-            if not u or u in picked:
-                continue
-            st = x.get("store") or ""
-            if scnt.get(st, 0) >= cap:
-                continue
-            top.append({"rank": ranks.get(u), "raw_name": x.get("raw_name"), "price": x.get("price"),
-                        "image_url": x.get("image_url"), "url": u, "store": st, "score": s})
-            picked.add(u)
-            scnt[st] = scnt.get(st, 0) + 1
+    seen_t: set = set()
+    for s, x in scored:
         if len(top) >= 12:
             break
+        u = x.get("url")
+        if not u or u in seen_t:
+            continue
+        seen_t.add(u)
+        top.append({"rank": ranks.get(u), "raw_name": x.get("raw_name"), "price": x.get("price"),
+                    "image_url": x.get("image_url"), "url": u, "store": x.get("store"), "score": s})
     entry = {"ts": now, "ranks": ranks, "total": len(cofs), "top": top}
     _CAT_RANK_CACHE[cat] = entry
     return entry
