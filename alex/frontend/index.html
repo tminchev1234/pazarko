@@ -305,13 +305,38 @@ input,textarea,select{font-family:inherit}
 @media(max-width:480px){.sh-loc{display:none}.sh-more{justify-content:center}}
 
 /* ── FILTERS ── */
-.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:18px;box-shadow:var(--sh)}
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:20px;box-shadow:var(--sh);
+  position:sticky;top:60px;z-index:40}
 .fl-group{display:flex;align-items:center;gap:7px}
-.fl-label{font-size:12px;color:var(--muted);white-space:nowrap}
+.fl-label{font-size:12px;color:var(--muted);white-space:nowrap;font-weight:600}
 .fl-select,.fl-input{font-size:13px;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-family:inherit;cursor:pointer}
 .fl-input{width:78px}
 .fl-sep{color:var(--muted)}
-.fl-count{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap}
+.fl-count{margin-left:auto;font-size:12px;color:var(--blue);font-weight:700;white-space:nowrap;background:none;border:none;cursor:pointer;padding:4px 6px;border-radius:7px}
+.fl-count:hover{background:rgba(96,165,250,.12);text-decoration:underline}
+.fl-count:empty{display:none}
+/* 🏅 Топ 10 по стойност — изнесена класация */
+.tvsec{margin-bottom:28px}
+.tvsec-hd{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.tvsec-lbl{font-size:15px;font-weight:800;color:var(--text)}
+.tvsec-cta{font-size:12.5px;font-weight:700;color:var(--blue);background:none;border:none;cursor:pointer;white-space:nowrap}
+.tvsec-cta:hover{text-decoration:underline}
+.tvsec-sub{font-size:12.5px;color:var(--muted);margin:2px 0 12px}
+.tvsec-scroll{display:flex;gap:12px;overflow-x:auto;padding:2px 2px 8px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+.tvsec-scroll::-webkit-scrollbar{height:6px}
+.tvsec-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.tvc{flex:0 0 165px;scroll-snap-align:start;position:relative;background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;cursor:pointer;transition:transform .12s,box-shadow .12s,border-color .12s}
+.tvc:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,.1);border-color:#c7d2fe}
+.tvc.top3{border-color:#fcd34d;box-shadow:0 2px 10px rgba(245,158,11,.12)}
+.tvc-rank{position:absolute;top:8px;left:8px;z-index:2;font-size:15px;font-weight:800;color:#0f172a;background:rgba(255,255,255,.92);border-radius:8px;min-width:26px;height:24px;display:flex;align-items:center;justify-content:center;padding:0 6px;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.tvc-img{height:120px;display:flex;align-items:center;justify-content:center;background:#fff;padding:8px}
+.tvc-img img{max-width:100%;max-height:100%;object-fit:contain}
+.tvc-body{padding:9px 11px 11px}
+.tvc-name{font-size:12px;font-weight:600;color:var(--text);line-height:1.35;height:48px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+.tvc-foot{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:6px}
+.tvc-price{font-size:15px;font-weight:800;color:var(--text)}
+.tvc-score{font-size:11px;font-weight:800;color:#166534;background:#dcfce7;border-radius:6px;padding:2px 7px}
+.tvc-store{margin-top:5px;font-size:11px;color:var(--muted)}
 
 /* ── PRODUCT GRID ── */
 .prod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:14px}
@@ -1376,22 +1401,10 @@ async function renderCategory(slug) {
         </div>
         <div class="cat-hd-desc">${c.desc}</div>
       </div>
-      <div id="topDealEl"></div>
-      <div id="hotDealsEl"></div>
-      <div class="sec-head"><h2>⭐ Изборът на Alex</h2></div>
-      <div class="picks-row" id="picksEl">${skRow(4,'pick-card',120)}</div>
-      <div id="trendsSection"></div>
-      <div id="catStats" class="cat-stat-strip">
-        <div class="cat-stat"><span class="cat-stat-n" id="statProds">…</span><span class="cat-stat-l">продукта</span></div>
-        <div class="cat-stat"><span class="cat-stat-n" id="statBrands">…</span><span class="cat-stat-l">марки</span></div>
-        <div class="cat-stat"><span class="cat-stat-n" id="statDeals">…</span><span class="cat-stat-l">намаления</span></div>
-      </div>
-      <div id="verdictEl"></div>
-      <div id="segSection"></div>
       <div class="filters" id="filtersEl">
         <div class="fl-group">
           <span class="fl-label">Марка:</span>
-          <select class="fl-select" id="fBrand" onchange="applyF()">
+          <select class="fl-select" id="fBrand" onchange="applyF(true)">
             <option value="">Всички марки</option>
           </select>
         </div>
@@ -1403,15 +1416,29 @@ async function renderCategory(slug) {
         </div>
         <div class="fl-group">
           <span class="fl-label">Сортирай:</span>
-          <select class="fl-select" id="fSort" onchange="applyF()">
+          <select class="fl-select" id="fSort" onchange="applyF(true)">
             <option value="price_asc">Цена ↑</option>
             <option value="price_desc">Цена ↓</option>
             <option value="discount">Намаление</option>
             <option value="score">Alex Score</option>
           </select>
         </div>
-        <span class="fl-count" id="fCount"></span>
+        <button class="fl-count" id="fCount" onclick="_scrollToGrid()" title="Виж всички резултати"></button>
       </div>
+      <div id="topDealEl"></div>
+      <div id="topValueEl"></div>
+      <div id="hotDealsEl"></div>
+      <div class="sec-head"><h2>⭐ Изборът на Alex</h2></div>
+      <div class="picks-row" id="picksEl">${skRow(4,'pick-card',120)}</div>
+      <div id="trendsSection"></div>
+      <div id="catStats" class="cat-stat-strip">
+        <div class="cat-stat"><span class="cat-stat-n" id="statProds">…</span><span class="cat-stat-l">продукта</span></div>
+        <div class="cat-stat"><span class="cat-stat-n" id="statBrands">…</span><span class="cat-stat-l">марки</span></div>
+        <div class="cat-stat"><span class="cat-stat-n" id="statDeals">…</span><span class="cat-stat-l">намаления</span></div>
+      </div>
+      <div id="verdictEl"></div>
+      <div id="segSection"></div>
+      <div class="sec-head" id="allProdsHead"><h2>🛒 Всички продукти</h2></div>
       <div class="prod-grid" id="prodGrid">${skRow(12,'prod-card',135)}</div>
     </div>`;
   // Default min_price per category — hides junk/feature-phone tier
@@ -1420,6 +1447,7 @@ async function renderCategory(slug) {
   _catF = {brand:'', min: defMin ? String(defMin) : '', max:'', sort:'price_asc'};
   if (defMin) { const f = document.getElementById('fMin'); if (f) f.value = defMin; }
   loadTopDeal(slug);
+  loadTopValue(slug);
   loadHotDeals(slug);
   loadPicks(slug);
   loadBrands(slug);
@@ -1480,6 +1508,50 @@ async function loadTopDeal(slug) {
             </div>
           </div>
         </div>
+      </div>`;
+  } catch { el.innerHTML = ''; }
+}
+
+// 🏅 Топ 10 по стойност — същата класация, която стои като ранг във всяка карта,
+// изнесена на видно място на страницата. Кликаема → отваря картата на продукта.
+async function loadTopValue(slug) {
+  const el = document.getElementById('topValueEl');
+  if (!el) return;
+  try {
+    const d = await apiFetch(`/alex/top-value?category=${slug}&limit=10`);
+    const items = d.results || [];
+    if (items.length < 3) { el.innerHTML = ''; return; }
+    const cards = items.map(p => {
+      const medal = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : `#${p.rank}`;
+      const obj = JSON.stringify({
+        raw_name: p.raw_name, price: p.price, store: p.store,
+        image_url: p.image_url, url: p.url, category: slug,
+      }).replace(/"/g,'&quot;');
+      const img = p.image_url
+        ? `<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.style.display='none'">`
+        : `<span style="font-size:34px">${catIcon(slug)}</span>`;
+      return `
+        <div class="tvc ${p.rank<=3?'top3':''}" onclick="showVerdict(${obj})">
+          <div class="tvc-rank">${medal}</div>
+          <div class="tvc-img">${img}</div>
+          <div class="tvc-body">
+            <div class="tvc-name">${eh(p.raw_name)}</div>
+            <div class="tvc-foot">
+              <span class="tvc-price">${fmt(p.price)}</span>
+              ${p.score ? `<span class="tvc-score" title="Pazarko Score">${(+p.score).toFixed(1)}</span>` : ''}
+            </div>
+            <div class="tvc-store">${sl(p.store)}</div>
+          </div>
+        </div>`;
+    }).join('');
+    el.innerHTML = `
+      <div class="tvsec">
+        <div class="tvsec-hd">
+          <div class="tvsec-lbl">🏅 Топ 10 по стойност</div>
+          <button class="tvsec-cta" onclick="showTopValue('${ea(slug)}')">виж класацията ›</button>
+        </div>
+        <div class="tvsec-sub">Най-добро съотношение качество–цена в категорията, подредено от Pazarko Score</div>
+        <div class="tvsec-scroll">${cards}</div>
       </div>`;
   } catch { el.innerHTML = ''; }
 }
@@ -1733,15 +1805,23 @@ async function loadBrands(slug) {
 
 function debF() {
   clearTimeout(_fdTimer);
-  _fdTimer = setTimeout(applyF, 600);
+  _fdTimer = setTimeout(() => applyF(false), 600);
 }
 
-function applyF() {
+// scrollToResults=true за дискретни действия (марка/сортиране) → скача към резултатите;
+// при писане в цената (debF) НЕ скача, за да не подскача екранът на всяка буква.
+function applyF(scrollToResults) {
   _catF.brand = document.getElementById('fBrand')?.value || '';
   _catF.min   = document.getElementById('fMin')?.value   || '';
   _catF.max   = document.getElementById('fMax')?.value   || '';
   _catF.sort  = document.getElementById('fSort')?.value  || 'price_asc';
   loadProds(_catSlug);
+  if (scrollToResults) _scrollToGrid();
+}
+
+function _scrollToGrid() {
+  const h = document.getElementById('allProdsHead') || document.getElementById('prodGrid');
+  if (h) h.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function loadProds(slug) {
