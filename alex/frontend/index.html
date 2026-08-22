@@ -581,8 +581,10 @@ input,textarea,select{font-family:inherit}
 .pick-right img{max-height:180px;max-width:100%;object-fit:contain}
 .pick-right .no-img{font-size:60px}
 .pick-store-row{display:flex;align-items:center;gap:10px;margin-top:16px}
-.pick-btn{display:inline-flex;align-items:center;gap:6px;background:#fff;color:#1e1b4b;font-size:13px;font-weight:700;padding:9px 18px;border-radius:8px;transition:opacity .15s}
+.pick-btn{display:inline-flex;align-items:center;gap:6px;background:#fff;color:#1e1b4b;font-size:13px;font-weight:700;padding:9px 18px;border-radius:8px;transition:opacity .15s;cursor:pointer}
 .pick-btn:hover{opacity:.9}
+.pick-btn-ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.45);font-weight:600}
+.pick-btn-ghost:hover{background:rgba(255,255,255,.12);opacity:1}
 
 /* ── TRANSPARENCY CARD ── */
 .alex-trace{background:linear-gradient(135deg,#f0fdf4,#eff6ff);border:1px solid #bbf7d0;border-radius:10px;padding:12px 16px;margin-top:10px;font-size:12px;color:#374151;display:flex;align-items:flex-start;gap:10px}
@@ -1215,6 +1217,7 @@ async function loadDayPick() {
       `Наличен в ${sl(p.store)} прямо сега`
     ].filter(Boolean);
     el.style.display = '';
+    el.style.cursor = 'pointer';
     el.innerHTML = `
       <div class="pick-left">
         <div class="pick-eyebrow">🏆 Alex Избор на деня</div>
@@ -1227,12 +1230,19 @@ async function loadDayPick() {
         </div>
         <div class="pick-store-row">
           ${storeBadge(p.store)}
-          <a href="${ea(p.url)}" target="_blank" rel="noopener" class="pick-btn">Виж офертата →</a>
+          <span class="pick-btn">Виж детайли →</span>
+          <a href="${ea(p.url)}" target="_blank" rel="noopener" class="pick-btn pick-btn-ghost" onclick="event.stopPropagation()">Към ${eh(sl(p.store))} ↗</a>
         </div>
       </div>
       <div class="pick-right">
         <img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" onerror="this.style.display='none'">
       </div>`;
+    // Цялата карта отваря НАШИЯ модал (като другите карти), а не праща директно навън
+    el.onclick = () => showVerdict({
+      raw_name: p.raw_name, price: p.price, old_price: p.old_price,
+      discount_pct: p.discount_pct, store: p.store, image_url: p.image_url,
+      url: p.url, category: p.category, cat_label: p.cat_label,
+    });
   } catch(e) { console.error(e); el.style.display='none'; }
 }
 
