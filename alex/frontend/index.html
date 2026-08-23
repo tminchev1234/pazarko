@@ -1489,6 +1489,7 @@ async function loadTopDeal(slug) {
           data-oldprice="${p.old_price||''}" data-disc="${p.discount_pct||''}"
           data-store="${ea(p.store)}" data-img="${ea(p.image_url||'')}"
           data-url="${ea(p.url||'')}" data-score="${p.alex_score||''}"
+          data-cat="${ea(p.category||slug||'')}"
           onclick="showVerdictFromCard(this)">
           <div class="td-img-col">
             ${p.image_url ? `<img src="${ea(p.image_url)}" alt="${ea(p.raw_name)}" loading="lazy" onerror="this.closest('.td-img-col').innerHTML='<div class=img-fallback>${catIcon(slug)}</div>'">` : `<div class="img-fallback">${catIcon(slug)}</div>`}
@@ -1579,7 +1580,7 @@ async function loadHotDeals(slug) {
                 data-name="${ea(p.raw_name)}" data-price="${p.price}"
                 data-oldprice="${p.old_price||''}" data-disc="${p.discount_pct||''}"
                 data-store="${ea(p.store)}" data-img="${ea(p.image_url||'')}"
-                data-url="${ea(p.url||'')}"
+                data-url="${ea(p.url||'')}" data-cat="${ea(p.category||slug||'')}"
                 onclick="showVerdictFromCard(this)">
                 <div class="hd-img-wrap">${img}${disc}</div>
                 <div class="hd-body">
@@ -1680,6 +1681,7 @@ async function loadPicks(slug) {
         data-oldprice="${item.old_price||''}" data-disc="${item.discount_pct||''}"
         data-store="${ea(item.store)}" data-img="${ea(item.image_url||'')}"
         data-url="${ea(item.url||'')}" data-score="${item.alex_score||''}"
+        data-cat="${ea(item.category||'')}"
         onclick="showVerdictFromCard(this)" style="cursor:pointer">
         <div class="pick-hd"><span>${item.icon}</span><span>${eh(item.label)}</span></div>
         <div class="pick-img">
@@ -1872,6 +1874,7 @@ function buildProdCard(p) {
       data-oldprice="${p.old_price||''}" data-disc="${p.discount_pct||''}"
       data-store="${ea(p.store)}" data-img="${ea(p.image_url||'')}"
       data-url="${ea(p.url||'')}" data-score="${p.alex_score}"
+      data-cat="${ea(p.category||'')}"
       onclick="showVerdictFromCard(this)" style="cursor:pointer">
       <div class="prod-badges">
         ${p.discount_pct?`<span class="prod-disc">-${p.discount_pct}%<button class="disc-chk" title="Реално ли е намалението?" onclick="event.stopPropagation();dealCheck(event,'${ea(p.url||'')}','${ea(p.raw_name||'')}',${p.price},${p.old_price||0},'${ea(p.store||'')}')">?</button></span>`:'<span></span>'}
@@ -1933,6 +1936,7 @@ function buildSegCard(p) {
       data-oldprice="${p.old_price||''}" data-disc="${p.discount_pct||''}"
       data-store="${ea(p.store)}" data-img="${ea(p.image_url||'')}"
       data-url="${ea(p.url||'')}" data-score="${p.alex_score}"
+      data-cat="${ea(p.category||'')}"
       onclick="showVerdictFromCard(this)">
       <div class="seg-img">
         <div class="seg-badges">
@@ -3058,8 +3062,14 @@ function showChatProds(id, products, tool, input) {
           <div class="chat-prod-store" style="margin-top:3px">${storeBadge(p.store)}</div>
         </div>
         ${p.url?`<a class="chat-prod-link" href="${ea(p.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Виж офертата →</a>`:''}`;
-      card.onclick = () => p.url && window.open(p.url,'_blank');
-      card.style.cursor = p.url ? 'pointer' : 'default';
+      // Отваря НАШИЯ богат модал (спецове, „по-добър за парите", питай Alex), не директно навън
+      card.onclick = () => showVerdict({
+        raw_name: p.raw_name, price: p.price, old_price: p.old_price,
+        discount_pct: p.discount_pct, store: p.store,
+        image_url: p.image_url, url: p.url, alex_score: p.alex_score,
+        category: p.category || _chatCat || '',
+      });
+      card.style.cursor = 'pointer';
       box.appendChild(card);
     });
   }
@@ -3139,6 +3149,7 @@ function _addToSidePanel(products) {
         raw_name: p.raw_name, price: p.price, old_price: p.old_price,
         discount_pct: p.discount_pct, store: p.store,
         image_url: p.image_url, url: p.url, alex_score: p.alex_score,
+        category: p.category || '',
       });
     };
     list.appendChild(c);
