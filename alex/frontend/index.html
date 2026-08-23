@@ -2364,6 +2364,11 @@ function askAboutModel() {
   document.getElementById('chatDrawer')?.classList.add('open');
   document.getElementById('chatOv')?.classList.add('open');
   const fab = document.getElementById('chatFab'); if (fab) fab.style.display = 'none';
+  // Подай контекста на продукта → Alex ползва реалните оферти от картата, не търси боклук
+  _pendingProductContext = {
+    url: p.url || '', raw_name: p.raw_name, price: p.price,
+    store: p.store, category: p.category || _catSlug || '',
+  };
   const q = `Разглеждам „${p.raw_name}" за ${fmt(p.price)}. Има ли по-добър модел за тези пари, или си заслужава? Кажи ми директно.`;
   setTimeout(() => sendChatText(q), 320);
 }
@@ -2692,6 +2697,7 @@ let _chatMsgs   = [];
 let _chatBusy   = false;
 let _chatOpen   = false;
 let _cardsShown = false;
+let _pendingProductContext = null;   // контекст на продукт при „Попитай Alex за този модел"
 
 // ── Самоличност: анонимна по подразбиране, Clerk ID при вписване ──────
 // _alexUid е mutable: стартира като анонимен localStorage UUID и се
@@ -2925,12 +2931,14 @@ async function sendChatText(txt) {
 }
 
 async function streamChat(id) {
+  const _pc = _pendingProductContext; _pendingProductContext = null;  // еднократно, за първия въпрос от картата
   const resp = await fetch(`${API}/alex/chat`, {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({
       messages: _chatMsgs,
       user_id:  _alexUid,
       category: _chatCat || null,
+      product_context: _pc || null,
     }),
   });
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

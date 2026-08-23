@@ -328,6 +328,7 @@ class AlexChatRequest(BaseModel):
     messages: List[AlexMessage]
     user_id:  Optional[str] = None
     category: Optional[str] = None
+    product_context: Optional[dict] = None   # когато чатът е отворен от карта на продукт
 
 
 # ── System prompt ─────────────────────────────────────────────────────────────
@@ -1923,6 +1924,7 @@ async def _stream_alex(
     user_id: Optional[str] = None,
     category: Optional[str] = None,
     user_dna: Optional[dict] = None,
+    seed_products: Optional[list] = None,
 ) -> AsyncIterator[str]:
     settings = get_settings()
 
@@ -1930,6 +1932,11 @@ async def _stream_alex(
         yield f"data: {json.dumps({'error': 'ANTHROPIC_API_KEY не е зададен'})}\n\n"
         yield "data: [DONE]\n\n"
         return
+
+    # Оферти от картата → веднага в страничния панел (преди отговора на модела),
+    # за да са налични същите продукти, за които Alex говори.
+    if seed_products:
+        yield f"data: {json.dumps({'products': seed_products, 'tool': 'card_context', 'input': {}})}\n\n"
 
     # Use the async client so we never block the event loop
     async_client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
@@ -2034,8 +2041,18 @@ async def alex_chat(req: AlexChatRequest):
     if user_dna:
         system.append({"type": "text", "text": _alex_dna_addendum(user_dna)})
 
+    # Контекст от карта на продукт (реални оферти от базата) → след cache breakpoint
+    seed_products: list = []
+    if req.product_context:
+        try:
+            ctx_text, seed_products = _product_context_block(req.product_context)
+            if ctx_text:
+                system.append({"type": "text", "text": ctx_text})
+        except Exception as exc:
+            logger.warning("[alex] product_context failed: %s", exc)
+
     return StreamingResponse(
-        _stream_alex(req.messages, system, req.user_id, req.category, user_dna),
+        _stream_alex(req.messages, system, req.user_id, req.category, user_dna, seed_products),
         media_type="text/event-stream",
         headers={
             "Cache-Control":    "no-cache",
@@ -3428,6 +3445,132 @@ def _better_value(sb, cat: str, url: str, my_name: str, my_price) -> dict:
         if len(alts) >= 3:
             break
     return {"is_best": not alts, "alternatives": alts, "my_score": my_score}
+
+
+def _product_context_block(pc: dict) -> tuple:
+    """Когато чатът е отворен от карта на продукт („Попитай Alex за този модел"),
+    даваме на модела ТОЧНО данните от картата — реални оферти от базата, а не да
+    гадае/търси най-евтиното. Връща (system_text, seed_products_за_страничния_панел).
+    Така отговорът ползва същите продукти, които потребителят вижда в картата, и
+    страничният панел показва релевантните оферти, не случаен боклук."""
+    if not isinstance(pc, dict):
+        return "", []
+    url = (pc.get("url") or "").strip()
+    name = (pc.get("raw_name") or "").strip()
+    if not name:
+        return "", []
+    try:
+        sb = get_supabase()
+    except Exception:
+        return "", []
+    o = None
+    if url:
+        try:
+            r = sb.table("electronics_offers").select("*").eq("url", url).limit(1).execute().data or []
+            o = r[0] if r else None
+        except Exception:
+            o = None
+    if o is None:
+        o = {"raw_name": name, "url": url, "price": pc.get("price"),
+             "store": pc.get("store"), "brand": pc.get("brand", "")}
+    rname = o.get("raw_name") or name
+    try:
+        price = float(o.get("price") or pc.get("price") or 0)
+    except (TypeError, ValueError):
+        price = 0
+    store = o.get("store") or pc.get("store") or ""
+    cat = _eff_category(rname, o.get("category") or pc.get("category") or "")
+    cat_label = _CAT_LABELS.get(cat, cat)
+    specs = _extract_specs(rname)
+    spec_sum = _spec_summary(specs)
+
+    lines = ["════════ КОНТЕКСТ: ПОТРЕБИТЕЛЯТ ГЛЕДА КОНКРЕТЕН ПРОДУКТ ════════",
+             "(Данните по-долу са от НАШАТА база — ползвай ги директно в отговора и таблицата.)",
+             f"Продукт: {rname}",
+             f"Цена: €{price:.2f}" + (f" · Магазин: {store}" if store else "")]
+    if spec_sum:
+        lines.append(f"Спецификации: {spec_sum}")
+
+    seed: list = []
+    seen_urls: set = set()
+
+    # Ранг по стойност + „по-добре оценени за тези пари" (реални оферти)
+    bv = {}
+    try:
+        if cat and url:
+            rc = _category_value_ranks(sb, cat)
+            my_rank = (rc.get("ranks") or {}).get(url)
+            if my_rank and rc.get("total"):
+                lines.append(f"Pazarko Score ранг: #{my_rank} от {rc['total']} по стойност в „{cat_label}“")
+            bv = _better_value(sb, cat, url, rname, price) or {}
+    except Exception:
+        bv = {}
+    alts = bv.get("alternatives") or []
+    if bv.get("is_best"):
+        lines.append("За тези пари НЯМА по-добре оценен модел в базата — това е един от най-добрите избори в класа.")
+    elif alts:
+        lines.append("По-добре оценени за подобни пари (реални оферти от базата):")
+        for a in alts:
+            tag = "по-евтин" if a.get("cheaper") else "подобна цена"
+            lines.append(f"  • {a.get('raw_name')} — €{float(a.get('price') or 0):.2f} · {a.get('store')} · {tag} · {a.get('url')}")
+            if a.get("url") and a["url"] not in seen_urls and a.get("image_url"):
+                seen_urls.add(a["url"])
+                seed.append({"raw_name": a.get("raw_name"), "price": a.get("price"),
+                             "store": a.get("store"), "url": a.get("url"),
+                             "image_url": a.get("image_url")})
+
+    # Ако е №1/няма по-добри → допълни с връстници в СЪЩИЯ ценови клас, за да не
+    # търси моделът сам и да покаже 32" вместо 50" (панелът да е с релевантни опции).
+    if len(seed) < 3 and cat and price:
+        try:
+            rc = _category_value_ranks(sb, cat)          # кеширано 1 ч → евтино
+        except Exception:
+            rc = None
+        peers = []
+        if rc:
+            lo2, hi2 = price * 0.7, price * 1.4
+            for it in (rc.get("scored_min") or []):
+                pu = it.get("url")
+                if not pu or pu == url or pu in seen_urls or not it.get("image_url"):
+                    continue
+                try:
+                    pp = float(it.get("price") or 0)
+                except (TypeError, ValueError):
+                    pp = 0
+                if not pp or pp < lo2 or pp > hi2:
+                    continue
+                peers.append(it)
+                if len(seed) + len(peers) >= 4:
+                    break
+            if peers:
+                lines.append("Подобен клас и цена (реални оферти от базата):")
+                for it in peers:
+                    lines.append(f"  • {it.get('raw_name')} — €{float(it.get('price') or 0):.2f} · {it.get('store')} · {it.get('url')}")
+                    seen_urls.add(it["url"])
+                    seed.append({"raw_name": it.get("raw_name"), "price": it.get("price"),
+                                 "store": it.get("store"), "url": it.get("url"),
+                                 "image_url": it.get("image_url")})
+
+    # Същият модел в други магазини (за да не праща потребителя да плаща повече)
+    try:
+        cross = _same_model_other_stores(sb, o, specs)
+    except Exception:
+        cross = None
+    if cross and cross.get("offers"):
+        lines.append("Същият модел в други магазини:")
+        for off in cross["offers"]:
+            lines.append(f"  • {off.get('store')}: €{float(off.get('price') or 0):.2f} · {off.get('url')}")
+            if off.get("url") and off["url"] not in seen_urls and off.get("image_url"):
+                seen_urls.add(off["url"])
+                seed.append({"raw_name": rname, "price": off.get("price"),
+                             "store": off.get("store"), "url": off.get("url"),
+                             "image_url": off.get("image_url")})
+
+    lines.append("")
+    lines.append("ПРАВИЛО: Ползвай продуктите по-горе в отговора (с линкове). НЕ извиквай "
+                 "search_products наново за тази категория — данните вече са тук. Търси само "
+                 "ако потребителят поиска РАЗЛИЧНА категория, размер или употреба.")
+    return "\n".join(lines), seed
 
 
 @router.get("/alex/current-prices")
