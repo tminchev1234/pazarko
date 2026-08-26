@@ -770,6 +770,7 @@ input,textarea,select{font-family:inherit}
 .vrd-cross-sub{font-size:12px;color:var(--muted);margin-bottom:9px}
 .vrd-cross-sub b{color:#15803d}
 .vrd-cross-list{display:flex;flex-direction:column;gap:6px}
+.vrd-cross-note{font-size:10.5px;color:var(--muted);margin-top:8px;font-style:italic;opacity:.85}
 .vrd-xrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;transition:border-color .12s}
 .vrd-xrow.best{border-color:#86efac;background:#f0fdf4}
 .vrd-xrow.here{box-shadow:inset 3px 0 0 #6366f1}
@@ -2302,13 +2303,15 @@ function _renderCardMeta(m, prod) {
   if (cel && cross && cross.offers && cross.offers.length >= 2) {
     const cheapest = cross.offers[0];
     const here = cross.is_cheapest_here;
+    // Честно: това е сравнение САМО между магазините, които следим — не претендираме
+    // за пазарен минимум (другаде, напр. по-малки продавачи, може да е по-евтино).
     const sub = here
-      ? `Тук е <b>най-евтино</b> за този модел ✅`
-      : `Най-евтино в <b>${eh(sl(cross.cheapest_store))}</b> — ${fmt(cheapest.price)}`;
+      ? `Най-добра цена <b>сред магазините, които следим</b> ✅`
+      : `Най-ниска у нас — <b>${eh(sl(cross.cheapest_store))}</b> ${fmt(cheapest.price)}`;
     const rows = cross.offers.map((o, i) => {
       const isBest = i === 0;
       const isHere = o.store === (m.store || prod.store);
-      const tag = isBest ? '<span class="xtag best">най-евтино</span>'
+      const tag = isBest ? '<span class="xtag best">най-ниска у нас</span>'
                 : isHere ? '<span class="xtag here">тази оферта</span>' : '';
       const price = o.url
         ? `<a class="xprice" href="${ea(o.url)}" target="_blank" rel="noopener">${fmt(o.price)} →</a>`
@@ -2318,7 +2321,8 @@ function _renderCardMeta(m, prod) {
     }).join('');
     cel.innerHTML = `<div class="vrd-cross-title">🛒 Същият модел в ${cross.count_stores} магазина</div>
       <div class="vrd-cross-sub">${sub}</div>
-      <div class="vrd-cross-list">${rows}</div>`;
+      <div class="vrd-cross-list">${rows}</div>
+      <div class="vrd-cross-note">Сравняваме избрани магазини — другаде може да е по-евтино.</div>`;
     cel.style.display = 'block';
   }
 
