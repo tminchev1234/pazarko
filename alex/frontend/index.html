@@ -3039,7 +3039,7 @@ function showChatProds(id, products, tool, input) {
         <span class="chat-pr-store">${sl(p.store)}</span>
         <span class="chat-pr-name">${eh(p.raw_name)}</span>
         <span class="chat-pr-price">${fmt(p.price)}</span>
-        ${isBest?'<span class="chat-best-b">★ Най-евтино</span>':''}`;
+        ${isBest?'<span class="chat-best-b">★ Най-ниска у нас</span>':''}`;
       row.onclick = () => p.url && window.open(p.url,'_blank');
       row.style.cursor = p.url ? 'pointer' : 'default';
       box.appendChild(row);
