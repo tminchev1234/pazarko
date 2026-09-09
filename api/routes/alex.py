@@ -1932,6 +1932,7 @@ async def _stream_alex(
     category: Optional[str] = None,
     user_dna: Optional[dict] = None,
     seed_products: Optional[list] = None,
+    chat_model: str = "claude-sonnet-4-6",
 ) -> AsyncIterator[str]:
     settings = get_settings()
 
@@ -1953,7 +1954,7 @@ async def _stream_alex(
     try:
         for _round in range(3):   # tool рундове: 3 стигат (всеки рунд може да прави няколко search-а) → по-малко Sonnet извиквания
             async with async_client.messages.stream(
-                model      = "claude-sonnet-4-6",
+                model      = chat_model,   # Haiku по подразбиране, Sonnet за съвет/сравнение
                 max_tokens = 1200,   # препоръка за продукт не иска 2048; реже най-скъпия ред
                 system     = system,
                 tools      = ALEX_TOOLS,
@@ -2070,8 +2071,10 @@ async def alex_chat(req: AlexChatRequest, http_request: Request):
         except Exception as exc:
             logger.warning("[alex] product_context failed: %s", exc)
 
+    _chat_model = _pick_chat_model(req.messages, req.product_context)
+
     return StreamingResponse(
-        _stream_alex(req.messages, system, req.user_id, req.category, user_dna, seed_products),
+        _stream_alex(req.messages, system, req.user_id, req.category, user_dna, seed_products, _chat_model),
         media_type="text/event-stream",
         headers={
             "Cache-Control":    "no-cache",
@@ -2097,10 +2100,11 @@ async def alex_chat_simple(req: AlexChatRequest, http_request: Request):
 
     msg_dicts = [{"role": m.role, "content": m.content} for m in req.messages]
     products_found: list[dict] = []
+    _chat_model = _pick_chat_model(req.messages, req.product_context)
 
     for _round in range(3):  # max tool rounds (намалено от 5 → по-малко Sonnet извиквания)
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model=_chat_model,
             max_tokens=1200,
             # Prompt caching: caches tools + system prefix (re-sent every tool round)
             system=[{"type": "text", "text": ALEX_SYSTEM, "cache_control": {"type": "ephemeral"}}],
@@ -3726,7 +3730,7 @@ def _write_precomputed(key: str, value) -> None:
 # Пазарко чатът е анонимен и всяко съобщение е 2–3 Sonnet извиквания (tool loop),
 # затова без таван разходът е неограничен. Ползва computed_cache (0 миграции) и е
 # „fail-open" — при проблем с базата НЕ блокира потребителя.
-_CHAT_DAILY_LIMIT = 30   # съобщения на ден на IP
+_CHAT_DAILY_LIMIT = 25   # съобщения на ден на IP
 
 
 def _client_ip(request: Request) -> str:
@@ -3756,6 +3760,37 @@ def _chat_rate_check(request: Request) -> tuple:
     except Exception as exc:
         logger.warning("[chat-cap] skip (%s)", exc)
         return True, 0
+
+
+# ─── Haiku-first рутиране на чата (реже ~3× цената/съобщение) ──────────────────
+# По подразбиране Haiku 4.5 (справя се с tool use + „намери/покажи продукт"), а
+# скъпият Sonnet само когато потребителят иска СЪВЕТ/СРАВНЕНИЕ — там е стойността
+# (напр. „кое да избера", „сравни", „струва ли си", „Попитай Alex за този модел").
+_CHAT_SONNET = "claude-sonnet-4-6"
+_CHAT_HAIKU  = "claude-haiku-4-5-20251001"
+_CHAT_ACK_RE = re.compile(r"^\s*(да|не|ок|окей|благодаря|мерси|здрасти|здравей|ясно|разбрах|супер|стоп|thanks?|ok)\W*$", re.I)
+_CHAT_SONNET_RE = re.compile(
+    r"сравн|разлик|по-добър|по-добро|по-добра|по-добри|кое да|коя да|кой да|"
+    r"препор|струва ли|заслужав|вместо|бюджет|съвет|избера|избор|или .*\?|"
+    r"дете|подарък|за какво|какъв да|коя е|кой е най|"
+    r"чудя се|дали да|или да|да взема|да купя|подобни пари|добър за|добра за|добро за", re.I)
+
+
+def _pick_chat_model(messages, product_context=None) -> str:
+    """Sonnet само за съветнически/сравнителни въпроси; иначе Haiku."""
+    last = ""
+    for m in reversed(messages or []):
+        role = getattr(m, "role", None) or (m.get("role") if isinstance(m, dict) else None)
+        if role == "user":
+            last = getattr(m, "content", None) or (m.get("content") if isinstance(m, dict) else "") or ""
+            break
+    low = last.strip()
+    if not low or _CHAT_ACK_RE.match(low):
+        return _CHAT_HAIKU
+    # „Попитай Alex за този модел" (product_context) = съветнически момент → Sonnet
+    if product_context or _CHAT_SONNET_RE.search(low) or len(low) > 160:
+        return _CHAT_SONNET
+    return _CHAT_HAIKU
 
 
 # ─── Реален verdict на продукт (за честния Pazarko Score) — предкалкулиран ─────
