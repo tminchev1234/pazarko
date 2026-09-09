@@ -1137,7 +1137,7 @@ async function renderHome() {
         <div class="trust-item">🏪 <strong id="statStores">…</strong> магазина</div>
         <div class="trust-item">🤖 <strong>AI</strong> анализ</div>
         <div class="trust-item">🚫 <strong>0</strong> реклами</div>
-        <div class="trust-item">💰 <strong>0 лв.</strong> комисионна</div>
+        <div class="trust-item">💰 <strong>0 €</strong> комисионна</div>
       </div>
     </div>
     <div class="page">
@@ -1645,7 +1645,7 @@ async function _fetchSH(q) {
             ${item.image_url ? `<img class="sh-thumb" src="${ea(item.image_url)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
             <span class="sh-src ${srcCls}">${srcLbl}</span>
             <span class="sh-title">${eh(item.title||'')}</span>
-            <span class="sh-price">${Math.round(item.price||0)} лв.</span>
+            <span class="sh-price">${Math.round((item.price||0)/1.9558)} €</span>
             ${item.location ? `<span class="sh-loc">${eh(item.location)}</span>` : ''}
             <span style="font-size:12px;color:var(--blue);flex-shrink:0">→</span>
           </a>`;
@@ -3118,7 +3118,7 @@ function showSecondhand(id, listings) {
     a.innerHTML   = `
       <span class="chat-used-src ${srcCls}">${srcLbl}</span>
       <span class="chat-used-title">${eh(item.title || '')}</span>
-      <span class="chat-used-price">${Math.round(item.price || 0)} лв.</span>
+      <span class="chat-used-price">${Math.round((item.price || 0)/1.9558)} €</span>
       ${loc ? `<span class="chat-used-loc">${eh(loc)}</span>` : ''}
       <span class="chat-used-arrow">→</span>`;
     list.appendChild(a);
@@ -3486,7 +3486,7 @@ function _buildDevCard(dev) {
   }
 
   const ico = _CAT_ICO[dev.category || ''] || '📦';
-  const meta = [dev.store, dev.purchase_date ? dev.purchase_date.slice(0,7) : null, dev.purchase_price ? `${dev.purchase_price} лв.` : null].filter(Boolean).join(' · ');
+  const meta = [dev.store, dev.purchase_date ? dev.purchase_date.slice(0,7) : null, dev.purchase_price ? `${dev.purchase_price} €` : null].filter(Boolean).join(' · ');
 
   card.innerHTML = `
     <div class="myd-card-ico">${dev.image_url ? `<img src="${ea(dev.image_url)}" alt="" onerror="this.parentNode.textContent='${ico}'">` : ico}</div>
@@ -3602,7 +3602,7 @@ function tradeInDevice(deviceName) {
           </select>
           <input id="myd_store"   placeholder="Магазин (напр. eMAG)">
           <input id="myd_date"    type="date" placeholder="Дата на покупка">
-          <input id="myd_price"   type="number" placeholder="Платена цена (лв.)">
+          <input id="myd_price"   type="number" placeholder="Платена цена (€)">
           <input id="myd_warranty" type="number" placeholder="Гаранция (месеци)" value="24">
           <input id="myd_url"     placeholder="Линк към продукта (незадълж.)" class="myd-form-full">
         </div>
