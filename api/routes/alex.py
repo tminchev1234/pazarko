@@ -1951,10 +1951,10 @@ async def _stream_alex(
     collected_max_prices: list[float] = []
 
     try:
-        for _round in range(5):
+        for _round in range(3):   # tool рундове: 3 стигат (всеки рунд може да прави няколко search-а) → по-малко Sonnet извиквания
             async with async_client.messages.stream(
                 model      = "claude-sonnet-4-6",
-                max_tokens = 2048,
+                max_tokens = 1200,   # препоръка за продукт не иска 2048; реже най-скъпия ред
                 system     = system,
                 tools      = ALEX_TOOLS,
                 messages   = msg_dicts,
@@ -2026,10 +2026,22 @@ async def _stream_alex(
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/alex/chat")
-async def alex_chat(req: AlexChatRequest):
+async def alex_chat(req: AlexChatRequest, http_request: Request):
     """Streaming SSE chat — Claude Tool Use with electronics search."""
     if not req.messages:
         raise HTTPException(status_code=400, detail="Няма съобщения")
+
+    # Дневен таван по IP (против неограничен разход). Мек — връща съобщение в чата.
+    _allowed, _ = _chat_rate_check(http_request)
+    if not _allowed:
+        async def _limit_stream():
+            _m = ("Достигна дневния лимит въпроси към Alex за днес 🙏 Нулира се в полунощ. "
+                  "Дотогава разгледай картите и класациите «Топ по стойност» — там има "
+                  "цялата информация (спецове, реална ли е отстъпката, по-добър ли има за парите) без чат.")
+            yield f"data: {json.dumps({'text': _m})}\n\n"
+            yield "data: [DONE]\n\n"
+        return StreamingResponse(_limit_stream(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     # Load Shopping DNA for personalization
     user_dna: Optional[dict] = None
@@ -2069,7 +2081,7 @@ async def alex_chat(req: AlexChatRequest):
 
 
 @router.post("/alex/chat/simple")
-async def alex_chat_simple(req: AlexChatRequest):
+async def alex_chat_simple(req: AlexChatRequest, http_request: Request):
     """Non-streaming version — runs the agentic tool loop and returns final text."""
     settings = get_settings()
     client   = anthropic.Anthropic(api_key=settings.anthropic_api_key)
@@ -2077,13 +2089,19 @@ async def alex_chat_simple(req: AlexChatRequest):
     if not req.messages:
         raise HTTPException(status_code=400, detail="Няма съобщения")
 
+    # Същият дневен таван по IP (за да не е байпас на /alex/chat)
+    _allowed, _ = _chat_rate_check(http_request)
+    if not _allowed:
+        return {"response": "Достигна дневния лимит въпроси към Alex за днес 🙏 Нулира се в полунощ.",
+                "products": [], "usage": {"input_tokens": 0, "output_tokens": 0}}
+
     msg_dicts = [{"role": m.role, "content": m.content} for m in req.messages]
     products_found: list[dict] = []
 
-    for _round in range(5):  # max tool rounds
+    for _round in range(3):  # max tool rounds (намалено от 5 → по-малко Sonnet извиквания)
         response = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=2048,
+            max_tokens=1200,
             # Prompt caching: caches tools + system prefix (re-sent every tool round)
             system=[{"type": "text", "text": ALEX_SYSTEM, "cache_control": {"type": "ephemeral"}}],
             tools=ALEX_TOOLS,
@@ -3702,6 +3720,42 @@ def _write_precomputed(key: str, value) -> None:
         }).execute()
     except Exception as exc:
         logger.warning("[precompute] write %s failed: %s", key, exc)
+
+
+# ─── Дневен таван на чата по IP (против разходи при мащаб) ─────────────────────
+# Пазарко чатът е анонимен и всяко съобщение е 2–3 Sonnet извиквания (tool loop),
+# затова без таван разходът е неограничен. Ползва computed_cache (0 миграции) и е
+# „fail-open" — при проблем с базата НЕ блокира потребителя.
+_CHAT_DAILY_LIMIT = 30   # съобщения на ден на IP
+
+
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for", "")   # Render/прокси → реалният IP е първи
+    if xff:
+        return xff.split(",")[0].strip()
+    return getattr(getattr(request, "client", None), "host", "unknown")
+
+
+def _chat_rate_check(request: Request) -> tuple:
+    """Мек дневен таван по IP. Връща (allowed, used_after). Fail-open при грешка."""
+    try:
+        ip = _client_ip(request)
+        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        key = f"chatcap:{ip}:{day}"
+        rec = _read_precomputed(key)
+        used = 0
+        if rec and rec.get("value") is not None:
+            try:
+                used = int(rec["value"])
+            except (TypeError, ValueError):
+                used = 0
+        if used >= _CHAT_DAILY_LIMIT:
+            return False, used
+        _write_precomputed(key, used + 1)
+        return True, used + 1
+    except Exception as exc:
+        logger.warning("[chat-cap] skip (%s)", exc)
+        return True, 0
 
 
 # ─── Реален verdict на продукт (за честния Pazarko Score) — предкалкулиран ─────
