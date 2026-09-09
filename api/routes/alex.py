@@ -2041,6 +2041,7 @@ async def alex_chat(req: AlexChatRequest, http_request: Request):
 
     # (1) Извън темата → учтив отказ, БЕЗ извикване на модел и БЕЗ да яде от лимита.
     if _kind == "offtopic":
+        _bump_chat_stat("offtopic")
         async def _off_stream():
             yield _sse({"text": _OFFTOPIC_MSG})
             yield "data: [DONE]\n\n"
@@ -2049,6 +2050,7 @@ async def alex_chat(req: AlexChatRequest, http_request: Request):
     # Дневен таван по IP (против неограничен разход). Мек — връща съобщение в чата.
     _allowed, _ = _chat_rate_check(http_request)
     if not _allowed:
+        _bump_chat_stat("blocked")
         async def _limit_stream():
             _m = ("Достигна дневния лимит въпроси към Alex за днес 🙏 Нулира се в полунощ. "
                   "Дотогава разгледай картите и класациите «Топ по стойност» — там има "
@@ -2061,6 +2063,7 @@ async def alex_chat(req: AlexChatRequest, http_request: Request):
     if _kind == "lookup":
         _res = _lookup_results(_payload)
         if _res:
+            _bump_chat_stat("lookup")
             async def _lookup_stream():
                 yield _sse({"text": f"Ето какво намерих за «{_payload}» в нашата база:"})
                 yield _sse({"products": _res, "tool": "search_products", "input": {"query": _payload}})
@@ -2099,6 +2102,7 @@ async def alex_chat(req: AlexChatRequest, http_request: Request):
             logger.warning("[alex] product_context failed: %s", exc)
 
     _chat_model = _pick_chat_model(req.messages, req.product_context)
+    _bump_chat_stat("sonnet" if _chat_model == _CHAT_SONNET else "haiku")
 
     return StreamingResponse(
         _stream_alex(req.messages, system, req.user_id, req.category, user_dna, seed_products, _chat_model),
@@ -2175,6 +2179,36 @@ async def alex_chat_simple(req: AlexChatRequest, http_request: Request):
         msg_dicts.append({"role": "user",      "content": tool_results})
 
     raise HTTPException(status_code=500, detail="Tool loop exceeded max rounds")
+
+
+@router.get("/alex/chat-stats")
+async def chat_stats(days: int = Query(7, le=31)):
+    """Разпределение на чат-маршрутите по ден — за да се вижда реалната икономия.
+    offtopic/lookup = 0 LLM · haiku = евтин · sonnet = скъп · blocked = над лимита."""
+    from datetime import timedelta
+    today = datetime.now(timezone.utc).date()
+    out = []
+    tot = {"offtopic": 0, "lookup": 0, "haiku": 0, "sonnet": 0, "blocked": 0}
+    for i in range(days):
+        d = (today - timedelta(days=i)).isoformat()
+        rec = _read_precomputed(f"chatstats:{d}")
+        data = (rec.get("value") if rec and isinstance(rec.get("value"), dict) else {}) or {}
+        row = {k: int(data.get(k, 0)) for k in tot}
+        for k in tot:
+            tot[k] += row[k]
+        row["date"] = d
+        row["total"] = sum(row[k] for k in tot)
+        out.append(row)
+    grand = sum(tot.values()) or 1
+    # LLM-извиквания спестени = offtopic + lookup; евтини = haiku; скъпи = sonnet
+    summary = {
+        **tot,
+        "total": sum(tot.values()),
+        "pct_no_llm": round(100 * (tot["offtopic"] + tot["lookup"]) / grand, 1),
+        "pct_haiku":  round(100 * tot["haiku"] / grand, 1),
+        "pct_sonnet": round(100 * tot["sonnet"] / grand, 1),
+    }
+    return {"summary": summary, "days": out}
 
 
 @router.get("/alex/search")
@@ -3893,6 +3927,20 @@ def _lookup_results(query: str) -> list:
         logger.warning("[lookup] %s", exc)
         res = []
     return [r for r in res if r.get("image_url")][:8]
+
+
+def _bump_chat_stat(kind: str) -> None:
+    """Брои маршрутите на чата по ден (offtopic/lookup/haiku/sonnet/blocked) в
+    computed_cache — за да се вижда реалната икономия. Приблизително (без заключване)."""
+    try:
+        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        key = f"chatstats:{day}"
+        rec = _read_precomputed(key)
+        data = (rec.get("value") if rec and isinstance(rec.get("value"), dict) else {}) or {}
+        data[kind] = int(data.get(kind, 0)) + 1
+        _write_precomputed(key, data)
+    except Exception as exc:
+        logger.debug("[chat-stats] %s", exc)
 
 
 # ─── Реален verdict на продукт (за честния Pazarko Score) — предкалкулиран ─────
