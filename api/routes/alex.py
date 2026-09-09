@@ -336,6 +336,9 @@ class AlexChatRequest(BaseModel):
 ALEX_SYSTEM = """Ти си Алекс — AI съветник по електроника за България.
 Помагаш на хората да вземат умни решения при покупка на техника — слушалки, телефони, лаптопи, телевизори, конзоли, фотоапарати, домакински уреди и аксесоари.
 
+⛔ САМО ЕЛЕКТРОНИКА/ТЕХНИКА. Ако въпросът е извън темата (стихове, рецепти, политика, спорт, преводи, общи знания и т.н.) — НЕ отговаряй по същество; учтиво в едно изречение кажи, че помагаш само с електроника, и покани към въпрос за продукт. Не ползвай search_products за такива въпроси.
+📦 САМО ОТ НАШАТА БАЗА. Продукти, цени и наличности идват ЕДИНСТВЕНО от search_products (нашия скрейпинг). Никога не измисляй продукт или цена, които ги няма в резултатите.
+
 ════════════════════════════════════════
 СТЪПКА 0 — КЛАСИФИКАЦИЯ НА НАМЕРЕНИЕТО
 ════════════════════════════════════════
@@ -2032,6 +2035,17 @@ async def alex_chat(req: AlexChatRequest, http_request: Request):
     if not req.messages:
         raise HTTPException(status_code=400, detail="Няма съобщения")
 
+    _sse_headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    _last_user = _last_user_text(req.messages)
+    _kind, _payload = _classify_message(_last_user, req.product_context)
+
+    # (1) Извън темата → учтив отказ, БЕЗ извикване на модел и БЕЗ да яде от лимита.
+    if _kind == "offtopic":
+        async def _off_stream():
+            yield _sse({"text": _OFFTOPIC_MSG})
+            yield "data: [DONE]\n\n"
+        return StreamingResponse(_off_stream(), media_type="text/event-stream", headers=_sse_headers)
+
     # Дневен таван по IP (против неограничен разход). Мек — връща съобщение в чата.
     _allowed, _ = _chat_rate_check(http_request)
     if not _allowed:
@@ -2039,10 +2053,23 @@ async def alex_chat(req: AlexChatRequest, http_request: Request):
             _m = ("Достигна дневния лимит въпроси към Alex за днес 🙏 Нулира се в полунощ. "
                   "Дотогава разгледай картите и класациите «Топ по стойност» — там има "
                   "цялата информация (спецове, реална ли е отстъпката, по-добър ли има за парите) без чат.")
-            yield f"data: {json.dumps({'text': _m})}\n\n"
+            yield _sse({"text": _m})
             yield "data: [DONE]\n\n"
-        return StreamingResponse(_limit_stream(), media_type="text/event-stream",
-                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+        return StreamingResponse(_limit_stream(), media_type="text/event-stream", headers=_sse_headers)
+
+    # (2) Чиста ценова справка → директно от базата, БЕЗ извикване на модел.
+    if _kind == "lookup":
+        _res = _lookup_results(_payload)
+        if _res:
+            async def _lookup_stream():
+                yield _sse({"text": f"Ето какво намерих за «{_payload}» в нашата база:"})
+                yield _sse({"products": _res, "tool": "search_products", "input": {"query": _payload}})
+                yield _sse({"text": "\n\nКликни върху карта за детайли — спецове, дали отстъпката е "
+                                    "реална и има ли по-добър за парите. Ако искаш препоръка коя да "
+                                    "избереш, само ми кажи за какво ще я ползваш."})
+                yield "data: [DONE]\n\n"
+            return StreamingResponse(_lookup_stream(), media_type="text/event-stream", headers=_sse_headers)
+        # няма резултат → пада към модела (да не остане в задънена улица)
 
     # Load Shopping DNA for personalization
     user_dna: Optional[dict] = None
@@ -2091,6 +2118,11 @@ async def alex_chat_simple(req: AlexChatRequest, http_request: Request):
 
     if not req.messages:
         raise HTTPException(status_code=400, detail="Няма съобщения")
+
+    # Извън темата → отказ без модел (същият гард като /alex/chat)
+    _kind_s, _pl_s = _classify_message(_last_user_text(req.messages), req.product_context)
+    if _kind_s == "offtopic":
+        return {"response": _OFFTOPIC_MSG, "products": [], "usage": {"input_tokens": 0, "output_tokens": 0}}
 
     # Същият дневен таван по IP (за да не е байпас на /alex/chat)
     _allowed, _ = _chat_rate_check(http_request)
@@ -3791,6 +3823,76 @@ def _pick_chat_model(messages, product_context=None) -> str:
     if product_context or _CHAT_SONNET_RE.search(low) or len(low) > 160:
         return _CHAT_SONNET
     return _CHAT_HAIKU
+
+
+# ─── Пре-LLM рутер: реже разхода, като изобщо НЕ вика модела за евтините случаи ──
+# 1) Явно извън темата (не-техника) → учтив отказ, 0 извиквания.
+# 2) Чиста ценова справка („цена на X", „имате ли Y") → директно от базата, 0 извиквания.
+# 3) Всичко друго → към модела (Haiku/Sonnet рутиране).
+_TECH_SIGNAL_RE = re.compile(
+    r"телефон|смартфон|лаптоп|компютър|таблет|телевизор|монитор|слушалк|еърподс|airpods|"
+    r"хладилник|перал|сушил|фурн|печк|микровълнов|климатик|бойлер|прахосмукачк|съдомиял|"
+    r"фотоапарат|камер|обектив|конзол|playstation|ps5|xbox|nintendo|часовник|рутер|ssd|"
+    r"видеокарт|процесор|дрон|зарядн|power ?bank|техник|електроник|уред|гаджет|"
+    r"samsung|apple|iphone|ipad|macbook|xiaomi|redmi|poco|huawei|honor|oppo|realme|"
+    r"motorola|nokia|sony|\blg\b|philips|bosch|beko|whirlpool|tcl|hisense|acer|asus|"
+    r"lenovo|\bhp\b|dell|msi|canon|nikon|fujifilm|"
+    r"гаранци|оферт|намал|спец|мегапиксел|инч|герц|\bhz\b|\bgb\b|\btb\b", re.I)
+_OFFTOPIC_RE = re.compile(
+    r"стихотвор|рецепт|\bвиц\b|шега|\bесе\b|преведи|превод на|напиши ми|напиши един|"
+    r"политик|избори|президент|футбол|\bмач\b|мача|баскетбол|тенис|прогноз\w* за времето|"
+    r"времето (днес|утре)|какво е времето|хороскоп|зодия|колко е часът|реши (задача|уравнение|пример)|"
+    r"домашно|историята на|кой спечели|анекдот|разкажи ми|диета|отслабв|любов|гадже", re.I)
+_LOOKUP_RE = re.compile(
+    r"^\s*(цена|цената|колко струва|колко е|имате ли|имаш ли|налич|покажи|търся|дай ми)\b", re.I)
+
+
+def _last_user_text(messages) -> str:
+    for m in reversed(messages or []):
+        role = getattr(m, "role", None) or (m.get("role") if isinstance(m, dict) else None)
+        if role == "user":
+            return (getattr(m, "content", None) or (m.get("content") if isinstance(m, dict) else "") or "")
+    return ""
+
+
+def _extract_lookup_query(low: str) -> str:
+    q = re.sub(r"^\s*(цена(та)?\s*(на)?|колко\s*струва|колко\s*е|имате\s*ли|имаш\s*ли|"
+               r"налич\w*(\s*(ли|е))?|покажи(\s*ми)?|търся|дай\s*ми)\s*", "", low, flags=re.I)
+    return q.strip(" ?.!,«»\"'")
+
+
+def _classify_message(text: str, product_context=None) -> tuple:
+    """Връща ('offtopic'|'lookup'|'chat', payload). Консервативно — при съмнение 'chat'."""
+    low = (text or "").strip()
+    if not low or product_context:
+        return ("chat", None)
+    has_tech = bool(_TECH_SIGNAL_RE.search(low))
+    if _OFFTOPIC_RE.search(low) and not has_tech:
+        return ("offtopic", None)
+    if (_LOOKUP_RE.search(low) and has_tech and not _CHAT_SONNET_RE.search(low) and len(low) <= 80):
+        q = _extract_lookup_query(low)
+        if len(q) >= 2:
+            return ("lookup", q)
+    return ("chat", None)
+
+
+_OFFTOPIC_MSG = ("Аз съм Alex и помагам само с електроника и техника — телефони, лаптопи, "
+                 "телевизори, домакински уреди и подобни. Питай ме за продукт, цена или коя "
+                 "оферта си заслужава, и ще ти помогна да избереш най-доброто за парите. 🙂")
+
+
+def _sse(obj) -> str:
+    return f"data: {json.dumps(obj, ensure_ascii=False)}\n\n"
+
+
+def _lookup_results(query: str) -> list:
+    """Директен резултат от базата за чиста справка (0 LLM извиквания)."""
+    try:
+        res = _exec_search_products({"query": query, "limit": 8}) or []
+    except Exception as exc:
+        logger.warning("[lookup] %s", exc)
+        res = []
+    return [r for r in res if r.get("image_url")][:8]
 
 
 # ─── Реален verdict на продукт (за честния Pazarko Score) — предкалкулиран ─────
