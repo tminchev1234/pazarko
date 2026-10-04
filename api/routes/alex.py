@@ -2212,6 +2212,29 @@ async def chat_stats(days: int = Query(7, le=31)):
     return {"summary": summary, "days": out}
 
 
+@router.post("/alex/visit")
+async def visit(http_request: Request):
+    """Броячка: едно посещение (общо + уникални по IP/ден). Вика се веднъж при зареждане."""
+    _bump_visit(http_request)
+    return {"ok": True}
+
+
+@router.get("/alex/visit-stats")
+async def visit_stats(days: int = Query(14, le=90)):
+    """Посетители по ден — общо зареждания + уникални (по IP)."""
+    from datetime import timedelta
+    today = datetime.now(timezone.utc).date()
+    out, tot_total, tot_uniq = [], 0, 0
+    for i in range(days):
+        d = (today - timedelta(days=i)).isoformat()
+        rec = _read_precomputed(f"visits:{d}")
+        data = (rec.get("value") if rec and isinstance(rec.get("value"), dict) else {}) or {}
+        t, u = int(data.get("total", 0)), int(data.get("unique", 0))
+        tot_total += t; tot_uniq += u
+        out.append({"date": d, "total": t, "unique": u})
+    return {"summary": {"days": days, "total_views": tot_total, "unique_visitors": tot_uniq}, "days": out}
+
+
 @router.get("/alex/search")
 async def alex_search(
     q:        str            = Query(..., description="Search query"),
@@ -3942,6 +3965,27 @@ def _bump_chat_stat(kind: str) -> None:
         _write_precomputed(key, data)
     except Exception as exc:
         logger.debug("[chat-stats] %s", exc)
+
+
+# ─── Броячка на посетители (общо зареждания + уникални по IP/ден) ──────────────
+def _bump_visit(request: Request) -> None:
+    """Брои едно посещение: +1 общо, и +1 уникално ако този IP не е броен днес.
+    През computed_cache (0 миграции). Приблизително — за груба представа за трафика."""
+    try:
+        ip = _client_ip(request)
+        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        seen = _read_precomputed(f"vseen:{ip}:{day}")
+        is_new = not (seen and seen.get("value"))
+        if is_new:
+            _write_precomputed(f"vseen:{ip}:{day}", 1)
+        key = f"visits:{day}"
+        rec = _read_precomputed(key)
+        data = (rec.get("value") if rec and isinstance(rec.get("value"), dict) else {}) or {}
+        data["total"]  = int(data.get("total", 0)) + 1
+        data["unique"] = int(data.get("unique", 0)) + (1 if is_new else 0)
+        _write_precomputed(key, data)
+    except Exception as exc:
+        logger.debug("[visit] %s", exc)
 
 
 # ─── Реален verdict на продукт (за честния Pazarko Score) — предкалкулиран ─────

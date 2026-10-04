@@ -3789,6 +3789,13 @@ function tradeInDevice(deviceName) {
   window.addEventListener('load', function(){ initClerk(0); });
 })();
 window.addEventListener('load', function(){ try { _updateSavedBadge(); } catch(e){} });
+// Броячка на посетители — веднъж при зареждане (не при SPA навигация)
+window.addEventListener('load', function(){
+  try {
+    if (navigator.sendBeacon) navigator.sendBeacon(API + '/alex/visit');
+    else fetch(API + '/alex/visit', { method:'POST', keepalive:true });
+  } catch(e){}
+});
 </script>
 </body>
 </html>
