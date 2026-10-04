@@ -1184,9 +1184,14 @@ def _price_analysis(rows: list[dict]) -> dict:
     conf      = "high" if days >= 40 else "medium" if days >= 20 else "low"
     if len(prices) < 8:
         forecast = {"action": "unknown"}
-    elif current <= p25 * 1.02:
+    elif not moves:
+        # цената почти не се движи (тесен диапазон) → без „купи/чакай" и без „дъно",
+        # за да няма противоречие с показания диапазон (напр. 939–949, където 949=върхът)
+        forecast = {"action": "neutral", "confidence": conf,
+                    "basis": "цената е стабилна — почти не се движи"}
+    elif current <= low * 1.03:
         forecast = {"action": "buy", "confidence": conf,
-                    "basis": "сега е в дъното на 90-дневния си диапазон"}
+                    "basis": "сега е близо до дъното на 90-дневния си диапазон"}
     elif trend == "falling" and current > p25 * 1.05:
         forecast = {"action": "wait", "confidence": conf, "target_price": round(p25, 2),
                     "expected_saving_pct": round((current - p25) / current * 100),
@@ -3517,11 +3522,22 @@ def _category_value_ranks(sb, cat: str):
     return entry
 
 
+_GAMING_RE = re.compile(
+    r"rtx|gtx|geforce|radeon|\brx\s?[5-9]\d{2,3}\b|gaming|\brog\b|nitro|legion|\btuf\b|"
+    r"victus|\bloq\b|katana|predator|\bomen\b|cyborg|pulse|\btitan\b|raider|stealth", re.I)
+
+
+def _is_gaming_laptop(name: str) -> bool:
+    """Гейминг лаптоп (дискретна карта/гейминг серия). MacBook и офис лаптопи → False."""
+    return bool(_GAMING_RE.search(name or ""))
+
+
 def _better_value(sb, cat: str, url: str, my_name: str, my_price) -> dict:
     """0-токенов отговор на „има ли по-добър за тези пари": намира модели в същата
     категория с по-висок Alex Score при подобна ИЛИ по-ниска цена (≤ +10%).
     Празен списък → на тези пари каталогът няма по-добре оценен модел (честна
-    претенция, не хвалба). Изключва същия модел (различни цветове/конфиг)."""
+    претенция, не хвалба). Изключва същия модел (различни цветове/конфиг).
+    За лаптопи филтрира по ПРЕДНАЗНАЧЕНИЕ — гейминг не се замества с офис/MacBook."""
     try:
         entry = _category_value_ranks(sb, cat)
     except Exception:
@@ -3537,6 +3553,8 @@ def _better_value(sb, cat: str, url: str, my_name: str, my_price) -> dict:
         return {}
     hi, lo = my_price * 1.10, my_price * 0.75   # „за тези пари" = подобен ценови клас
     my_sig = _ident_sig(my_name or "")
+    is_laptop = (cat == "laptops")
+    my_gaming = _is_gaming_laptop(my_name) if is_laptop else False
     alts, seen = [], set()
     for it in (entry.get("scored_min") or []):
         if it["url"] == url or it["score"] <= my_score:
@@ -3547,6 +3565,9 @@ def _better_value(sb, cat: str, url: str, my_name: str, my_price) -> dict:
         except (TypeError, ValueError):
             p = 0
         if not p or p > hi or p < lo:
+            continue
+        # Лаптопи: не замествай гейминг с офис/MacBook и обратно (различно предназначение)
+        if is_laptop and _is_gaming_laptop(it.get("raw_name") or "") != my_gaming:
             continue
         sig = it.get("sig") or set()
         if sig and sig == my_sig:
