@@ -3766,7 +3766,17 @@ function tradeInDevice(deviceName) {
     if(window.Clerk.user){
       window.Clerk.signOut().then(function(){ location.reload(); });
     } else {
-      window.Clerk.openSignIn({});   // Google е включен в Clerk дашборда
+      // ВАЖНО: споделяме Clerk инстанция с академията/компаньона. Без изричен redirect
+      // след Google SSO Clerk праща към default-ния URL от дашборда (другото приложение).
+      // Затова връщаме потребителя ТОЧНО на текущата страница (нашия pazarko за техника).
+      var here = window.location.href;
+      window.Clerk.openSignIn({
+        redirectUrl:            here,   // SSO callback се връща тук
+        afterSignInUrl:         here,   // legacy Clerk
+        afterSignUpUrl:         here,
+        signInForceRedirectUrl: here,   // нов Clerk
+        signUpForceRedirectUrl: here
+      });
     }
   };
   function initClerk(tries){
