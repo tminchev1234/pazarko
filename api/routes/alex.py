@@ -959,7 +959,7 @@ ALEX_TOOLS = [
     {
         "name": "suggest_alternative",
         "description": (
-            "Намира по-добра СТОЙНОСТ в същата категория (по-висок Pazarko Score, сходна цена). "
+            "Намира по-добра СТОЙНОСТ в същата категория (по-висок Alex Score, сходна цена). "
             "Използвай когато потребителят се колебае за продукт, или той е надценен/на пика си, "
             "или пита 'има ли по-добро', 'какво друго', 'струва ли си този'. Предлага честно, не притиска."
         ),
@@ -1732,7 +1732,7 @@ def _exec_compare_products(args: dict) -> dict:
 
 
 def _exec_suggest_alternative(args: dict) -> dict:
-    """Намира по-добра СТОЙНОСТ в същата категория (по-висок Pazarko Score, сходна цена)."""
+    """Намира по-добра СТОЙНОСТ в същата категория (по-висок Alex Score, сходна цена)."""
     name = (args.get("product_name") or "").strip()
     if not name:
         return {"error": "Подай product_name"}
@@ -1779,7 +1779,7 @@ def _exec_suggest_alternative(args: dict) -> dict:
         "alternatives": alts,
         "how_to_use": ("Ако alternatives е празно — избраният е добра стойност, кажи го уверено. "
                        "Иначе предложи по-добрата стойност ЧЕСТНО: 'за подобна цена този има по-висок "
-                       "Pazarko Score (по-добра реална сделка/спецове)'. Не притискай — само информирай."),
+                       "Alex Score (по-добра реална сделка/спецове)'. Не притискай — само информирай."),
     }
 
 
@@ -2305,7 +2305,7 @@ def _compute_medians() -> None:
 
 
 def alex_score(product: dict) -> float:
-    """Pazarko Score (4.0–9.8) — ЧЕСТЕН: реалното дъно (от нашата история) качва,
+    """Alex Score (4.0–9.8) — ЧЕСТЕН: реалното дъно (от нашата история) качва,
     ФИКТИВНАТА отстъпка ПАДА. Не вярва сляпо на обявената от магазина отстъпка."""
     score = 6.0
     price    = product.get("price") or 0
@@ -3460,7 +3460,7 @@ _CAT_RANK_CACHE: dict = {}
 
 
 def _category_value_ranks(sb, cat: str):
-    """Ранг по Pazarko Score в категорията (url→ранг), кеширан 1 ч в паметта.
+    """Ранг по Alex Score в категорията (url→ранг), кеширан 1 ч в паметта.
     alex_score е евтин (речникови справки + кеширани verdict-и), категориите са
     ≤~1200 реда → без token/тежък scan. Ранг 1 = най-добра стойност."""
     import time
@@ -3519,7 +3519,7 @@ def _category_value_ranks(sb, cat: str):
 
 def _better_value(sb, cat: str, url: str, my_name: str, my_price) -> dict:
     """0-токенов отговор на „има ли по-добър за тези пари": намира модели в същата
-    категория с по-висок Pazarko Score при подобна ИЛИ по-ниска цена (≤ +10%).
+    категория с по-висок Alex Score при подобна ИЛИ по-ниска цена (≤ +10%).
     Празен списък → на тези пари каталогът няма по-добре оценен модел (честна
     претенция, не хвалба). Изключва същия модел (различни цветове/конфиг)."""
     try:
@@ -3620,7 +3620,7 @@ def _product_context_block(pc: dict) -> tuple:
             rc = _category_value_ranks(sb, cat)
             my_rank = (rc.get("ranks") or {}).get(url)
             if my_rank and rc.get("total"):
-                lines.append(f"Pazarko Score ранг: #{my_rank} от {rc['total']} по стойност в „{cat_label}“")
+                lines.append(f"Alex Score ранг: #{my_rank} от {rc['total']} по стойност в „{cat_label}“")
             bv = _better_value(sb, cat, url, rname, price) or {}
     except Exception:
         bv = {}
@@ -3715,7 +3715,7 @@ async def current_prices(urls: str = Query(..., description="Comma-separated pro
 
 @router.get("/alex/top-value")
 async def top_value(category: str = Query(...), limit: int = Query(12, le=20)):
-    """Топ продукти по стойност (Pazarko Score) в категорията — за кликаемия ранг."""
+    """Топ продукти по стойност (Alex Score) в категорията — за кликаемия ранг."""
     try:
         sb = get_supabase()
         rc = _category_value_ranks(sb, category)
@@ -3755,7 +3755,7 @@ async def card_meta(url: str = Query(...), category: str = Query("")):
         running = {"annual_eur": annual_eur, "cost_5yr_eur": annual_eur * 5,
                    "energy_class": rc["energy_class"], "annual_kwh": rc["annual_kwh"]}
 
-    # Ранг по стойност (Pazarko Score) в категорията — смятан на живо, кеширан
+    # Ранг по стойност (Alex Score) в категорията — смятан на живо, кеширан
     rank = None
     if cat:
         try:
@@ -3768,7 +3768,7 @@ async def card_meta(url: str = Query(...), category: str = Query("")):
 
     cross = _same_model_other_stores(sb, o, specs)
 
-    # „Има ли по-добър за тези пари" — 0 токена, от Pazarko Score в категорията
+    # „Има ли по-добър за тези пари" — 0 токена, от Alex Score в категорията
     better = None
     if cat:
         try:
@@ -3988,13 +3988,13 @@ def _bump_visit(request: Request) -> None:
         logger.debug("[visit] %s", exc)
 
 
-# ─── Реален verdict на продукт (за честния Pazarko Score) — предкалкулиран ─────
+# ─── Реален verdict на продукт (за честния Alex Score) — предкалкулиран ─────
 _VERDICTS_CACHE = {"ts": 0.0, "data": None}
 
 
 def _build_verdicts() -> dict:
     """Скенира историята веднъж → deal_score за всеки продукт (url). Ползва се от
-    Pazarko Score, за да качва реалните дъна и НАКАЗВА фиктивните отстъпки."""
+    Alex Score, за да качва реалните дъна и НАКАЗВА фиктивните отстъпки."""
     try:
         sb = get_supabase()
         cutoff = (datetime.now() - timedelta(days=95)).isoformat()
@@ -4433,7 +4433,7 @@ async def cron_precompute(request: Request):
     _IMG_FIX_CACHE["data"] = {"placeholders": set(imgfix.get("placeholders") or []),
                               "twins": imgfix.get("twins") or {}}
     _IMG_FIX_CACHE["ts"] = time.time()
-    # Реални verdict-и за честния Pazarko Score
+    # Реални verdict-и за честния Alex Score
     verdicts = _build_verdicts()
     _write_precomputed("verdicts", verdicts)
     _VERDICTS_CACHE["data"] = verdicts
@@ -4480,7 +4480,7 @@ def _guide_page(title: str, desc: str, body: str) -> str:
             f'<title>{escape(title)}</title><meta name="description" content="{escape(desc)}">'
             f'<link rel="canonical" href="https://pazarko-1.onrender.com/vodach">'
             f'<style>{_GUIDE_CSS}</style></head><body><div class="w">{body}'
-            f'<div class="ft">Класацията е по <b>реална стойност</b> (Pazarko Score) — цена спрямо '
+            f'<div class="ft">Класацията е по <b>реална стойност</b> (Alex Score) — цена спрямо '
             f'собствената ценова история, не спрямо обявени намаления. Данните се обновяват ежедневно.</div>'
             f'</div></body></html>')
 
@@ -4491,13 +4491,13 @@ def render_guide_index() -> str:
         f'<a href="/vodach/{c}">{escape(_CAT_LABELS.get(c, c))} →</a>'
         for c in _GUIDE_CATS
     )
-    body = (f'<div class="eb">Pazarko · водачи</div>'
+    body = (f'<div class="eb">Alex · водачи</div>'
             f'<h1>Кое си заслужава да купиш — честни класации</h1>'
             f'<p class="lede">Подреждаме продуктите по <b>реална стойност</b>, а не по обявени '
             f'намаления. Всяка класация ползва нашата ежедневна ценова история, за да отсее '
             f'фалшивите „оферти". Избери категория:</p><div class="idx">{links}</div>'
             f'<a class="cta" href="/alex/">💬 Или питай Alex директно за твоя случай →</a>')
-    return _guide_page("Водачи за покупка — честни класации по реална стойност · Pazarko",
+    return _guide_page("Водачи за покупка — честни класации по реална стойност · Alex",
                        "Честни класации на електрониката в България, подредени по реална стойност "
                        "(не по фалшиви намаления). Ежедневна ценова история.", body)
 
@@ -4507,7 +4507,7 @@ def render_guide(category: str) -> str:
     from datetime import datetime as _dt
     label = _CAT_LABELS.get(category, category)
     if category not in _GUIDE_CATS:
-        return _guide_page("Няма такъв водач · Pazarko", "Няма такъв водач.",
+        return _guide_page("Няма такъв водач · Alex", "Няма такъв водач.",
                            f'<h1>Няма такъв водач</h1><p><a href="/vodach">← Всички водачи</a></p>')
     try:
         sb = get_supabase()
@@ -4540,16 +4540,16 @@ def render_guide(category: str) -> str:
             f'<div class="sc"><div class="pr">{p.get("price"):.0f} €</div>'
             f'<div class="scn">{p["_score"]:.1f}</div><div class="scl">Score</div></div></div>')
     year = _dt.now().year
-    body = (f'<div class="eb"><a href="/vodach">Водачи</a> · Pazarko</div>'
+    body = (f'<div class="eb"><a href="/vodach">Водачи</a> · Alex</div>'
             f'<h1>Най-добрите {escape(label.lower())} по реална стойност — {year}</h1>'
-            f'<p class="lede">Топ {len(top)} {escape(label.lower())} според <b>Pazarko Score</b> — '
+            f'<p class="lede">Топ {len(top)} {escape(label.lower())} според <b>Alex Score</b> — '
             f'подреждаме по реална стойност (цена спрямо собствената им ценова история, марка, '
             f'спецификации), не по обявени намаления. Фиктивните „оферти" падат надолу.</p>'
             f'{"".join(cards) if cards else "<p>Няма данни в момента.</p>"}'
             f'<a class="cta" href="/alex/">💬 Не си сигурен кой е за теб? Питай Alex →</a>')
     return _guide_page(
-        f"Най-добрите {label.lower()} — класация по реална стойност {year} · Pazarko",
-        f"Топ {label.lower()} в България, подредени по реална стойност (Pazarko Score), не по "
+        f"Най-добрите {label.lower()} — класация по реална стойност {year} · Alex",
+        f"Топ {label.lower()} в България, подредени по реална стойност (Alex Score), не по "
         f"фалшиви намаления. Реални цени, спецификации, ценова история. {year}.", body)
 
 
@@ -5166,7 +5166,7 @@ async def related_products(
     limit:       int   = Query(6),
 ):
     """Return related products: same category, price ±40%, different URL.
-    Подрежда по Pazarko Score, смятан на живо (няма съхранена alex_score колона)."""
+    Подрежда по Alex Score, смятан на живо (няма съхранена alex_score колона)."""
     limit = min(limit, 12)
     try:
         sb = get_supabase()

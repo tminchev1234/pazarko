@@ -1540,7 +1540,7 @@ async function loadTopValue(slug) {
             <div class="tvc-name">${eh(p.raw_name)}</div>
             <div class="tvc-foot">
               <span class="tvc-price">${fmt(p.price)}</span>
-              ${p.score ? `<span class="tvc-score" title="Pazarko Score">${(+p.score).toFixed(1)}</span>` : ''}
+              ${p.score ? `<span class="tvc-score" title="Alex Score">${(+p.score).toFixed(1)}</span>` : ''}
             </div>
             <div class="tvc-store">${sl(p.store)}</div>
           </div>
@@ -1552,7 +1552,7 @@ async function loadTopValue(slug) {
           <div class="tvsec-lbl">🏅 Топ 10 по стойност</div>
           <button class="tvsec-cta" onclick="showTopValue('${ea(slug)}')">виж класацията ›</button>
         </div>
-        <div class="tvsec-sub">Най-добро съотношение качество–цена в категорията, подредено от Pazarko Score</div>
+        <div class="tvsec-sub">Най-добро съотношение качество–цена в категорията, подредено от Alex Score</div>
         <div class="tvsec-scroll">${cards}</div>
       </div>`;
   } catch { el.innerHTML = ''; }
@@ -2336,7 +2336,7 @@ function _renderCardMeta(m, prod) {
     spEl.style.display = 'block';
   }
 
-  // Мнение „по-добър ли има за тези пари" — конкретно, от Pazarko Score (0 токена)
+  // Мнение „по-добър ли има за тези пари" — конкретно, от Alex Score (0 токена)
   const bEl = document.getElementById('vrdBetter');
   const bv = m.better_value;
   if (bEl && bv) {
@@ -2420,7 +2420,7 @@ async function showTopValue(category) {
           <div class="tv-store">${eh(sl(p.store))}</div></div>
         <div class="tv-price">${fmt(p.price)}</div>
       </div>`;
-    }).join('') + `<div class="tv-foot">от ${d.total} продукта в категорията · подредени по Pazarko Score</div>`;
+    }).join('') + `<div class="tv-foot">от ${d.total} продукта в категорията · подредени по Alex Score</div>`;
   } catch { body.innerHTML = '<div class="tv-load">Грешка при зареждане.</div>'; }
 }
 
