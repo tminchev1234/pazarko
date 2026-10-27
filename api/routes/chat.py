@@ -8,16 +8,32 @@ import logging
 import json
 from typing import AsyncIterator, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import anthropic
 
 from api.config import get_settings
 from api.db import get_supabase
+from api.routes.alex import _chat_rate_check
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["chat"])
+
+# Legacy (храни) чат — без auth, затова евтин модел + таван. Беше Opus 4.5 без лимит.
+_LEGACY_MODEL      = "claude-haiku-4-5-20251001"
+_LEGACY_MAX_TOKENS = 600
+_LEGACY_MAX_MSGS   = 12      # само последните N съобщения от клиента
+_LEGACY_MAX_CHARS  = 2000    # на съобщение
+_LIMIT_MSG = "Достигна дневния лимит въпроси за днес. Нулира се в полунощ."
+
+
+def _trim(messages: List["ChatMessage"]) -> list[dict]:
+    out = [{"role": m.role, "content": (m.content or "")[:_LEGACY_MAX_CHARS]}
+           for m in messages[-_LEGACY_MAX_MSGS:]]
+    while out and out[0]["role"] != "user":   # API-то иска първото да е от user
+        out.pop(0)
+    return out
 
 
 # ── models ────────────────────────────────────────────────────────────────────
@@ -81,11 +97,11 @@ async def _stream_response(
     settings = get_settings()
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
-    msg_dicts = [{"role": m.role, "content": m.content} for m in messages]
+    msg_dicts = _trim(messages)
 
     async with client.messages.stream(
-        model="claude-opus-4-5",
-        max_tokens=1024,
+        model=_LEGACY_MODEL,
+        max_tokens=_LEGACY_MAX_TOKENS,
         system=system,
         messages=msg_dicts,
     ) as stream:
@@ -98,13 +114,21 @@ async def _stream_response(
 # ── endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/chat")
-async def chat(req: ChatRequest):
+async def chat(req: ChatRequest, http_request: Request):
     """
     Streaming chat endpoint — returns SSE stream.
     Automatically loads user DNA if user_id provided.
     """
     if not req.messages:
         raise HTTPException(status_code=400, detail="Няма съобщения")
+
+    # Общ дневен таван по IP с /alex/chat
+    allowed, _ = _chat_rate_check(http_request)
+    if not allowed:
+        async def _limit_stream():
+            yield f"data: {json.dumps({'text': _LIMIT_MSG})}\n\n"
+            yield "data: [DONE]\n\n"
+        return StreamingResponse(_limit_stream(), media_type="text/event-stream")
 
     # Load Shopping DNA for personalization
     user_dna = None
@@ -129,8 +153,13 @@ async def chat(req: ChatRequest):
 
 
 @router.post("/chat/non-streaming")
-async def chat_simple(req: ChatRequest):
+async def chat_simple(req: ChatRequest, http_request: Request):
     """Non-streaming version — for integrations that don't support SSE."""
+    if not req.messages:
+        raise HTTPException(status_code=400, detail="Няма съобщения")
+    allowed, _ = _chat_rate_check(http_request)
+    if not allowed:
+        raise HTTPException(status_code=429, detail=_LIMIT_MSG)
     settings = get_settings()
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
@@ -144,11 +173,11 @@ async def chat_simple(req: ChatRequest):
             pass
 
     system = _build_system_prompt(user_dna)
-    msg_dicts = [{"role": m.role, "content": m.content} for m in req.messages]
+    msg_dicts = _trim(req.messages)
 
     response = await client.messages.create(
-        model="claude-opus-4-5",
-        max_tokens=1024,
+        model=_LEGACY_MODEL,
+        max_tokens=_LEGACY_MAX_TOKENS,
         system=system,
         messages=msg_dicts,
     )

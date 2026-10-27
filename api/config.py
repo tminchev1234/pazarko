@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     environment: str = os.getenv("ENVIRONMENT", "development")
     secret_key: str = os.getenv("SECRET_KEY", "dev-secret-change-me")
 
+    # Clerk (споделена инстанция с академията) — само публични стойности, без secret
+    clerk_issuer: str = os.getenv("CLERK_ISSUER", "https://honest-cattle-23.clerk.accounts.dev")
+    clerk_authorized_parties: str = os.getenv("CLERK_AUTHORIZED_PARTIES", "")
+
     # Email (Gmail SMTP)
     smtp_user: str = os.getenv("SMTP_USER", "")
     smtp_pass: str = os.getenv("SMTP_PASS", "")

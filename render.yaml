@@ -13,6 +13,8 @@ services:
         sync: false
       - key: SUPABASE_KEY
         sync: false
+      - key: SUPABASE_SERVICE_KEY   # service_role — нужен преди migrations/008 (RLS)
+        sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: ENVIRONMENT

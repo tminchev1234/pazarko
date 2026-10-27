@@ -17,6 +17,9 @@ yarl==1.24.5
 # AI
 anthropic==0.122.0
 
+# Auth — проверка на Clerk session токени (RS256 → нужен е cryptography)
+PyJWT[crypto]==2.12.1
+
 # Scraping
 httpx==0.27.2
 beautifulsoup4==4.15.0

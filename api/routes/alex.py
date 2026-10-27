@@ -25,6 +25,7 @@ from fastapi.responses import StreamingResponse, Response
 from pydantic import BaseModel
 import anthropic
 
+from api.auth import is_clerk_id, require_owner, verified_clerk_id
 from api.config import get_settings
 from api.db import get_supabase
 
@@ -2080,7 +2081,10 @@ async def alex_chat(req: AlexChatRequest, http_request: Request):
             return StreamingResponse(_lookup_stream(), media_type="text/event-stream", headers=_sse_headers)
         # няма резултат → пада към модела (да не остане в задънена улица)
 
-    # Load Shopping DNA for personalization
+    # Load Shopping DNA for personalization.
+    # Clerk id без валиден токен → без памет (чатът работи, но не чете/пише чужд профил).
+    if is_clerk_id(req.user_id) and verified_clerk_id(http_request) != req.user_id:
+        req.user_id = None
     user_dna: Optional[dict] = None
     if req.user_id:
         try:
@@ -4610,18 +4614,24 @@ async def track_click(ev: ClickEvent):
 # ─── IDENTITY LINK — паметта да следва човека, не браузъра ────────────────────
 class IdentityLink(BaseModel):
     anon_id: str
-    user_id: str
+    user_id: Optional[str] = None   # игнорира се — самоличността идва от токена
     email:   Optional[str] = None
 
 
 @router.post("/alex/identity/link")
-async def identity_link(req: IdentityLink):
+async def identity_link(req: IdentityLink, http_request: Request):
     """Свързва анонимния профил (localStorage UUID) с Clerk самоличността.
     Извиква се веднъж при първо вписване. Идемпотентно, best-effort —
-    без него паметта живее само на едно устройство."""
+    без него паметта живее само на едно устройство.
+    Clerk id-то идва САМО от проверения Bearer токен, никога от тялото."""
+    uid = verified_clerk_id(http_request)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Нужен е вход")
+    if req.user_id and req.user_id.strip() != uid:
+        raise HTTPException(status_code=403, detail="Самоличността не съвпада")
     anon = (req.anon_id or "").strip()
-    uid  = (req.user_id or "").strip()
-    if not anon or not uid or anon == uid:
+    # Clerk id като „анонимен" би слял (и изтрил) чужд профил → само анонимни UUID-и
+    if not anon or anon == uid or is_clerk_id(anon):
         return {"ok": False, "error": "invalid ids"}
     sb = get_supabase()
     merged = False
@@ -4666,7 +4676,9 @@ async def identity_link(req: IdentityLink):
     email = (req.email or "").strip().lower()
     if email:
         try:
-            sb.table("deal_subscriptions").update({"user_id": uid}).eq("email", email).execute()
+            # Имейлът не е проверен от токена → закачаме само още незакачени абонаменти
+            (sb.table("deal_subscriptions").update({"user_id": uid})
+               .eq("email", email).is_("user_id", "null").execute())
         except Exception as exc:
             logger.debug("[identity-link] deal_subs link failed: %s", exc)
 
@@ -4872,8 +4884,9 @@ class WatchlistAddRequest(BaseModel):
 
 
 @router.post("/alex/watchlist")
-async def watchlist_add(req: WatchlistAddRequest):
+async def watchlist_add(req: WatchlistAddRequest, http_request: Request):
     """Add a product to the user's watchlist."""
+    require_owner(http_request, req.user_id)
     try:
         sb = get_supabase()
         row = {
@@ -4907,8 +4920,9 @@ async def watchlist_add(req: WatchlistAddRequest):
 
 
 @router.get("/alex/watchlist/{user_id}")
-async def watchlist_get(user_id: str):
+async def watchlist_get(user_id: str, http_request: Request):
     """Return all watchlist items for a user."""
+    require_owner(http_request, user_id)
     try:
         sb = get_supabase()
         resp = (
@@ -4940,8 +4954,9 @@ async def watchlist_get(user_id: str):
 
 
 @router.delete("/alex/watchlist/{item_id}")
-async def watchlist_remove(item_id: int, user_id: str = Query(...)):
+async def watchlist_remove(item_id: int, http_request: Request, user_id: str = Query(...)):
     """Remove a watchlist item (user must own it)."""
+    require_owner(http_request, user_id)
     try:
         sb = get_supabase()
         sb.table("watchlists").delete().eq("id", item_id).eq("user_id", user_id).execute()
@@ -5913,8 +5928,9 @@ class DeviceIn(BaseModel):
 
 
 @router.get("/alex/devices")
-async def get_devices(user_id: str = Query(...)):
+async def get_devices(http_request: Request, user_id: str = Query(...)):
     """List all devices owned by this user."""
+    require_owner(http_request, user_id)
     try:
         sb   = get_supabase()
         resp = (
@@ -5931,8 +5947,9 @@ async def get_devices(user_id: str = Query(...)):
 
 
 @router.post("/alex/devices")
-async def add_device(user_id: str = Query(...), body: DeviceIn = ...):
+async def add_device(http_request: Request, user_id: str = Query(...), body: DeviceIn = ...):
     """Add a device to the user's collection."""
+    require_owner(http_request, user_id)
     try:
         sb  = get_supabase()
         row = {
@@ -5956,8 +5973,9 @@ async def add_device(user_id: str = Query(...), body: DeviceIn = ...):
 
 
 @router.delete("/alex/devices/{device_id}")
-async def delete_device(device_id: int, user_id: str = Query(...)):
+async def delete_device(device_id: int, http_request: Request, user_id: str = Query(...)):
     """Delete a device (only if it belongs to this user)."""
+    require_owner(http_request, user_id)
     try:
         sb = get_supabase()
         sb.table("user_devices").delete().eq("id", device_id).eq("user_id", user_id).execute()

@@ -2941,7 +2941,7 @@ async function sendChatText(txt) {
 async function streamChat(id) {
   const _pc = _pendingProductContext; _pendingProductContext = null;  // еднократно, за първия въпрос от картата
   const resp = await fetch(`${API}/alex/chat`, {
-    method:'POST', headers:{'Content-Type':'application/json'},
+    method:'POST', headers: await _authHeaders({'Content-Type':'application/json'}),
     body: JSON.stringify({
       messages: _chatMsgs,
       user_id:  _alexUid,
@@ -3317,7 +3317,17 @@ function storeBadge(store) {
   return `<span class="store-badge ${sc(store)}" ${tip?`data-tip="${ea(tip)}"`:''} style="display:inline-block">${sl(store)}</span>`;
 }
 function scc(v) { return v>=8?'sc-green':v>=6.5?'sc-blue':v>=5?'sc-amber':'sc-gray'; }
+// Clerk session токен → само към нашия API. Сървърът го проверява за Clerk самоличности.
+async function _authHeaders(h = {}) {
+  try {
+    const t = window.Clerk && window.Clerk.session && await window.Clerk.session.getToken();
+    if (t) return { ...h, Authorization: 'Bearer ' + t };
+  } catch (_) {}
+  return h;
+}
+
 async function apiFetch(path, opts = {}) {
+  opts = { ...opts, headers: await _authHeaders(opts.headers || {}) };
   const r = await fetch(`${API}${path}`, opts);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
@@ -3748,10 +3758,13 @@ function tradeInDevice(deviceName) {
       _alexUid = u.id;
       if(prev && prev !== u.id && localStorage.getItem('alex_linked') !== u.id){
         try {
-          fetch('/alex/identity/link', {
-            method:'POST', headers:{'Content-Type':'application/json'},
-            body: JSON.stringify({ anon_id: prev, user_id: u.id, email: email })
-          }).then(function(){ localStorage.setItem('alex_linked', u.id); }).catch(function(){});
+          // Беше '/alex/identity/link' (без /api) → POST падаше в SPA catch-all с 405
+          _authHeaders({'Content-Type':'application/json'}).then(function(h){
+            return fetch(API + '/alex/identity/link', {
+              method:'POST', headers: h,
+              body: JSON.stringify({ anon_id: prev, user_id: u.id, email: email })
+            });
+          }).then(function(r){ if(r.ok) localStorage.setItem('alex_linked', u.id); }).catch(function(){});
         } catch(_){}
       }
       var name = u.firstName || (email ? email.split('@')[0] : 'Профил');

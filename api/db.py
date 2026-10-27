@@ -1,7 +1,8 @@
 """
-Supabase client — two clients:
-  get_supabase()         → anon key  (public reads, used by API routes)
-  get_supabase_admin()   → service_role key (writes by scrapers, bypasses RLS)
+Supabase client — само сървърът говори с базата:
+  get_supabase()         → service_role key, ако е зададен (RLS е включен на всички
+                           таблици на Пазарко → anon ключът не вижда нищо, виж migrations/008)
+  get_supabase_admin()   → същото; оставено за съвместимост със скрейпърите
 """
 
 from functools import lru_cache
@@ -11,9 +12,9 @@ from api.config import get_settings
 
 @lru_cache()
 def get_supabase() -> Client:
-    """Anon/public client — for API reads."""
+    """Server client. Prefers SUPABASE_SERVICE_KEY; falls back to SUPABASE_KEY."""
     s = get_settings()
-    return create_client(s.supabase_url, s.supabase_key)
+    return create_client(s.supabase_url, s.supabase_service_key or s.supabase_key)
 
 
 @lru_cache()
