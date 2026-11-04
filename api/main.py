@@ -47,6 +47,15 @@ async def serve_report():
     За връщане: смени обратно на FileResponse('alex/frontend/report.html')."""
     return RedirectResponse(url="/alex/")
 
+@app.get("/legal")
+@app.get("/usloviya")
+@app.get("/poveritelnost")
+@app.get("/biskvitki")
+@app.get("/kontakti")
+async def serve_legal():
+    """Правна информация — Условия / Поверителност (GDPR) / Бисквитки / Контакти."""
+    return FileResponse("alex/frontend/legal.html")
+
 @app.get("/vodach", response_class=HTMLResponse)
 async def serve_guides():
     """SEO водачи — индекс на честните класации по категории."""

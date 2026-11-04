@@ -920,6 +920,32 @@ input,textarea,select{font-family:inherit}
 
 <div id="page"></div>
 
+<footer style="max-width:1200px;margin:28px auto 90px;padding:18px 20px;border-top:1px solid var(--border);
+    display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:center;
+    font-size:12.5px;color:var(--muted);text-align:center">
+  <span>© 2026 Alex · askalex.bg</span>
+  <span style="opacity:.5">·</span>
+  <a href="/usloviya" style="color:var(--muted)">Условия</a>
+  <a href="/poveritelnost" style="color:var(--muted)">Поверителност</a>
+  <a href="/biskvitki" style="color:var(--muted)">Бисквитки</a>
+  <a href="/kontakti" style="color:var(--muted)">Контакти</a>
+  <span style="flex-basis:100%;opacity:.8">Цените са ориентировъчни — провери в магазина преди покупка.</span>
+</footer>
+
+<div id="cookieBar" style="display:none;position:fixed;left:12px;right:12px;bottom:12px;z-index:200;
+    max-width:720px;margin:0 auto;background:var(--surface);border:1px solid var(--border);
+    border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.18);padding:14px 16px;
+    gap:12px;align-items:center;flex-wrap:wrap;font-size:13px;color:var(--text)">
+  <span style="flex:1;min-width:220px">Ползваме само необходими данни за вход и подобряване на услугата (без рекламни бисквитки).
+    <a href="/biskvitki" style="color:var(--blue)">Научи повече</a>.</span>
+  <button onclick="_cookieOk()" style="background:var(--blue);color:#fff;border:none;border-radius:9px;
+    padding:9px 18px;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap">Разбрах</button>
+</div>
+<script>
+  function _cookieOk(){ try{localStorage.setItem('pz_cookie_ok','1');}catch(e){} var b=document.getElementById('cookieBar'); if(b)b.style.display='none'; }
+  (function(){ try{ if(!localStorage.getItem('pz_cookie_ok')){ var b=document.getElementById('cookieBar'); if(b)b.style.display='flex'; } }catch(e){} })();
+</script>
+
 <button class="chat-fab" id="chatFab" onclick="toggleChat()" title="Попитай Alex">💬</button>
 <div class="chat-ov" id="chatOv" onclick="closeChat()"></div>
 
@@ -1019,6 +1045,10 @@ input,textarea,select{font-family:inherit}
     <div class="vrd-actions">
       <a class="vrd-go" id="vrdGoBtn" href="#" target="_blank" rel="noopener">Виж в магазина →</a>
       <button class="vrd-close-btn" onclick="closeVerdict()">Затвори</button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);text-align:center;margin-top:10px;line-height:1.4">
+      Цените са ориентировъчни и може да се различават — провери в магазина преди покупка.
+      Оценките отразяват нашите наблюдения върху ценовата история.
     </div>
   </div>
 </div>
@@ -2117,7 +2147,7 @@ function _renderDealBadge(score, oldPrice, info) {
     lowest:     ['🏆 Най-ниска цена, откакто следим', 'vrd-deal-real'],
     good:       ['🟢 Близо до най-ниската', 'vrd-deal-real'],
     real:       ['✅ Реална отстъпка', 'vrd-deal-real'],
-    suspicious: ['⚠️ Фиктивно „намаление“ — това е обичайната цена', 'vrd-deal-fake'],
+    suspicious: ['⚠️ По наши наблюдения това е обичайната цена', 'vrd-deal-fake'],
     high:       ['🔴 Близо до най-високата — по-добре изчакай', 'vrd-deal-fake'],
     typical:    ['≈ Обичайна цена', 'vrd-deal-neutral'],
   };
@@ -3371,7 +3401,7 @@ async function dealCheck(evt, url, name, currentPrice, oldPrice, store) {
     const d = await apiFetch('/alex/deal-check?' + params);
 
     const ICONS = { real: '✅', suspicious: '⚠️', unknown: '❓', no_discount: 'ℹ️' };
-    const LABELS = { real: 'Реално намаление', suspicious: 'Съмнително намаление', unknown: 'Недостатъчно данни', no_discount: 'Няма намаление' };
+    const LABELS = { real: 'Реално намаление', suspicious: 'Вероятно обичайна цена', unknown: 'Недостатъчно данни', no_discount: 'Няма намаление' };
     const icon  = ICONS[d.verdict]  || '❓';
     const label = LABELS[d.verdict] || d.verdict;
     const cls   = d.verdict === 'real' ? 'real' : d.verdict === 'suspicious' ? 'suspicious' : 'unknown';

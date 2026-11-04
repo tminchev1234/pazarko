@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["alex"])
 
 import os as _os
+import hashlib
 _BREVO_API_KEY = _os.environ.get("BREVO_API_KEY", "")
 
 # ── Image proxy ────────────────────────────────────────────────────────────────
@@ -3855,12 +3856,22 @@ def _client_ip(request: Request) -> str:
     return getattr(getattr(request, "client", None), "host", "unknown")
 
 
+# GDPR: НЕ пазим суров IP. Пазим само солен хеш (псевдонимизация) — същият IP дава
+# същия хеш (за броене/лимит), но от хеша не може да се възстанови адресът.
+_IP_SALT = _os.environ.get("SECRET_KEY") or "askalex-ip-salt-v1"
+
+
+def _ip_hash(request: Request) -> str:
+    ip = _client_ip(request)
+    return hashlib.sha256((_IP_SALT + "|" + ip).encode("utf-8")).hexdigest()[:16]
+
+
 def _chat_rate_check(request: Request) -> tuple:
-    """Мек дневен таван по IP. Връща (allowed, used_after). Fail-open при грешка."""
+    """Мек дневен таван по IP (хеширан). Връща (allowed, used_after). Fail-open."""
     try:
-        ip = _client_ip(request)
+        iph = _ip_hash(request)
         day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        key = f"chatcap:{ip}:{day}"
+        key = f"chatcap:{iph}:{day}"
         rec = _read_precomputed(key)
         used = 0
         if rec and rec.get("value") is not None:
@@ -3997,12 +4008,12 @@ def _bump_visit(request: Request) -> None:
     """Брои едно посещение: +1 общо, и +1 уникално ако този IP не е броен днес.
     През computed_cache (0 миграции). Приблизително — за груба представа за трафика."""
     try:
-        ip = _client_ip(request)
+        iph = _ip_hash(request)
         day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        seen = _read_precomputed(f"vseen:{ip}:{day}")
+        seen = _read_precomputed(f"vseen:{iph}:{day}")
         is_new = not (seen and seen.get("value"))
         if is_new:
-            _write_precomputed(f"vseen:{ip}:{day}", 1)
+            _write_precomputed(f"vseen:{iph}:{day}", 1)
         key = f"visits:{day}"
         rec = _read_precomputed(key)
         data = (rec.get("value") if rec and isinstance(rec.get("value"), dict) else {}) or {}

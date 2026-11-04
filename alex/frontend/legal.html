@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Правна информация — Alex</title>
+<meta name="robots" content="noindex">
+<style>
+  :root{--ink:#1f2430;--muted:#5b6472;--line:#e4e7ec;--blue:#4f46e5;--bg:#f7f8fb}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  .wrap{max-width:780px;margin:0 auto;padding:28px 20px 80px}
+  a{color:var(--blue)}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+  .logo{font-weight:800;font-size:20px;background:linear-gradient(135deg,#6366f1,#a78bfa);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  h1{font-size:26px;margin:14px 0 4px}
+  .upd{color:var(--muted);font-size:13px;margin-bottom:18px}
+  nav.toc{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 26px}
+  nav.toc a{font-size:13px;font-weight:600;text-decoration:none;background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 13px;color:var(--ink)}
+  section{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-bottom:16px}
+  h2{font-size:19px;margin:0 0 10px}
+  h3{font-size:15px;margin:16px 0 4px}
+  p,li{color:#2b3240}
+  ul{margin:6px 0 6px 2px;padding-left:18px}
+  .fill{background:#fff7ed;border:1px dashed #fdba74;color:#9a3412;border-radius:8px;padding:2px 7px;font-weight:600;font-size:13px}
+  .note{color:var(--muted);font-size:13.5px}
+  footer{text-align:center;color:var(--muted);font-size:13px;margin-top:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="logo" href="/alex/">Alex</a>
+    <a href="/alex/" style="font-size:13px;text-decoration:none">← Към сайта</a>
+  </div>
+  <h1>Правна информация</h1>
+  <div class="upd">Последна редакция: <span class="fill">[ДАТА]</span></div>
+
+  <nav class="toc">
+    <a href="#usloviya">Условия за ползване</a>
+    <a href="#poveritelnost">Поверителност (GDPR)</a>
+    <a href="#biskvitki">Бисквитки</a>
+    <a href="#kontakti">Контакти</a>
+  </nav>
+
+  <section id="usloviya">
+    <h2>Условия за ползване</h2>
+    <p>Alex е <b>информационен</b> AI съветник, който помага при избор на електроника чрез сравнение
+       на публично достъпни оферти. Услугата се предоставя „както е“, с цел подпомагане на решението, а
+       не като обвързваща оферта за продажба.</p>
+    <h3>Цени и наличности</h3>
+    <ul>
+      <li>Показаните цени са <b>ориентировъчни</b> и може да се различават от актуалните в съответния
+          магазин. Винаги проверявай крайната цена и наличност при търговеца преди покупка.</li>
+      <li>Данните се обновяват периодично и може да не отразяват последни промени. Не носим отговорност
+          за разлики в цена, наличност или грешки на източника.</li>
+      <li>Оценките, класациите и сигналите за цена отразяват <b>нашите собствени наблюдения</b> върху
+          ценовата история и имат информативен характер; не са твърдение за намеренията на търговеца.</li>
+    </ul>
+    <h3>Външни магазини</h3>
+    <p>Линковете „Виж офертата“ водят към сайтове на трети страни. Покупката, плащането, доставката и
+       гаранцията са изцяло между теб и съответния магазин. Не сме страна по сделката и не получаваме
+       комисионна от нея.</p>
+    <h3>Съдържание</h3>
+    <p>Имената на продукти и магазини, както и продуктовите изображения, са собственост на съответните
+       им носители на права и се ползват единствено за идентификация на офертите.</p>
+  </section>
+
+  <section id="poveritelnost">
+    <h2>Политика за поверителност (GDPR)</h2>
+    <p>Зачитаме личните ти данни и събираме минимума, нужен за работата на услугата.</p>
+    <h3>Какви данни обработваме</h3>
+    <ul>
+      <li><b>Технически (хеширан идентификатор):</b> за дневен лимит на чата и броене на посещения пазим
+          само <b>солен хеш</b> на IP адреса (не самия IP) за кратък период. От хеша не може да се
+          възстанови адресът.</li>
+      <li><b>Търсения в чата:</b> въведените заявки се записват анонимно, за да подобряваме резултатите.</li>
+      <li><b>Акаунт (при вход):</b> ако влезеш през Google, обработваме имейл и идентификатор през нашия
+          доставчик за вход (Clerk), за да свържем запазените ти продукти.</li>
+    </ul>
+    <h3>Основание и цел</h3>
+    <p>Обработваме данните на основание <b>легитимен интерес</b> (сигурност, лимит срещу злоупотреба,
+       подобряване на услугата) и <b>съгласие</b> (при вход и незадължителни функции).</p>
+    <h3>Съхранение</h3>
+    <p>Техническите хешове и логовете се пазят за ограничен период (до <span class="fill">[напр. 30–90 дни]</span>),
+       след което се изтриват или анонимизират.</p>
+    <h3>Трети страни (обработващи)</h3>
+    <p>Ползваме: <b>Supabase</b> (база данни), <b>Render</b> (хостинг), <b>Clerk</b> (вход), <b>Anthropic</b>
+       (AI отговори — изпраща се текстът на въпроса ти, без самоличност). Не продаваме данни и не ползваме
+       рекламни профили.</p>
+    <h3>Твоите права</h3>
+    <p>Имаш право на достъп, коригиране, изтриване и възражение. За заявка пиши на
+       <span class="fill">[ИМЕЙЛ ЗА КОНТАКТ]</span>. Имаш право и на жалба до Комисията за защита на
+       личните данни (КЗЛД), <a href="https://www.cpdp.bg" target="_blank" rel="noopener">cpdp.bg</a>.</p>
+  </section>
+
+  <section id="biskvitki">
+    <h2>Бисквитки</h2>
+    <p>Не ползваме рекламни или проследяващи бисквитки.</p>
+    <ul>
+      <li><b>Строго необходими:</b> за вход и сигурност (от доставчика Clerk).</li>
+      <li><b>Локално съхранение (localStorage):</b> за удобство — запазени продукти, скорошно гледани,
+          предпочитания. Данните стоят само в твоя браузър.</li>
+    </ul>
+    <p class="note">Можеш по всяко време да изчистиш тези данни от настройките на браузъра си.</p>
+  </section>
+
+  <section id="kontakti">
+    <h2>Контакти</h2>
+    <p>Сайтът се оперира от:</p>
+    <ul>
+      <li>Оператор: <span class="fill">[ФИРМА / ИМЕ]</span></li>
+      <li>ЕИК / идентификатор: <span class="fill">[ЕИК]</span></li>
+      <li>Адрес: <span class="fill">[АДРЕС]</span></li>
+      <li>Имейл: <span class="fill">[ИМЕЙЛ]</span></li>
+    </ul>
+    <p class="note">За въпроси, сигнали за неточна цена или искания по GDPR — пиши ни на имейла по-горе.</p>
+  </section>
+
+  <footer>© <span class="fill">[ГОДИНА]</span> Alex · askalex.bg</footer>
+</div>
+</body>
+</html>
