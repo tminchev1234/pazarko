@@ -42,8 +42,10 @@ async def alex_redirect():
 
 @app.get("/report")
 async def serve_report():
-    """Публичен доклад 'Реалната цена' — колко намаления са фиктивни."""
-    return FileResponse("alex/frontend/report.html")
+    """Публичен доклад 'Реалната цена' — ВРЕМЕННО СКРИТ (PR/правна предпазливост:
+    докато нямаме готова защита за актуалността/провенанса на данните).
+    За връщане: смени обратно на FileResponse('alex/frontend/report.html')."""
+    return RedirectResponse(url="/alex/")
 
 @app.get("/vodach", response_class=HTMLResponse)
 async def serve_guides():
