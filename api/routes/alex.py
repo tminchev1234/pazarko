@@ -5622,6 +5622,31 @@ _DAY_PICK_BRANDS = {"samsung", "apple", "sony", "lg", "xiaomi", "lenovo", "hp", 
     "oppo", "motorola", "nothing", "msi"}
 
 
+def _live_deal_score(sb, url: str) -> str:
+    """Честният verdict за ЕДИН продукт — от price_history, СЪЩАТА сметка като картата.
+    Ползва се за финален гейт на 'оферта на деня', за да няма разминаване с картата."""
+    try:
+        prod = _resolve_product_url(sb, url)
+        if not prod:
+            return "unknown"
+        cutoff = (datetime.now() - timedelta(days=95)).isoformat()
+        rows = (sb.table("price_history").select("price, old_price, scraped_at")
+                .eq("product_url", prod).gte("scraped_at", cutoff)
+                .order("scraped_at", desc=False).limit(200).execute().data or [])
+        return _price_analysis(rows).get("deal_score", "unknown")
+    except Exception:
+        return "unknown"
+
+
+def _first_non_fake(sb, cands: list, limit: int = 8):
+    """Първият кандидат, който на ЖИВО НЕ е фиктивно намаление (съгласувано с картата).
+    Така 'оферта на деня' никога не е нещо, което самата карта маркира като фалшива отстъпка."""
+    for p in cands[:limit]:
+        if _live_deal_score(sb, p.get("url", "")) != "suspicious":
+            return p
+    return None
+
+
 def _pick_day_offer(sb, shown_urls: set):
     """Герой-продукт за деня: свестен телефон/лаптоп/ТВ/таблет на РЕАЛНО дъно (от нашата
     история), а не най-голямата процентна отстъпка. Категорията ротира по ден → разнообразие.
@@ -5665,9 +5690,12 @@ def _pick_day_offer(sb, shown_urls: set):
         if cands:
             cands.sort(key=lambda x: -x["_hero"])
             top = cands[:6]
-            pick = top[(yday // n) % len(top)]  # ротира и самия продукт през дните
-            pick.pop("_hero", None)
-            return pick
+            start = (yday // n) % len(top)
+            ordered = top[start:] + top[:start]          # ротация по ден
+            pick = _first_non_fake(sb, ordered, limit=6)  # жив гейт: никога фиктивно намаление
+            if pick:
+                pick.pop("_hero", None)
+                return pick
     return None
 
 
@@ -5803,7 +5831,8 @@ async def homepage_picks():
         # Fallback към най-голямата обявена оферта само ако няма подходящ герой.
         day_pick = _pick_day_offer(sb, shown_urls)
         if day_pick is None and deals_cands:
-            day_pick = deals_cands[datetime.now().timetuple().tm_yday % min(10, len(deals_cands))]
+            # жив гейт и тук — да не падаме към най-голямата ОБЯВЕНА (често фиктивна) отстъпка
+            day_pick = _first_non_fake(sb, deals_cands, limit=12)
         dp_url = day_pick.get("url") if day_pick else None
         # Row3: разнообразие — първо макс 1/категория, после допълни до 4 (макс 2/категория)
         row3: list[dict] = []
