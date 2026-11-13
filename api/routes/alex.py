@@ -5386,8 +5386,9 @@ async def category_top_deal(category: str = Query(...)):
         url     = p.get("url", "")
         current = float(p.get("price") or 0)
         disc    = float(p.get("discount_pct") or 0)
+        old     = float(p.get("old_price") or 0)
         hist    = history_by_url.get(url, [])
-        score   = disc * 0.6
+        score   = (alex_score(p) - 6.0) * 2   # честната оценка е гръбнакът, НЕ обявената отстъпка
         badge   = ""
         why     = ""
 
@@ -5411,21 +5412,16 @@ async def category_top_deal(category: str = Query(...)):
                 why   = f"{pct_below:.0f}% под средната за 30 дни"
 
         if not badge:
-            if disc >= 25:
-                score += 20 + disc
-                badge = "Топ намаление"
-                old   = p.get("old_price") or 0
-                why   = f"Намалена с {disc:.0f}%" + (f" от {old:.0f}€" if old else "")
-            elif disc >= 10:
-                score += 10 + disc
+            # Обявена отстъпка я награждаваме САМО ако нямаме история (непотвърдено) и то меко.
+            # Ако ИМАМЕ история, но цената не е под средната → „намалението" е привидно → неутрално
+            # (без да ехтим фалшивото „от X€").
+            if disc >= 10 and len(hist) < 3:
+                score += 6 + disc * 0.3
                 badge = "Намалена цена"
-                old   = p.get("old_price") or 0
                 why   = f"Намалена с {disc:.0f}%" + (f" от {old:.0f}€" if old else "")
             else:
                 badge = "Най-добра стойност"
                 why   = "Топ съотношение качество-цена в категорията"
-
-        score += (alex_score(p) - 6.0) * 2
         return score, badge, why
 
     best_p, best_s, best_badge, best_why = None, -999.0, "", ""
@@ -5436,6 +5432,13 @@ async def category_top_deal(category: str = Query(...)):
 
     if not best_p:
         return {"deal": None}
+
+    # Финален жив гейт (съгласувано с картата): ако все пак е фиктивно намаление, не го
+    # рекламирай с отстъпка — неутрален бейдж, без фалшивото „от X€".
+    if best_badge in ("Намалена цена", "Топ намаление") and \
+            _live_deal_score(sb, best_p.get("url", "")) == "suspicious":
+        best_badge = "Най-добра стойност"
+        best_why   = "Топ съотношение качество-цена в категорията"
 
     result = {
         "deal": {
